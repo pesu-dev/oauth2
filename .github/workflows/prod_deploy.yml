@@ -1,0 +1,82 @@
+name: Promote Staging to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Commit SHA or GHCR tag to promote (default staging image)
+        required: false
+        type: string
+        default: staging
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+concurrency:
+  group: production_deploy
+  cancel-in-progress: false
+
+jobs:
+  await_approval:
+    name: Approve production deploy
+    runs-on: ubuntu-latest
+    environment: promote-gate
+    steps:
+      - name: Production promotion approved
+        run: echo "Approved promote of ${{ inputs.image_tag }} to production."
+
+  deploy_prod:
+    name: Deploy to Cloud Run production
+    needs: [await_approval]
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: GHCR login
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image digest
+        id: resolve
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.image_tag }}"
+          docker pull "${IMAGE}:${TAG}"
+          SHA="$(docker inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision"}}' "${IMAGE}:${TAG}")"
+          if [ -z "${SHA}" ] || [ "${SHA}" = "unknown" ] || [ "${SHA}" = "<no value>" ]; then
+            echo "Image ${IMAGE}:${TAG} has no org.opencontainers.image.revision label."
+            exit 1
+          fi
+          echo "resolved_sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Promoting ${IMAGE}:${TAG} (revision ${SHA})"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ env.IMAGE }}:${{ inputs.image_tag }}
+          flags: >-
+            --timeout=60
+            --port=8080
+            --allow-unauthenticated
+
+      - name: Retag as prod
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.resolve.outputs.resolved_sha }}"
+          docker pull "${IMAGE}:${SHA}"
+          docker tag "${IMAGE}:${SHA}" "${IMAGE}:prod"
+          docker push "${IMAGE}:prod"

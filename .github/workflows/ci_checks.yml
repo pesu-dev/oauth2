@@ -1,0 +1,159 @@
+name: CI Checks
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+  push:
+    branches:
+      - main
+  merge_group:
+    types:
+      - checks_requested
+
+jobs:
+  pr_target_checker:
+    name: PR target branch checker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR targets main
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Non-PR event (${{ github.event_name }}): branch checker passes."
+            exit 0
+          fi
+
+          echo "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.head.ref }} -> ${{ github.event.pull_request.base.ref }}"
+
+          if [ "${{ github.event.pull_request.base.ref }}" != "main" ]; then
+            echo "Pull requests must target the main branch."
+            exit 1
+          fi
+
+  package_checks:
+    name: Package checks
+    needs: [pr_target_checker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run Ruff lint
+        run: uv run ruff check . --output-format=github
+
+      - name: Run Ruff format check
+        run: uv run ruff format . --check
+
+      - name: Run compile checks
+        run: uv run -m compileall -q src tests
+
+  unit_tests:
+    name: Unit tests
+    needs: [pr_target_checker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run unit tests
+        run: uv run pytest -m unit --cov=src --cov-report=term-missing --cov-fail-under=80
+
+  integration_tests:
+    name: Integration tests
+    needs: [pr_target_checker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run integration tests
+        run: uv run pytest -m integration
+
+  pr_image_build:
+    name: Build image on PR
+    needs: [pr_target_checker]
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build_and_push_image.yml
+    with:
+      image_tag: ${{ github.event.pull_request.head.sha }}
+      push: false
+
+  greenlight:
+    name: Greenlight - CI checks
+    needs:
+      - pr_target_checker
+      - package_checks
+      - unit_tests
+      - integration_tests
+      - pr_image_build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect CI check statuses
+        env:
+          CHECK_RESULTS: >-
+            pr_target_checker=${{ needs.pr_target_checker.result }}
+            package_checks=${{ needs.package_checks.result }}
+            unit_tests=${{ needs.unit_tests.result }}
+            integration_tests=${{ needs.integration_tests.result }}
+            pr_image_build=${{ needs.pr_image_build.result }}
+        run: |
+          set -euo pipefail
+
+          failed=0
+          echo "CI check statuses:"
+          for entry in $CHECK_RESULTS; do
+            name="${entry%%=*}"
+            result="${entry#*=}"
+            echo "  - ${name}: ${result}"
+
+            case "${result}" in
+              success|skipped)
+                ;;
+              failure|cancelled)
+                failed=1
+                ;;
+              *)
+                echo "Unexpected result for ${name}: ${result}"
+                failed=1
+                ;;
+            esac
+          done
+
+          if [ "${failed}" -ne 0 ]; then
+            echo "greenlight failed: one or more CI checks did not pass."
+            exit 1
+          fi
+
+          echo "greenlight passed: all CI checks are clear."

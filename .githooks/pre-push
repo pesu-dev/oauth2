@@ -1,0 +1,14 @@
+#!/bin/bash
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+source "$REPO_ROOT/.githooks/utils.sh"
+
+print_info "🚀 Running pre-push checks..."
+echo
+
+check_branch_name
+echo
+
+print_success "🎉 All pre-push checks passed!"
+exit 0

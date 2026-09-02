@@ -1,0 +1,9 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Project board
+    url: https://github.com/orgs/pesu-dev/projects
+    about: Track OAuth2 work and milestones.
+
+  - name: PESU Developer Group Discord
+    url: https://discord.gg/eZ3uFs2
+    about: Ask questions about PESU OAuth2 integration.

@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an enhancement aligned with the architecture plan
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [docs/plans/architecture.md](../../docs/plans/architecture.md) and [docs/plans/technical.md](../../docs/plans/technical.md) first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What user or developer need does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This fits v1 (identity OIDC, developer portal, consent)
+        - label: This is explicitly v2+ (2FA, analytics, etc.)
+        - label: This requires an architecture decision (ADR)
