@@ -1,0 +1,73 @@
+name: GHCR Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep_sha_tags:
+        description: Number of newest commit-sha tags to keep
+        required: false
+        default: 5
+        type: number
+  workflow_call:
+    inputs:
+      keep_sha_tags:
+        required: false
+        default: 5
+        type: number
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      KEEP_SHA_TAGS: ${{ inputs.keep_sha_tags }}
+    steps:
+      - name: Delete stale package versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+
+          endpoint="/orgs/${OWNER}/packages/container/${PACKAGE_NAME}/versions"
+
+          versions_json="$(gh api --paginate "${endpoint}?per_page=100" | jq -s 'add // []')"
+
+          cleanup_plan="$(echo "${versions_json}" | jq --argjson keep_sha "${KEEP_SHA_TAGS}" '
+            def tags: (.metadata.container.tags // []);
+            def has_stable: any(tags[]?; . == "staging" or . == "prod" or . == "latest" or test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"));
+            def has_commit_sha_tag: any(tags[]?; test("^[0-9a-f]{40}$"));
+            def is_untagged: ((tags | length) == 0);
+
+            {
+              sha_candidates: ([ .[] | select(has_commit_sha_tag and (has_stable | not)) ] | sort_by(.created_at) | reverse),
+              untagged_candidates: ([ .[] | select(is_untagged) ] | sort_by(.created_at) | reverse)
+            }
+            | {
+              sha_total: (.sha_candidates | length),
+              untagged_total: (.untagged_candidates | length),
+              delete_ids: ((.sha_candidates[$keep_sha:] + .untagged_candidates) | map(.id) | unique)
+            }
+          ')"
+
+          sha_candidates_total="$(echo "${cleanup_plan}" | jq -r '.sha_total')"
+          untagged_candidates_total="$(echo "${cleanup_plan}" | jq -r '.untagged_total')"
+          to_delete_ids="$(echo "${cleanup_plan}" | jq -r '.delete_ids[]?')"
+          delete_count="$(echo "${cleanup_plan}" | jq -r '.delete_ids | length')"
+
+          echo "Found ${sha_candidates_total} sha-tag versions (keeping ${KEEP_SHA_TAGS}) and ${untagged_candidates_total} untagged versions (keeping 0); deleting ${delete_count} total."
+
+          if [ -z "${to_delete_ids}" ]; then
+            echo "No stale package versions to delete."
+            exit 0
+          fi
+
+          while IFS= read -r version_id; do
+            [ -z "${version_id}" ] && continue
+            echo "Deleting package version ${version_id}"
+            gh api -X DELETE "${endpoint}/${version_id}"
+          done <<< "${to_delete_ids}"

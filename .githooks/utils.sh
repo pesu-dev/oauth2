@@ -80,7 +80,7 @@ run_quality_checks() {
 run_unit_tests() {
     print_action "Running unit tests..."
 
-    if ! uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered; then
+    if ! uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95; then
         print_error "Unit tests failed"
         return 1
     fi
