@@ -97,11 +97,13 @@ Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/pla
 
 GitHub **repository variables** used by workflows:
 
-| Variable                    | Example                                               |
-| --------------------------- | ----------------------------------------------------- |
-| `GCP_REGION`                | `us-central1`                                         |
-| `CLOUD_RUN_SERVICE_STAGING` | `oauth2-staging`                                      |
-| `CLOUD_RUN_SERVICE_PROD`    | `oauth2-prod`                                         |
-| `CLOUD_RUN_RUNTIME_SA`      | `oauth2-runtime@dev-pesu-dev.iam.gserviceaccount.com` |
+| Variable                         | Example                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `GCP_REGION`                     | `us-central1`                                                                              |
+| `CLOUD_RUN_SERVICE_STAGING`      | `oauth2-staging`                                                                           |
+| `CLOUD_RUN_SERVICE_PROD`         | `oauth2-prod`                                                                              |
+| `CLOUD_RUN_RUNTIME_SA`           | `oauth2-runtime@dev-pesu-dev.iam.gserviceaccount.com`                                      |
+| `GCP_DEPLOYER_SA`                | `github-oauth2-deploy@dev-pesu-dev.iam.gserviceaccount.com`                                |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/<number>/locations/global/workloadIdentityPools/github/providers/github-actions` |
 
-Repository secret: `GCP_SA_KEY` (deployer SA JSON). Cloud Run revisions run as `CLOUD_RUN_RUNTIME_SA`.
+Deploy auth is Workload Identity Federation (no JSON key). Cloud Run revisions run as `CLOUD_RUN_RUNTIME_SA`.
