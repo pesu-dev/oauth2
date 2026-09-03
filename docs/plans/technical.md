@@ -97,11 +97,11 @@ Like discord_bot `Config.ENVIRONMENTS`: **`APP_ENV` selects hardcoded per-enviro
 ENVIRONMENTS = {
     "prod": {
         "mongo_uri": "mongodb+srv://pesudev.nkzgere.mongodb.net/",
-        "issuer_url": "https://<oauth2-prod-cloud-run-url>",  # set when service is provisioned
+        "issuer_url": "https://oauth2-prod-66snrlj46a-uc.a.run.app",
     },
     "staging": {
         "mongo_uri": "mongodb+srv://pesudev.andmjbp.mongodb.net/",
-        "issuer_url": "https://<oauth2-staging-cloud-run-url>",
+        "issuer_url": "https://oauth2-staging-66snrlj46a-uc.a.run.app",
     },
     "local": {
         "mongo_uri": "mongodb+srv://pesudev.andmjbp.mongodb.net/",
@@ -111,7 +111,7 @@ ENVIRONMENTS = {
 DB_NAME = "oauth2"
 ```
 
-**OIDC issuer (`issuer_url`):** stable base URL for `iss`, discovery (`/.well-known/openid-configuration`), and derived endpoints. Must not be inferred from the request `Host` header. Local default is `http://localhost:8080`; staging/prod URLs are recorded in config once Cloud Run services exist (stable per service/region).
+**OIDC issuer (`issuer_url`):** stable base URL for `iss`, discovery (`/.well-known/openid-configuration`), and derived endpoints. Must not be inferred from the request `Host` header. Local is `http://localhost:8080`. Staging and prod are the Cloud Run URLs above (stable per service/region; `uc` = `us-central1`).
 
 **Optional env vars only:** `APP_ENV`, `MONGO_X509_CERT_PATH` (see MongoDB auth below). Secrets (`TOKEN_SIGNING_KEY`, etc.) stay in `.env` / GitHub environments.
 
