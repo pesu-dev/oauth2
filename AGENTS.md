@@ -107,3 +107,5 @@ GitHub **repository variables** used by workflows:
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/<number>/locations/global/workloadIdentityPools/github/providers/github-actions` |
 
 Deploy auth is Workload Identity Federation (no JSON key). Cloud Run revisions run as `CLOUD_RUN_RUNTIME_SA`.
+
+Mongo X.509 PEMs are mounted in the Cloud Run console at `/run/secrets/mongo.pem`. Deploy sets `MONGO_X509_CERT_PATH` to that path.

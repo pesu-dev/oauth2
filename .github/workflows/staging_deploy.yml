@@ -62,7 +62,7 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}:${{ env.SHA_TAG }}
           timeout: 60s
-          env_vars: APP_ENV=staging
+          env_vars: APP_ENV=staging,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
           env_vars_update_strategy: merge
           flags: >-
             --port=8080

@@ -159,7 +159,7 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}:${{ env.TARGET_SHA }}
           timeout: 60s
-          env_vars: APP_ENV=prod
+          env_vars: APP_ENV=prod,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
           env_vars_update_strategy: merge
           flags: >-
             --port=8080
@@ -174,7 +174,7 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}:prod
           timeout: 60s
-          env_vars: APP_ENV=prod
+          env_vars: APP_ENV=prod,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
           env_vars_update_strategy: merge
           flags: >-
             --port=8080
