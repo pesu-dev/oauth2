@@ -1,4 +1,4 @@
-"""FastAPI application factory — health check until OIDC endpoints are implemented."""
+"""FastAPI application factory — health, discovery, and JWKS."""
 
 from __future__ import annotations
 
@@ -8,13 +8,18 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 from src.config import load_config
+from src.crypto.jwt_keys import JwtKeySet
 from src.db.client import get_database
 from src.db.indexes import ensure_indexes
+from src.oidc.discovery import router as discovery_router
+from src.oidc.jwks import router as jwks_router
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from src.config import AppConfig
+
+DEFAULT_SIGNING_KEY_ID = "default"
 
 
 def create_app(
@@ -60,11 +65,19 @@ def create_app(
     )
     application.state.config = config
     application.state.db = None
+    application.state.jwt_keys = (
+        JwtKeySet.from_pem(config.token_signing_key_pem, kid=DEFAULT_SIGNING_KEY_ID)
+        if config.token_signing_key_pem is not None
+        else None
+    )
 
     @application.get("/health")
     async def health() -> dict[str, str]:
         """Liveness probe for Cloud Run and local development."""
         return {"status": "ok"}
+
+    application.include_router(discovery_router)
+    application.include_router(jwks_router)
 
     return application
 
