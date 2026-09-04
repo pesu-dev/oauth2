@@ -1,0 +1,24 @@
+{% extends "docs/base.html" %}
+{% block content %}
+<article class="public-page docs-page" aria-labelledby="docs-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="docs-heading">API docs</h1>
+  <p class="lede">
+    Developer reference for Sign in with PESU — authorization code + PKCE (S256),
+    identity scopes, and the OIDC surfaces third-party clients call.
+  </p>
+  <nav class="docs-nav" aria-label="API documentation">
+    <ul>
+      {% for item in nav_items %}
+      <li>
+        <a href="{{ item.path }}"{% if item.path == current_path %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </nav>
+  <p class="docs-note">
+    This server is unofficial and open source (MIT).
+    Internal token exchange is not documented for third-party clients.
+  </p>
+</article>
+{% endblock %}

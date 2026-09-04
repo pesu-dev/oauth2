@@ -15,6 +15,7 @@ from src.config import load_config
 from src.crypto.jwt_keys import JwtKeySet
 from src.db.client import get_database
 from src.db.indexes import ensure_indexes
+from src.docs_site.router import router as docs_router
 from src.oidc.authorize import router as authorize_router
 from src.oidc.discovery import router as discovery_router
 from src.oidc.jwks import router as jwks_router
@@ -116,6 +117,8 @@ def create_app(
         description="Unofficial PESU Academy OAuth2 / OpenID Connect authorization server",
         version="0.0.0",
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
     )
     application.state.config = config
     application.state.db = None
@@ -161,6 +164,7 @@ def create_app(
         )
 
     application.include_router(public_router)
+    application.include_router(docs_router)
     application.include_router(discovery_router)
     application.include_router(jwks_router)
     application.include_router(authorize_router)

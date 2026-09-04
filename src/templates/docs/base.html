@@ -1,0 +1,8 @@
+{% extends "public_base.html" %}
+{% block head_extra %}
+  {{ super() }}
+  {% if show_copy_for_llm %}
+  <script src="/static/js/copy_for_llm.js" defer></script>
+  {% endif %}
+{% endblock %}
+{% block main_class %}public-shell docs-shell{% endblock %}

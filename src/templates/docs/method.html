@@ -1,0 +1,127 @@
+{% extends "docs/base.html" %}
+{% block content %}
+<article class="public-page docs-page docs-method" aria-labelledby="docs-heading">
+  <div class="docs-toolbar">
+    <p class="brand">PESU OAuth2 · Docs</p>
+    {% if show_copy_for_llm %}
+    <button
+      type="button"
+      class="btn secondary copy-for-llm"
+      data-copy-for-llm
+      hidden
+      aria-live="polite"
+    >Copy for LLM</button>
+    {% endif %}
+  </div>
+  <nav class="docs-nav" aria-label="API documentation">
+    <ul>
+      {% for item in nav_items %}
+      <li>
+        <a href="{{ item.path }}"{% if item.path == current_path %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  <header class="method-header">
+    <div class="method-sig" aria-label="HTTP method and path">
+      <span class="method-badge">{{ doc.http_method }}</span>
+      <code class="method-path">{{ doc.path }}</code>
+    </div>
+    <h1 id="docs-heading">{{ doc.nav_label }}</h1>
+  </header>
+
+  <section class="docs-section" aria-labelledby="summary-heading">
+    <h2 id="summary-heading">Summary</h2>
+    <p>{{ doc.summary }}</p>
+  </section>
+
+  <section class="docs-section" aria-labelledby="auth-heading">
+    <h2 id="auth-heading">Auth</h2>
+    <p>{{ doc.auth }}</p>
+  </section>
+
+  <section class="docs-section" aria-labelledby="params-heading">
+    <h2 id="params-heading">Parameters</h2>
+    {% if doc.params %}
+    <div class="docs-table-wrap">
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">In</th>
+            <th scope="col">Required</th>
+            <th scope="col">Type</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for param in doc.params %}
+          <tr>
+            <td><code>{{ param.name }}</code></td>
+            <td>{{ param.location }}</td>
+            <td>{% if param.required %}yes{% else %}no{% endif %}</td>
+            <td>{{ param.type_hint }}</td>
+            <td>{{ param.description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>None.</p>
+    {% endif %}
+  </section>
+
+  <section class="docs-section" aria-labelledby="example-heading">
+    <h2 id="example-heading">Example request</h2>
+    <pre class="docs-code"><code>{{ doc.example_request }}</code></pre>
+  </section>
+
+  <section class="docs-section" aria-labelledby="success-heading">
+    <h2 id="success-heading">Success</h2>
+    <p>{{ doc.success }}</p>
+  </section>
+
+  <section class="docs-section" aria-labelledby="errors-heading">
+    <h2 id="errors-heading">Errors</h2>
+    {% if doc.errors %}
+    <div class="docs-table-wrap">
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for err in doc.errors %}
+          <tr>
+            <td><code>{{ err.status_or_code }}</code></td>
+            <td>{{ err.description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>None documented.</p>
+    {% endif %}
+  </section>
+
+  {% if doc.notes %}
+  <section class="docs-section" aria-labelledby="notes-heading">
+    <h2 id="notes-heading">Notes</h2>
+    <ul>
+      {% for note in doc.notes %}
+      <li>{{ note }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if show_copy_for_llm %}
+  <script type="text/markdown" id="llm-md">{{ markdown | safe }}</script>
+  {% endif %}
+</article>
+{% endblock %}

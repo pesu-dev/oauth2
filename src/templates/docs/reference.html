@@ -1,0 +1,76 @@
+{% extends "docs/base.html" %}
+{% block content %}
+<article class="public-page docs-page docs-reference" aria-labelledby="docs-heading">
+  <div class="docs-toolbar">
+    <p class="brand">PESU OAuth2 · Docs</p>
+    {% if show_copy_for_llm %}
+    <button
+      type="button"
+      class="btn secondary copy-for-llm"
+      data-copy-for-llm
+      hidden
+      aria-live="polite"
+    >Copy for LLM</button>
+    {% endif %}
+  </div>
+  <nav class="docs-nav" aria-label="API documentation">
+    <ul>
+      {% for item in nav_items %}
+      <li>
+        <a href="{{ item.path }}"{% if item.path == current_path %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  <header class="reference-header">
+    <h1 id="docs-heading">{{ doc.heading }}</h1>
+    <p class="lede">{{ doc.summary }}</p>
+  </header>
+
+  {% for section in doc.sections %}
+  <section class="docs-section" aria-labelledby="section-{{ loop.index }}">
+    <h2 id="section-{{ loop.index }}">{{ section.heading }}</h2>
+    {% for paragraph in section.paragraphs %}
+    <p>{{ paragraph }}</p>
+    {% endfor %}
+    {% if section.bullets %}
+    <ul>
+      {% for bullet in section.bullets %}
+      <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if section.table %}
+    <div class="docs-table-wrap">
+      <table class="docs-table">
+        <thead>
+          <tr>
+            {% for header in section.table.headers %}
+            <th scope="col">{{ header }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in section.table.rows %}
+          <tr>
+            {% for cell in row %}
+            <td>{{ cell }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if section.code %}
+    <pre class="docs-code"><code>{{ section.code }}</code></pre>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if show_copy_for_llm %}
+  <script type="text/markdown" id="llm-md">{{ markdown | safe }}</script>
+  {% endif %}
+</article>
+{% endblock %}
