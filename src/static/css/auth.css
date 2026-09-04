@@ -205,13 +205,108 @@ h1 {
   margin: 0;
 }
 
+.public-shell {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 1.25rem 1.5rem;
+}
+
+.public-page {
+  width: min(40rem, 100%);
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 40px rgba(28, 27, 25, 0.08);
+}
+
+.public-page.prose h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.public-page.prose p {
+  margin: 0 0 0.85rem;
+  color: var(--ink);
+}
+
+.public-page.prose section + section {
+  margin-top: 0.25rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1.35rem 0 0;
+}
+
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+a.btn:active {
+  transform: scale(0.97);
+}
+
+.site-footer {
+  padding: 1rem 1.25rem 1.75rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer nav {
+  display: flex;
+  gap: 0.85rem 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+
+.site-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
+.disclaimer {
+  margin: 0 0 0.35rem;
+}
+
+.inline-oss {
+  margin-top: 1.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .btn {
+  .btn,
+  a.btn {
     transition: none;
   }
 
-  .btn:active {
+  .btn:active,
+  a.btn:active {
     transform: none;
     opacity: 0.88;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .auth-card,
+  .public-page {
+    background: #fff;
+    backdrop-filter: none;
   }
 }

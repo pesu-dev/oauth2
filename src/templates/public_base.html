@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block head_extra %}
+  {% if meta_description %}
+  <meta name="description" content="{{ meta_description }}">
+  {% endif %}
+{% endblock %}
+{% block main_class %}public-shell{% endblock %}
+{% block footer %}
+<footer class="site-footer">
+  <nav aria-label="Site">
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/portal">Portal</a>
+    <a href="/settings">Settings</a>
+    <a href="/faq">FAQ</a>
+    <a href="/privacy">Privacy</a>
+    <a href="{{ github_url }}">GitHub</a>
+  </nav>
+  <p class="disclaimer">Unofficial project — not affiliated with PESU or PESU Academy.</p>
+  <p class="open-source">Open source (MIT) · <a href="{{ github_url }}">https://github.com/pesu-dev/oauth2</a></p>
+</footer>
+{% endblock %}

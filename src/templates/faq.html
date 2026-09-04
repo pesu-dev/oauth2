@@ -1,0 +1,63 @@
+{% extends "public_base.html" %}
+{% block content %}
+<article class="public-page prose" aria-labelledby="faq-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="faq-heading">FAQ</h1>
+  <p class="lede">
+    Short answers for developers and sign-in users. More detail lives in
+    <a href="/docs">Docs</a> and <a href="/privacy">Privacy</a>.
+  </p>
+
+  <section aria-labelledby="q-official">
+    <h2 id="q-official">Is this an official PESU / PESU Academy product?</h2>
+    <p>
+      No. This is an <strong>unofficial</strong> community project. It is not
+      owned or operated by PESU or PESU Academy. The code is
+      <strong>open source (MIT)</strong> on
+      <a href="{{ github_url }}">GitHub</a>.
+    </p>
+  </section>
+
+  <section aria-labelledby="q-password">
+    <h2 id="q-password">Does "Sign in with PESU" store my password?</h2>
+    <p>
+      For <strong>identity-only</strong> Sign in with PESU, no — your password is
+      checked with Academy and then discarded; nothing is written to the vault.
+      If you approve <strong>delegated</strong> access, an encrypted credential
+      vault entry may be created so a first-party API can refresh Academy access.
+      Third-party apps never see your password either way.
+    </p>
+  </section>
+
+  <section aria-labelledby="q-testing">
+    <h2 id="q-testing">What is Testing vs Production for apps?</h2>
+    <p>
+      Apps start in <strong>Testing</strong> (or pending production). Only the
+      owner and allowlisted testers can complete sign-in until the app is published
+      to <strong>Production</strong>. That gate protects real users while you
+      integrate.
+    </p>
+  </section>
+
+  <section aria-labelledby="q-vault">
+    <h2 id="q-vault">What is delegated access / the credential vault?</h2>
+    <p>
+      <strong>Delegated access</strong> is an optional consent mode beyond
+      identity. With your approval, we store envelope-encrypted Academy credentials
+      in a vault so an internal token-exchange path can obtain short-lived Academy
+      sessions for a future first-party API — without returning your password to
+      callers. Identity-only consents never create a vault row.
+    </p>
+  </section>
+
+  <section aria-labelledby="q-pesu-auth">
+    <h2 id="q-pesu-auth">How is this different from pesu-auth?</h2>
+    <p>
+      This repository is a standalone <strong>OIDC authorization server</strong>
+      (authorize, token, userinfo, hosted login/consent, portal). It does not
+      replace or modify pesu-auth; that project remains separate. Integrations
+      talk to this issuer's OAuth/OIDC endpoints instead.
+    </p>
+  </section>
+</article>
+{% endblock %}

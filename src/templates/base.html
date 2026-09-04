@@ -4,20 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ title }}{% endblock %}</title>
+  {% block head_extra %}{% endblock %}
   <link rel="stylesheet" href="/static/css/auth.css">
 </head>
 <body>
-  <main class="auth-shell">
+  <main class="{% block main_class %}auth-shell{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+  {% block footer %}
   <footer class="auth-footer">
     <nav aria-label="Trust links">
       <a href="/privacy">Privacy</a>
       <a href="/faq">FAQ</a>
       <a href="https://github.com/pesu-dev/oauth2">GitHub</a>
     </nav>
-    <p class="open-source">Open-source authorization server · <a href="https://github.com/pesu-dev/oauth2">pesu-dev/oauth2</a></p>
+    <p class="open-source">Open source (MIT) · <a href="https://github.com/pesu-dev/oauth2">https://github.com/pesu-dev/oauth2</a></p>
   </footer>
+  {% endblock %}
   <script src="/static/js/auth.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{% extends "public_base.html" %}
+{% block content %}
+<article class="public-page" aria-labelledby="home-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="home-heading">Sign in with PESU</h1>
+  <p class="lede">
+    An unofficial OpenID Connect authorization server so campus apps can offer
+    Sign in with PESU without ever seeing the user's Academy password.
+  </p>
+  <p>
+    This project is <strong>open source (MIT)</strong> on
+    <a href="{{ github_url }}">GitHub</a>.
+    It is not an official PESU or PESU Academy product.
+  </p>
+  <nav class="cta-row" aria-label="Primary destinations">
+    <a class="btn primary" href="/docs">Docs</a>
+    <a class="btn secondary" href="/portal">Portal</a>
+    <a class="btn secondary" href="/faq">FAQ</a>
+    <a class="btn secondary" href="/privacy">Privacy</a>
+  </nav>
+</article>
+{% endblock %}

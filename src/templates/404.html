@@ -1,0 +1,20 @@
+{% extends "public_base.html" %}
+{% block content %}
+<article class="public-page" aria-labelledby="not-found-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="not-found-heading">Page not found</h1>
+  <p class="lede">
+    That URL is not on this authorization server. Try one of these destinations.
+  </p>
+  <nav class="cta-row" aria-label="Helpful links">
+    <a class="btn primary" href="/">Home</a>
+    <a class="btn secondary" href="/docs">Docs</a>
+    <a class="btn secondary" href="/portal">Portal</a>
+    <a class="btn secondary" href="/faq">FAQ</a>
+    <a class="btn secondary" href="/privacy">Privacy</a>
+  </nav>
+  <p class="open-source inline-oss">
+    Open source (MIT) · <a href="{{ github_url }}">{{ github_url }}</a>
+  </p>
+</article>
+{% endblock %}

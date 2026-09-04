@@ -1,0 +1,61 @@
+{% extends "public_base.html" %}
+{% block content %}
+<article class="public-page prose" aria-labelledby="privacy-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="privacy-heading">Privacy</h1>
+  <p class="lede">
+    How this unofficial authorization server handles credentials, consents,
+    tokens, and account data. This is not legal advice.
+  </p>
+
+  <h2>Passwords: transient vs vault</h2>
+  <p>
+    When you sign in for <strong>identity-only</strong> access, your PESU Academy
+    password is used only to authenticate with Academy and is then discarded.
+    It is <strong>transient</strong> — we do not store it for that mode.
+  </p>
+  <p>
+    If you later grant an app <strong>delegated</strong> access, you consent to
+    storing an encrypted copy of your password (and related Academy session
+    material) in a <strong>credential vault</strong> so a first-party API can
+    refresh Academy access on your behalf. Vault data is envelope-encrypted;
+    third-party apps never receive your password.
+  </p>
+
+  <h2>Consents</h2>
+  <p>
+    We store which apps you allowed, which scopes and access mode you granted,
+    and related redirect metadata so we can skip repeat consent when nothing
+    has changed. You can revoke apps from Settings when that surface is available.
+  </p>
+
+  <h2>Tokens</h2>
+  <p>
+    Authorization codes, access tokens, ID tokens, and refresh tokens are issued
+    for OIDC/OAuth clients. Refresh tokens rotate on use and expire on an absolute
+    schedule. Revocation and account deletion invalidate outstanding grants.
+  </p>
+
+  <h2>Email</h2>
+  <p>
+    We may send transactional email (for example verification or security notices)
+    when those flows are enabled. We do not sell email addresses or use them for
+    marketing.
+  </p>
+
+  <h2>Retention and delete</h2>
+  <p>
+    <strong>Delete credentials</strong> removes vault material while identity
+    consents may remain. <strong>Delete account</strong> tombstones your user,
+    revokes grants and tokens, deletes vault data, and never reuses your subject
+    identifier.
+  </p>
+
+  <h2>Unofficial disclaimer</h2>
+  <p>
+    This service is <strong>unofficial</strong> and not affiliated with PESU or
+    PESU Academy. The project is <strong>open source (MIT)</strong> at
+    <a href="{{ github_url }}">{{ github_url }}</a>.
+  </p>
+</article>
+{% endblock %}

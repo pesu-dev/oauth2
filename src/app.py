@@ -6,8 +6,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.config import load_config
 from src.crypto.jwt_keys import JwtKeySet
@@ -19,6 +21,8 @@ from src.oidc.jwks import router as jwks_router
 from src.oidc.rate_limit import SlidingWindowRateLimiter
 from src.oidc.token import router as token_router
 from src.oidc.userinfo import router as userinfo_router
+from src.public.router import render_404
+from src.public.router import router as public_router
 from src.repos.auth_codes import MongoAuthCodeRepo
 from src.repos.clients import MongoClientRepo
 from src.repos.consents import MongoConsentRepo
@@ -140,6 +144,23 @@ def create_app(
         """Liveness probe for Cloud Run and local development."""
         return {"status": "ok"}
 
+    @application.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        request: Request,
+        exc: StarletteHTTPException,
+    ) -> Response:
+        """Serve branded HTML 404 for browser navigations; JSON otherwise."""
+        if exc.status_code == 404:
+            accept = request.headers.get("accept", "")
+            if "text/html" in accept:
+                return render_404(request)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=dict(exc.headers) if exc.headers else None,
+        )
+
+    application.include_router(public_router)
     application.include_router(discovery_router)
     application.include_router(jwks_router)
     application.include_router(authorize_router)
