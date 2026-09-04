@@ -9,6 +9,7 @@ authors = [{ name = "pesu-dev" }]
 dependencies = [
     "cryptography>=50.0.1",
     "fastapi>=0.115.0",
+    "httpx>=0.28.1",
     "nanoid>=2.0.0",
     "pyjwt>=2.13.0",
     "pymongo>=4.18.0",
@@ -43,6 +44,7 @@ markers = [
     "unit: Unit tests (no external services)",
     "integration: Integration tests (may require external services)",
     "atlas_smoke: Live Atlas X.509 smoke (opt-in via RUN_ATLAS_SMOKE=1)",
+    "live_academy: Live PESU Academy login (opt-in via RUN_LIVE_ACADEMY=1)",
 ]
 
 [tool.ruff]
