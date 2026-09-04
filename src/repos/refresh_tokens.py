@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Protocol
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
+from src.models.refresh_token import RefreshToken
+
 if TYPE_CHECKING:
     from pymongo.asynchronous.database import AsyncDatabase
-
-    from src.models.refresh_token import RefreshToken
 
 
 class RefreshTokenRepo(Protocol):
@@ -19,6 +19,10 @@ class RefreshTokenRepo(Protocol):
 
     async def store_refresh(self, token: RefreshToken) -> None:
         """Insert a new refresh token hash row."""
+        ...
+
+    async def get_refresh(self, token_hash: str) -> RefreshToken | None:
+        """Return the token row for ``token_hash``, or None."""
         ...
 
     async def rotate_refresh(self, old_token_hash: str, new_token: RefreshToken) -> RefreshToken | None:
@@ -35,6 +39,13 @@ class MongoRefreshTokenRepo:
     async def store_refresh(self, token: RefreshToken) -> None:
         """Insert the refresh token document."""
         await self._tokens.insert_one(_token_doc(token))
+
+    async def get_refresh(self, token_hash: str) -> RefreshToken | None:
+        """Load a refresh token by hash."""
+        doc = await self._tokens.find_one({"token_hash": token_hash})
+        if doc is None:
+            return None
+        return _token_from_doc(doc)
 
     async def rotate_refresh(self, old_token_hash: str, new_token: RefreshToken) -> RefreshToken | None:
         """Atomically claim the presented token, then insert its successor.
@@ -105,6 +116,22 @@ class MongoRefreshTokenRepo:
             {"family_id": family_id, "revoked_at": None},
             {"$set": {"revoked_at": now}},
         )
+
+
+def _token_from_doc(doc: dict[str, object]) -> RefreshToken:
+    scopes_raw = doc.get("scopes") or ()
+    scopes = frozenset(str(s) for s in scopes_raw)  # type: ignore[union-attr]
+    revoked = doc.get("revoked_at")
+    return RefreshToken(
+        token_hash=str(doc["token_hash"]),
+        family_id=str(doc["family_id"]),
+        client_id=str(doc["client_id"]),
+        sub=str(doc["sub"]),
+        scopes=scopes,
+        expires_at=doc["expires_at"],  # type: ignore[arg-type]
+        created_at=doc["created_at"],  # type: ignore[arg-type]
+        revoked_at=None if revoked is None else revoked,  # type: ignore[arg-type]
+    )
 
 
 def _token_doc(token: RefreshToken) -> dict[str, object]:

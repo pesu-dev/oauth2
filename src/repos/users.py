@@ -47,12 +47,23 @@ class UserRepo(Protocol):
         """Create or update a non-deleted user matched by PRN; never reuse tombstoned subs."""
         ...
 
+    async def get_user(self, sub: str) -> User | None:
+        """Return a non-deleted user by ``sub``, or None."""
+        ...
+
 
 class MongoUserRepo:
     """MongoDB-backed UserRepo (`users` collection)."""
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._users = db.users
+
+    async def get_user(self, sub: str) -> User | None:
+        """Load an active (non-tombstoned) user by opaque subject."""
+        doc = await self._users.find_one({"sub": sub, "deleted_at": None})
+        if doc is None:
+            return None
+        return _user_from_doc(doc)
 
     async def upsert_user_from_profile(self, profile: AcademyProfile) -> User:
         """Match active users by PRN; insert with ``new_sub`` when none found."""

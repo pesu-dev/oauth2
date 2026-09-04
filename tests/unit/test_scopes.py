@@ -45,3 +45,16 @@ def test_parse_scopes_empty_string_raises() -> None:
 def test_parse_scopes_unknown_only_raises() -> None:
     with pytest.raises(ValueError, match="openid"):
         parse_scopes("api.read custom")
+
+
+@pytest.mark.unit
+def test_scope_labels_are_plain_language() -> None:
+    from src.oidc.scopes import scope_labels
+
+    labels = scope_labels(frozenset({"openid", "profile", "email", "phone", "offline_access"}))
+    text = " ".join(labels).lower()
+    assert "stay signed in" in text
+    assert "sensitive" in text
+    assert any("phone" in label.lower() for label in labels)
+    assert "openid" not in text.split(",")  # not a raw CSV of protocol tokens
+    assert labels != sorted(["openid", "profile", "email", "phone", "offline_access"])

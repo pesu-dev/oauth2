@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 def _code_from_doc(doc: dict[str, object]) -> AuthorizationCode:
     scopes_raw = doc.get("scopes") or ()
     scopes = frozenset(str(s) for s in scopes_raw)  # type: ignore[union-attr]
+    nonce_raw = doc.get("nonce")
     return AuthorizationCode(
         code_hash=str(doc["code_hash"]),
         client_id=str(doc["client_id"]),
@@ -26,6 +27,7 @@ def _code_from_doc(doc: dict[str, object]) -> AuthorizationCode:
         mode=ConsentMode(str(doc["mode"])),
         expires_at=doc["expires_at"],  # type: ignore[arg-type]
         created_at=doc["created_at"],  # type: ignore[arg-type]
+        nonce=None if nonce_raw is None else str(nonce_raw),
     )
 
 
@@ -61,6 +63,7 @@ class MongoAuthCodeRepo:
                 "mode": str(code.mode),
                 "expires_at": code.expires_at,
                 "created_at": code.created_at,
+                "nonce": code.nonce,
             }
         )
 

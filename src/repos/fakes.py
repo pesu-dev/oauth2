@@ -25,6 +25,13 @@ class FakeUserRepo:
     def __init__(self) -> None:
         self._by_sub: dict[str, User] = {}
 
+    async def get_user(self, sub: str) -> User | None:
+        """Return a non-deleted user by ``sub``, or None."""
+        user = self._by_sub.get(sub)
+        if user is None or user.deleted_at is not None:
+            return None
+        return user
+
     async def upsert_user_from_profile(self, profile: AcademyProfile) -> User:
         """Match active users by PRN; allocate ``new_sub`` otherwise."""
         now = datetime.now(UTC)
@@ -165,6 +172,10 @@ class FakeRefreshTokenRepo:
             if token.token_hash in self._by_hash:
                 raise DuplicateKeyError("token_hash")
             self._by_hash[token.token_hash] = token
+
+    async def get_refresh(self, token_hash: str) -> RefreshToken | None:
+        """Return the token row for ``token_hash``, or None."""
+        return self._by_hash.get(token_hash)
 
     async def rotate_refresh(self, old_token_hash: str, new_token: RefreshToken) -> RefreshToken | None:
         """Rotate or revoke family on reuse of a revoked token (lock-atomic)."""

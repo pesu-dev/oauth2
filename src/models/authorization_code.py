@@ -25,3 +25,4 @@ class AuthorizationCode:
     mode: ConsentMode
     expires_at: datetime
     created_at: datetime
+    nonce: str | None = None

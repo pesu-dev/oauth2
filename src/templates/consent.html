@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="auth-card" aria-labelledby="consent-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="consent-heading">Authorize {{ app_name }}</h1>
+  <p class="lede">Review what this app can see before continuing.</p>
+
+  <dl class="consent-meta">
+    <div>
+      <dt>Application</dt>
+      <dd>{{ app_name }}</dd>
+    </div>
+    <div>
+      <dt>Publisher</dt>
+      <dd>{{ publisher }}</dd>
+    </div>
+    <div>
+      <dt>Redirect URI</dt>
+      <dd class="mono">{{ redirect_uri }}</dd>
+    </div>
+    <div>
+      <dt>Status</dt>
+      <dd>{{ publishing_status }}</dd>
+    </div>
+    <div>
+      <dt>Scopes</dt>
+      <dd>{{ scopes | join(", ") }}</dd>
+    </div>
+  </dl>
+
+  <p class="storage-sentence" data-critical="storage">{{ storage_sentence }}</p>
+
+  <form method="post" action="/consent" class="auth-form consent-actions">
+    <button type="submit" name="decision" value="allow" class="btn primary">Allow</button>
+    <button type="submit" name="decision" value="deny" class="btn secondary">Deny</button>
+  </form>
+</section>
+{% endblock %}
