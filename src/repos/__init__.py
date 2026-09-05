@@ -15,11 +15,13 @@ from src.repos.fakes import (
     FakeRefreshTokenRepo,
     FakeTesterRepo,
     FakeUserRepo,
+    FakeVaultRepo,
 )
 from src.repos.production_requests import MongoProductionRequestRepo, ProductionRequestRepo
 from src.repos.refresh_tokens import MongoRefreshTokenRepo, RefreshTokenRepo
 from src.repos.testers import MongoTesterRepo, TesterRepo
 from src.repos.users import MongoUserRepo, UserRepo
+from src.repos.vault import MongoVaultRepo, VaultRepo
 
 __all__ = [
     "AdminRepo",
@@ -34,6 +36,7 @@ __all__ = [
     "FakeRefreshTokenRepo",
     "FakeTesterRepo",
     "FakeUserRepo",
+    "FakeVaultRepo",
     "MongoAdminRepo",
     "MongoAuthCodeRepo",
     "MongoClientRepo",
@@ -42,8 +45,10 @@ __all__ = [
     "MongoRefreshTokenRepo",
     "MongoTesterRepo",
     "MongoUserRepo",
+    "MongoVaultRepo",
     "ProductionRequestRepo",
     "RefreshTokenRepo",
     "TesterRepo",
     "UserRepo",
+    "VaultRepo",
 ]

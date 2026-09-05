@@ -28,7 +28,7 @@
     </div>
   </dl>
 
-  <p class="storage-sentence" data-critical="storage">{{ storage_sentence }}</p>
+  <p class="storage-sentence{% if consent_mode == 'delegated' %} storage-sentence--delegated{% endif %}" data-critical="storage" data-mode="{{ consent_mode | default('identity') }}">{{ storage_sentence }}</p>
 
   <form method="post" action="/consent" class="auth-form consent-actions">
     <button type="submit" name="decision" value="allow" class="btn primary">Allow</button>

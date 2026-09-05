@@ -16,7 +16,11 @@ _FLASH_SALT = "oauth2-portal-flash"
 
 @dataclass(frozen=True)
 class LoginPendingState:
-    """Authorization request + optional authenticated subject held in the cookie."""
+    """Authorization request + optional authenticated subject held in the cookie.
+
+    Delegated credentials are never stored here — only ``pending_cred_id`` pointing
+    at the process-local ``PendingCredentialStore``.
+    """
 
     client_id: str
     redirect_uri: str
@@ -26,6 +30,7 @@ class LoginPendingState:
     authenticated_sub: str | None = None
     state: str | None = None
     nonce: str | None = None
+    pending_cred_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,7 @@ class SessionStore:
                 authenticated_sub=payload.get("authenticated_sub"),
                 state=payload.get("state"),
                 nonce=payload.get("nonce"),
+                pending_cred_id=payload.get("pending_cred_id"),
             )
         except (BadData, KeyError, TypeError, ValueError):
             return None

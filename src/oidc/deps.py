@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from src.academy.port import AcademyClient
     from src.config import AppConfig
     from src.crypto.jwt_keys import JwtKeySet
+    from src.oidc.pending_credentials import PendingCredentialStore
     from src.oidc.rate_limit import SlidingWindowRateLimiter
     from src.repos.admins import AdminRepo
     from src.repos.auth_codes import AuthCodeRepo
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from src.repos.refresh_tokens import RefreshTokenRepo
     from src.repos.testers import TesterRepo
     from src.repos.users import UserRepo
+    from src.repos.vault import VaultRepo
     from src.session_cookie import PortalSessionStore, SessionStore
 
 T = TypeVar("T")
@@ -86,6 +88,17 @@ def admins(request: Request) -> AdminRepo:
 
 def production_requests(request: Request) -> ProductionRequestRepo:
     return _require_repo(request, "production_requests")
+
+
+def vault(request: Request) -> VaultRepo:
+    return _require_repo(request, "vault")
+
+
+def pending_credentials(request: Request) -> PendingCredentialStore:
+    store = getattr(request.app.state, "pending_credentials", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Pending credential store unavailable")
+    return cast("PendingCredentialStore", store)
 
 
 def login_limiter(request: Request) -> SlidingWindowRateLimiter:

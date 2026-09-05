@@ -11,11 +11,13 @@ from pymongo.errors import DuplicateKeyError
 from src.academy.models import AcademyProfile
 from src.crypto.hashing import sha256_hex
 from src.crypto.ids import new_sub
+from src.crypto.vault_crypto import SealedBlob
 from src.models.authorization_code import AuthorizationCode
 from src.models.client import Client, PublishingStatus
 from src.models.consent import Consent, ConsentMode
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
+from src.models.vault import VaultEntry
 from src.repos.auth_codes import MongoAuthCodeRepo
 from src.repos.clients import MongoClientRepo
 from src.repos.consents import MongoConsentRepo
@@ -30,6 +32,7 @@ from src.repos.fakes import (
 from src.repos.refresh_tokens import MongoRefreshTokenRepo
 from src.repos.testers import MongoTesterRepo
 from src.repos.users import MongoUserRepo
+from src.repos.vault import MongoVaultRepo
 
 
 def _profile(**overrides: object) -> AcademyProfile:
@@ -241,6 +244,9 @@ def _mock_db() -> MagicMock:
         "authorization_codes",
         "refresh_tokens",
         "consents",
+        "vault",
+        "admins",
+        "production_requests",
     ):
         coll = AsyncMock()
         setattr(db, name, coll)
@@ -1039,3 +1045,46 @@ async def test_fake_client_list_update_and_admin_queue() -> None:
         is None
     )
     assert await queue.delete_request("req_x") is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_vault_get_upsert_delete() -> None:
+    db = _mock_db()
+    blob = SealedBlob(
+        nonce=b"n" * 12,
+        ciphertext=b"ciph",
+        wrap_nonce=b"w" * 12,
+        wrapped_dek=b"wrapped",
+        key_version=1,
+    )
+    doc = {
+        "sub": "usr_v",
+        "nonce": blob.nonce,
+        "ciphertext": blob.ciphertext,
+        "wrap_nonce": blob.wrap_nonce,
+        "wrapped_dek": blob.wrapped_dek,
+        "key_version": 1,
+        "session_expires_at": None,
+    }
+    repo = MongoVaultRepo(db)
+    db.vault.find_one = AsyncMock(return_value=None)
+    assert await repo.get_vault("usr_v") is None
+
+    db.vault.find_one_and_update = AsyncMock(return_value=doc)
+    entry = VaultEntry(sub="usr_v", blob=blob, session_expires_at=None)
+    saved = await repo.upsert_vault(entry)
+    assert saved.sub == "usr_v"
+    assert saved.blob.key_version == 1
+
+    db.vault.find_one = AsyncMock(return_value=doc)
+    loaded = await repo.get_vault("usr_v")
+    assert loaded is not None
+    assert loaded.blob.ciphertext == b"ciph"
+
+    deleted = MagicMock()
+    deleted.deleted_count = 1
+    db.vault.delete_one = AsyncMock(return_value=deleted)
+    assert await repo.delete_vault("usr_v") is True
+    deleted.deleted_count = 0
+    assert await repo.delete_vault("usr_v") is False

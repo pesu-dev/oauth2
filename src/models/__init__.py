@@ -8,6 +8,7 @@ from src.models.consent import Consent, ConsentMode
 from src.models.production_request import ProductionRequest, ProductionRequestStatus
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
+from src.models.vault import VaultEntry
 
 __all__ = [
     "AuthorizationCode",
@@ -19,4 +20,5 @@ __all__ = [
     "PublishingStatus",
     "RefreshToken",
     "User",
+    "VaultEntry",
 ]

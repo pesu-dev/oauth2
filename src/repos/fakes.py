@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from src.models.authorization_code import AuthorizationCode
     from src.models.client import Client
     from src.models.consent import Consent
+    from src.models.vault import VaultEntry
 
 
 class FakeUserRepo:
@@ -349,3 +350,26 @@ class FakeConsentRepo:
         """Replace grant for the pair."""
         self._by_pair[(consent.sub, consent.client_id)] = consent
         return consent
+
+
+class FakeVaultRepo:
+    """In-memory VaultRepo."""
+
+    def __init__(self) -> None:
+        self._by_sub: dict[str, VaultEntry] = {}
+
+    async def get_vault(self, sub: str) -> VaultEntry | None:
+        """Lookup by subject."""
+        return self._by_sub.get(sub)
+
+    async def upsert_vault(self, entry: VaultEntry) -> VaultEntry:
+        """Replace vault row for subject."""
+        self._by_sub[entry.sub] = entry
+        return entry
+
+    async def delete_vault(self, sub: str) -> bool:
+        """Remove vault row if present."""
+        if sub not in self._by_sub:
+            return False
+        del self._by_sub[sub]
+        return True

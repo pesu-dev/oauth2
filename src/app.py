@@ -17,9 +17,11 @@ from src.crypto.jwt_keys import JwtKeySet
 from src.db.client import get_database
 from src.db.indexes import ensure_indexes
 from src.docs_site.router import router as docs_router
+from src.exchange.router import router as exchange_router
 from src.oidc.authorize import router as authorize_router
 from src.oidc.discovery import router as discovery_router
 from src.oidc.jwks import router as jwks_router
+from src.oidc.pending_credentials import PendingCredentialStore
 from src.oidc.rate_limit import SlidingWindowRateLimiter
 from src.oidc.token import router as token_router
 from src.oidc.userinfo import router as userinfo_router
@@ -34,6 +36,7 @@ from src.repos.production_requests import MongoProductionRequestRepo
 from src.repos.refresh_tokens import MongoRefreshTokenRepo
 from src.repos.testers import MongoTesterRepo
 from src.repos.users import MongoUserRepo
+from src.repos.vault import MongoVaultRepo
 from src.session_cookie import PortalSessionStore, SessionStore
 
 if TYPE_CHECKING:
@@ -49,6 +52,7 @@ if TYPE_CHECKING:
     from src.repos.refresh_tokens import RefreshTokenRepo
     from src.repos.testers import TesterRepo
     from src.repos.users import UserRepo
+    from src.repos.vault import VaultRepo
 
 DEFAULT_SIGNING_KEY_ID = "default"
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -73,6 +77,8 @@ def _wire_mongo_repos(application: FastAPI) -> None:
         application.state.admins = MongoAdminRepo(db)
     if application.state.production_requests is None:
         application.state.production_requests = MongoProductionRequestRepo(db)
+    if application.state.vault is None:
+        application.state.vault = MongoVaultRepo(db)
 
 
 def _wire_session_stores(
@@ -110,6 +116,7 @@ def create_app(
     consents: ConsentRepo | None = None,
     admins: AdminRepo | None = None,
     production_requests: ProductionRequestRepo | None = None,
+    vault: VaultRepo | None = None,
     session_store: SessionStore | None = None,
     portal_session_store: PortalSessionStore | None = None,
 ) -> FastAPI:
@@ -170,8 +177,12 @@ def create_app(
     application.state.consents = consents
     application.state.admins = admins
     application.state.production_requests = production_requests
+    application.state.vault = vault
     _wire_session_stores(application, config, session_store, portal_session_store)
     application.state.login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
+    application.state.pending_credentials = PendingCredentialStore(
+        ttl_seconds=float(config.session_cookie_ttl_seconds),
+    )
 
     @application.get("/health")
     async def health() -> dict[str, str]:
@@ -203,6 +214,7 @@ def create_app(
     application.include_router(userinfo_router)
     application.include_router(portal_router)
     application.include_router(admin_router)
+    application.include_router(exchange_router)
     application.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     return application
