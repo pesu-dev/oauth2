@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="portal-panel" aria-labelledby="admin-heading">
+  <header class="portal-header">
+    <div>
+      <p class="brand">PESU OAuth2</p>
+      <h1 id="admin-heading">Production queue</h1>
+      <p class="lede">Approve or reject developer requests. Developers cannot self-set Production.</p>
+    </div>
+    <a class="btn secondary" href="/portal">Portal</a>
+  </header>
+
+  {% if rows %}
+  <ul class="portal-list admin-queue">
+    {% for row in rows %}
+    <li class="queue-row">
+      <div>
+        <strong>{% if row.client %}{{ row.client.name }}{% else %}Unknown client{% endif %}</strong>
+        <span class="mono">{{ row.request.client_id }}</span>
+        <span class="lede">Requested by <span class="mono">{{ row.request.requested_by_sub }}</span></span>
+      </div>
+      <div class="queue-actions">
+        <form method="post" action="/admin/requests/{{ row.request.request_id }}/approve" class="auth-form inline-form">
+          <label class="check-label">
+            <input type="checkbox" name="delegated_allowed" value="true">
+            <span>Allow delegated</span>
+          </label>
+          <button type="submit" class="btn primary">Approve</button>
+        </form>
+        <form method="post" action="/admin/requests/{{ row.request.request_id }}/reject">
+          <button type="submit" class="btn secondary">Reject</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="lede">No pending Production requests.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Site links">
+    <a href="/portal">Portal</a>
+    <a href="/docs">Docs</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+  <p class="open-source">Admin <span class="mono">{{ sub }}</span></p>
+</footer>
+{% endblock %}

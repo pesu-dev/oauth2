@@ -835,3 +835,207 @@ async def test_mongo_failed_claim_successor_not_live_skips_revoke() -> None:
     db.refresh_tokens.update_many = AsyncMock()
     assert await repo.rotate_refresh("old", _refresh(token_hash="new")) is None
     db.refresh_tokens.update_many.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_admin_and_production_request_repos() -> None:
+    from src.models.production_request import ProductionRequest, ProductionRequestStatus
+    from src.repos.admins import MongoAdminRepo
+    from src.repos.production_requests import MongoProductionRequestRepo
+
+    db = _mock_db()
+    db.admins.find_one = AsyncMock(return_value={"sub": "usr_a"})
+    db.admins.update_one = AsyncMock()
+    admins = MongoAdminRepo(db)
+    assert await admins.is_admin("usr_a") is True
+    db.admins.find_one = AsyncMock(return_value=None)
+    assert await admins.is_admin("usr_b") is False
+    await admins.add_admin("usr_b")
+    db.admins.update_one.assert_awaited_once()
+
+    now = datetime.now(UTC)
+    req = ProductionRequest(
+        request_id="req_1",
+        client_id="cli_1",
+        requested_by_sub="usr_owner",
+        status=ProductionRequestStatus.PENDING,
+        delegated_requested=False,
+        created_at=now,
+        resolved_at=None,
+        resolved_by_sub=None,
+    )
+    db.production_requests.insert_one = AsyncMock()
+    db.production_requests.find_one = AsyncMock(
+        return_value={
+            "request_id": "req_1",
+            "client_id": "cli_1",
+            "requested_by_sub": "usr_owner",
+            "status": "pending",
+            "delegated_requested": False,
+            "created_at": now,
+            "resolved_at": None,
+            "resolved_by_sub": None,
+        }
+    )
+
+    class _Cursor:
+        def sort(self, *_a: object, **_k: object) -> _Cursor:
+            return self
+
+        def __aiter__(self) -> _Cursor:
+            return self
+
+        async def __anext__(self) -> dict[str, object]:
+            raise StopAsyncIteration
+
+    db.production_requests.find = MagicMock(return_value=_Cursor())
+    db.production_requests.find_one_and_update = AsyncMock(
+        return_value={
+            "request_id": "req_1",
+            "client_id": "cli_1",
+            "requested_by_sub": "usr_owner",
+            "status": "approved",
+            "delegated_requested": False,
+            "created_at": now,
+            "resolved_at": now,
+            "resolved_by_sub": "usr_admin",
+        }
+    )
+    deleted = MagicMock()
+    deleted.deleted_count = 1
+    db.production_requests.delete_one = AsyncMock(return_value=deleted)
+    prod = MongoProductionRequestRepo(db)
+    await prod.create_request(req)
+    loaded = await prod.get_request("req_1")
+    assert loaded is not None
+    assert loaded.client_id == "cli_1"
+    assert await prod.list_pending() == []
+    assert await prod.delete_request("req_1") is True
+    resolved = await prod.resolve_request(
+        "req_1",
+        status=ProductionRequestStatus.APPROVED,
+        resolved_by_sub="usr_admin",
+        resolved_at=now,
+    )
+    assert resolved is not None
+    assert resolved.status == ProductionRequestStatus.APPROVED
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_list_and_update_client() -> None:
+    db = _mock_db()
+    now = datetime.now(UTC)
+    doc = {
+        "client_id": "cli_test",
+        "client_secret_hash": "abc",
+        "name": "Test App",
+        "owner_sub": "usr_owner",
+        "redirect_uris": ["https://app.example/cb"],
+        "token_endpoint_auth_method": "client_secret_post",
+        "publishing_status": "testing",
+        "delegated_allowed": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    class _Cursor:
+        def sort(self, *_a: object, **_k: object) -> _Cursor:
+            return self
+
+        def __aiter__(self) -> _Cursor:
+            self._done = False
+            return self
+
+        async def __anext__(self) -> dict[str, object]:
+            if getattr(self, "_done", False):
+                raise StopAsyncIteration
+            self._done = True
+            return doc
+
+    db.clients.find = MagicMock(return_value=_Cursor())
+    db.clients.update_one = AsyncMock()
+    repo = MongoClientRepo(db)
+    listed = await repo.list_clients_by_owner("usr_owner")
+    assert len(listed) == 1
+    updated = await repo.update_client(_client(publishing_status=PublishingStatus.PRODUCTION))
+    assert updated.publishing_status == PublishingStatus.PRODUCTION
+    db.clients.update_one.assert_awaited_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_list_testers() -> None:
+    db = _mock_db()
+
+    class _Cursor:
+        def __aiter__(self) -> _Cursor:
+            self._items = iter([{"sub": "usr_t1"}, {"sub": "usr_t2"}])
+            return self
+
+        async def __anext__(self) -> dict[str, object]:
+            try:
+                return next(self._items)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+    db.client_testers.find = MagicMock(return_value=_Cursor())
+    repo = MongoTesterRepo(db)
+    assert await repo.list_testers("cli") == ["usr_t1", "usr_t2"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fake_client_list_update_and_admin_queue() -> None:
+    from src.models.production_request import ProductionRequest, ProductionRequestStatus
+    from src.repos.fakes import FakeAdminRepo, FakeProductionRequestRepo
+
+    clients = FakeClientRepo()
+    c = _client()
+    await clients.create_client(c)
+    assert len(await clients.list_clients_by_owner("usr_owner")) == 1
+    updated = _client(name="Renamed", publishing_status=PublishingStatus.PENDING_PRODUCTION)
+    await clients.update_client(updated)
+    assert (await clients.get_client("cli_test")).name == "Renamed"  # type: ignore[union-attr]
+
+    admins = FakeAdminRepo()
+    await admins.add_admin("usr_a")
+    assert await admins.is_admin("usr_a")
+    queue = FakeProductionRequestRepo()
+    now = datetime.now(UTC)
+    req = ProductionRequest(
+        request_id="req_x",
+        client_id="cli_test",
+        requested_by_sub="usr_owner",
+        status=ProductionRequestStatus.PENDING,
+        delegated_requested=False,
+        created_at=now,
+        resolved_at=None,
+        resolved_by_sub=None,
+    )
+    await queue.create_request(req)
+    assert len(await queue.list_pending()) == 1
+    assert await queue.delete_request("req_missing") is False
+    # Recreate path: delete pending then resolve after re-insert is covered elsewhere;
+    # here ensure pending delete works before resolve.
+    assert await queue.delete_request("req_x") is True
+    assert await queue.list_pending() == []
+    await queue.create_request(req)
+    resolved = await queue.resolve_request(
+        "req_x",
+        status=ProductionRequestStatus.REJECTED,
+        resolved_by_sub="usr_a",
+        resolved_at=now,
+    )
+    assert resolved is not None
+    assert (
+        await queue.resolve_request(
+            "req_x",
+            status=ProductionRequestStatus.APPROVED,
+            resolved_by_sub="usr_a",
+            resolved_at=now,
+        )
+        is None
+    )
+    assert await queue.delete_request("req_x") is False

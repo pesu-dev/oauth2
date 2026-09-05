@@ -19,6 +19,10 @@ class TesterRepo(Protocol):
         """Idempotently add a tester row."""
         ...
 
+    async def list_testers(self, client_id: str) -> list[str]:
+        """Return tester ``sub`` values for ``client_id``."""
+        ...
+
 
 class MongoTesterRepo:
     """MongoDB-backed TesterRepo (`client_testers` collection)."""
@@ -38,3 +42,8 @@ class MongoTesterRepo:
             {"$setOnInsert": {"client_id": client_id, "sub": sub}},
             upsert=True,
         )
+
+    async def list_testers(self, client_id: str) -> list[str]:
+        """Tester subjects for ``client_id``."""
+        cursor = self._testers.find({"client_id": client_id})
+        return [str(doc["sub"]) async for doc in cursor]

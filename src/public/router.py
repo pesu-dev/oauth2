@@ -25,6 +25,7 @@ Disallow: /authorize
 Disallow: /login
 Disallow: /consent
 Disallow: /settings
+Disallow: /portal
 Disallow: /admin
 Disallow: /token
 Disallow: /userinfo

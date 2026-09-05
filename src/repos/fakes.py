@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from pymongo.errors import DuplicateKeyError
 
 from src.crypto.ids import new_sub
+from src.models.production_request import ProductionRequest, ProductionRequestStatus
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
 
@@ -115,6 +116,18 @@ class FakeClientRepo:
         self._by_id[client.client_id] = client
         return client
 
+    async def list_clients_by_owner(self, owner_sub: str) -> list[Client]:
+        """Clients for owner, newest first."""
+        owned = [c for c in self._by_id.values() if c.owner_sub == owner_sub]
+        return sorted(owned, key=lambda c: c.created_at, reverse=True)
+
+    async def update_client(self, client: Client) -> Client:
+        """Replace an existing client row."""
+        if client.client_id not in self._by_id:
+            raise KeyError(client.client_id)
+        self._by_id[client.client_id] = client
+        return client
+
 
 class FakeTesterRepo:
     """In-memory TesterRepo."""
@@ -129,6 +142,81 @@ class FakeTesterRepo:
     async def add_tester(self, client_id: str, sub: str) -> None:
         """Idempotent add."""
         self._pairs.add((client_id, sub))
+
+    async def list_testers(self, client_id: str) -> list[str]:
+        """Tester subjects for ``client_id``."""
+        return sorted(sub for cid, sub in self._pairs if cid == client_id)
+
+
+class FakeAdminRepo:
+    """In-memory AdminRepo."""
+
+    def __init__(self) -> None:
+        self._subs: set[str] = set()
+
+    async def is_admin(self, sub: str) -> bool:
+        """Admin membership."""
+        return sub in self._subs
+
+    async def add_admin(self, sub: str) -> None:
+        """Idempotent add."""
+        self._subs.add(sub)
+
+
+class FakeProductionRequestRepo:
+    """In-memory ProductionRequestRepo."""
+
+    def __init__(self) -> None:
+        self._by_id: dict[str, ProductionRequest] = {}
+
+    async def create_request(self, request: ProductionRequest) -> ProductionRequest:
+        """Insert or raise DuplicateKeyError."""
+        if request.request_id in self._by_id:
+            raise DuplicateKeyError("request_id")
+        self._by_id[request.request_id] = request
+        return request
+
+    async def get_request(self, request_id: str) -> ProductionRequest | None:
+        """Lookup by id."""
+        return self._by_id.get(request_id)
+
+    async def list_pending(self) -> list[ProductionRequest]:
+        """Pending queue, oldest first."""
+        pending = [r for r in self._by_id.values() if r.status == ProductionRequestStatus.PENDING]
+        return sorted(pending, key=lambda r: r.created_at)
+
+    async def resolve_request(
+        self,
+        request_id: str,
+        *,
+        status: ProductionRequestStatus,
+        resolved_by_sub: str,
+        resolved_at: object,
+    ) -> ProductionRequest | None:
+        """Resolve a pending request."""
+        current = self._by_id.get(request_id)
+        if current is None or current.status != ProductionRequestStatus.PENDING:
+            return None
+        updated = ProductionRequest(
+            request_id=current.request_id,
+            client_id=current.client_id,
+            requested_by_sub=current.requested_by_sub,
+            status=status,
+            delegated_requested=current.delegated_requested,
+            created_at=current.created_at,
+            resolved_at=resolved_at,  # type: ignore[arg-type]
+            resolved_by_sub=resolved_by_sub,
+        )
+        self._by_id[request_id] = updated
+        return updated
+
+    async def delete_request(self, request_id: str) -> bool:
+        """Delete a pending request (orphan compensation)."""
+        current = self._by_id.get(request_id)
+        if current is None or current.status != ProductionRequestStatus.PENDING:
+            return False
+        del self._by_id[request_id]
+        return True
 
 
 class FakeAuthCodeRepo:

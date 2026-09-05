@@ -42,6 +42,14 @@ class ClientRepo(Protocol):
         """Insert a new client document."""
         ...
 
+    async def list_clients_by_owner(self, owner_sub: str) -> list[Client]:
+        """Return clients owned by ``owner_sub``, newest first."""
+        ...
+
+    async def update_client(self, client: Client) -> Client:
+        """Replace mutable fields for an existing client."""
+        ...
+
 
 class MongoClientRepo:
     """MongoDB-backed ClientRepo (`clients` collection)."""
@@ -71,5 +79,27 @@ class MongoClientRepo:
                 "created_at": client.created_at,
                 "updated_at": client.updated_at,
             }
+        )
+        return client
+
+    async def list_clients_by_owner(self, owner_sub: str) -> list[Client]:
+        """Clients for ``owner_sub``, newest first."""
+        cursor = self._clients.find({"owner_sub": owner_sub}).sort("created_at", -1)
+        return [_client_from_doc(doc) async for doc in cursor]
+
+    async def update_client(self, client: Client) -> Client:
+        """Replace mutable client fields by ``client_id``."""
+        await self._clients.update_one(
+            {"client_id": client.client_id},
+            {
+                "$set": {
+                    "name": client.name,
+                    "redirect_uris": list(client.redirect_uris),
+                    "token_endpoint_auth_method": client.token_endpoint_auth_method,
+                    "publishing_status": str(client.publishing_status),
+                    "delegated_allowed": client.delegated_allowed,
+                    "updated_at": client.updated_at,
+                }
+            },
         )
         return client

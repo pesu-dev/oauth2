@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="portal-panel" aria-labelledby="client-heading">
+  <header class="portal-header">
+    <div>
+      <p class="brand">PESU OAuth2</p>
+      <h1 id="client-heading">{{ client.name }}</h1>
+      <p class="lede mono">{{ client.client_id }} · <span class="status-pill">{{ client.publishing_status }}</span></p>
+    </div>
+    <a class="btn secondary" href="/portal">All clients</a>
+  </header>
+
+  {% if plaintext_secret %}
+  <div class="secret-once" role="status">
+    <p><strong>Copy your client secret now.</strong> It will not be shown again.</p>
+    <p class="mono secret-value" data-client-secret="{{ plaintext_secret }}">{{ plaintext_secret }}</p>
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <p class="error" role="alert">{{ error }}</p>
+  {% endif %}
+
+  <section class="portal-section" aria-labelledby="redirects-heading">
+    <h2 id="redirects-heading">Redirect URIs</h2>
+    <form method="post" action="/portal/clients/{{ client.client_id }}/redirect-uris" class="auth-form">
+      <label>
+        <span>One URI per line</span>
+        <textarea name="redirect_uris" rows="4" required>{% for uri in client.redirect_uris %}{{ uri }}
+{% endfor %}</textarea>
+      </label>
+      <button type="submit" class="btn primary">Save redirect URIs</button>
+    </form>
+  </section>
+
+  <section class="portal-section" aria-labelledby="testers-heading">
+    <h2 id="testers-heading">Testers</h2>
+    {% if testers %}
+    <ul class="portal-list compact">
+      {% for t in testers %}
+      <li><span class="mono">{{ t }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lede">No testers yet. While Testing, only you (owner) and listed testers can sign in.</p>
+    {% endif %}
+    <form method="post" action="/portal/clients/{{ client.client_id }}/testers" class="auth-form">
+      <label>
+        <span>Add tester sub</span>
+        <input type="text" name="sub" required placeholder="usr_…" pattern="usr_.+" autocomplete="off">
+      </label>
+      <button type="submit" class="btn secondary">Add tester</button>
+    </form>
+  </section>
+
+  <section class="portal-section" aria-labelledby="production-heading">
+    <h2 id="production-heading">Production</h2>
+    {% if client.publishing_status.value == "testing" %}
+    <p class="lede">Request admin review to let any PESU Academy user sign in (not just testers).</p>
+    <form method="post" action="/portal/clients/{{ client.client_id }}/request-production">
+      <button type="submit" class="btn primary">Request Production</button>
+    </form>
+    {% elif client.publishing_status.value == "pending_production" %}
+    <p class="storage-sentence">Production request is pending admin review. Testers-only gate still applies.</p>
+    {% else %}
+    <p class="storage-sentence">This client is in Production. Delegated allowed: {{ client.delegated_allowed }}.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Site links">
+    <a href="/portal">Portal</a>
+    <a href="/docs">Docs</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+</footer>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="portal-panel" aria-labelledby="new-client-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="new-client-heading">New client</h1>
+  <p class="lede">Starts in Testing. Only you and listed testers can complete Sign in with PESU.</p>
+  {% if error %}
+  <p class="error" role="alert">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/portal/clients" class="auth-form">
+    <label>
+      <span>App name</span>
+      <input type="text" name="name" required maxlength="120" autocomplete="organization">
+    </label>
+    <label>
+      <span>Redirect URI</span>
+      <input type="url" name="redirect_uri" required placeholder="https://your-app.example/callback">
+    </label>
+    <div class="consent-actions auth-form">
+      <a class="btn secondary" href="/portal">Cancel</a>
+      <button type="submit" class="btn primary">Create</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Site links">
+    <a href="/portal">Portal</a>
+    <a href="/docs">Docs</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+</footer>
+{% endblock %}

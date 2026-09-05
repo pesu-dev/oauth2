@@ -11,13 +11,15 @@ if TYPE_CHECKING:
     from src.config import AppConfig
     from src.crypto.jwt_keys import JwtKeySet
     from src.oidc.rate_limit import SlidingWindowRateLimiter
+    from src.repos.admins import AdminRepo
     from src.repos.auth_codes import AuthCodeRepo
     from src.repos.clients import ClientRepo
     from src.repos.consents import ConsentRepo
+    from src.repos.production_requests import ProductionRequestRepo
     from src.repos.refresh_tokens import RefreshTokenRepo
     from src.repos.testers import TesterRepo
     from src.repos.users import UserRepo
-    from src.session_cookie import SessionStore
+    from src.session_cookie import PortalSessionStore, SessionStore
 
 T = TypeVar("T")
 
@@ -38,6 +40,13 @@ def session_store(request: Request) -> SessionStore:
     if store is None:
         raise HTTPException(status_code=503, detail="Session store unavailable")
     return cast("SessionStore", store)
+
+
+def portal_session_store(request: Request) -> PortalSessionStore:
+    store = getattr(request.app.state, "portal_session_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Portal session store unavailable")
+    return cast("PortalSessionStore", store)
 
 
 def academy(request: Request) -> AcademyClient:
@@ -69,6 +78,14 @@ def refresh_tokens(request: Request) -> RefreshTokenRepo:
 
 def consents(request: Request) -> ConsentRepo:
     return _require_repo(request, "consents")
+
+
+def admins(request: Request) -> AdminRepo:
+    return _require_repo(request, "admins")
+
+
+def production_requests(request: Request) -> ProductionRequestRepo:
+    return _require_repo(request, "production_requests")
 
 
 def login_limiter(request: Request) -> SlidingWindowRateLimiter:

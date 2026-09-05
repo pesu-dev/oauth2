@@ -22,3 +22,5 @@ async def ensure_indexes(db: AsyncDatabase) -> None:
     await db.authorization_codes.create_index("expires_at", expireAfterSeconds=0)
     await db.refresh_tokens.create_index("token_hash", unique=True)
     await db.admins.create_index("sub", unique=True)
+    await db.production_requests.create_index("request_id", unique=True)
+    await db.production_requests.create_index([("status", 1), ("created_at", 1)])

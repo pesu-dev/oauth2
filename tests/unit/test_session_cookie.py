@@ -132,3 +132,19 @@ def test_load_returns_none_for_bad_scopes_shape() -> None:
         },
     )
     assert store.load(token) is None
+
+
+@pytest.mark.unit
+def test_portal_session_and_flash_round_trip() -> None:
+    from src.session_cookie import PortalFlash, PortalSession, PortalSessionStore
+
+    store = PortalSessionStore(secret="portal-secret")
+    session_token = store.dump_session(PortalSession(sub="usr_abc"))
+    assert store.load_session(session_token) == PortalSession(sub="usr_abc")
+    flash_token = store.dump_flash(PortalFlash(client_id="cli_bound", client_secret="sec-once"))
+    assert store.load_flash(flash_token) == PortalFlash(
+        client_id="cli_bound",
+        client_secret="sec-once",
+    )
+    assert store.load_session("tampered") is None
+    assert store.load_flash("tampered") is None

@@ -1,4 +1,4 @@
-"""FastAPI application factory — health, discovery, JWKS, and OIDC flows."""
+"""FastAPI application factory — health, discovery, JWKS, OIDC, portal, admin."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.admin.router import router as admin_router
 from src.config import load_config
 from src.crypto.jwt_keys import JwtKeySet
 from src.db.client import get_database
@@ -22,24 +23,29 @@ from src.oidc.jwks import router as jwks_router
 from src.oidc.rate_limit import SlidingWindowRateLimiter
 from src.oidc.token import router as token_router
 from src.oidc.userinfo import router as userinfo_router
+from src.portal.router import router as portal_router
 from src.public.router import render_404
 from src.public.router import router as public_router
+from src.repos.admins import MongoAdminRepo
 from src.repos.auth_codes import MongoAuthCodeRepo
 from src.repos.clients import MongoClientRepo
 from src.repos.consents import MongoConsentRepo
+from src.repos.production_requests import MongoProductionRequestRepo
 from src.repos.refresh_tokens import MongoRefreshTokenRepo
 from src.repos.testers import MongoTesterRepo
 from src.repos.users import MongoUserRepo
-from src.session_cookie import SessionStore
+from src.session_cookie import PortalSessionStore, SessionStore
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from src.academy.port import AcademyClient
     from src.config import AppConfig
+    from src.repos.admins import AdminRepo
     from src.repos.auth_codes import AuthCodeRepo
     from src.repos.clients import ClientRepo
     from src.repos.consents import ConsentRepo
+    from src.repos.production_requests import ProductionRequestRepo
     from src.repos.refresh_tokens import RefreshTokenRepo
     from src.repos.testers import TesterRepo
     from src.repos.users import UserRepo
@@ -63,6 +69,31 @@ def _wire_mongo_repos(application: FastAPI) -> None:
         application.state.refresh_tokens = MongoRefreshTokenRepo(db)
     if application.state.consents is None:
         application.state.consents = MongoConsentRepo(db)
+    if application.state.admins is None:
+        application.state.admins = MongoAdminRepo(db)
+    if application.state.production_requests is None:
+        application.state.production_requests = MongoProductionRequestRepo(db)
+
+
+def _wire_session_stores(
+    application: FastAPI,
+    config: AppConfig,
+    session_store: SessionStore | None,
+    portal_session_store: PortalSessionStore | None,
+) -> None:
+    """Attach OIDC and portal session stores (shared secret, distinct salts)."""
+    application.state.session_store = session_store
+    if application.state.session_store is None and config.session_secret:
+        application.state.session_store = SessionStore(
+            config.session_secret,
+            max_age=config.session_cookie_ttl_seconds,
+        )
+    application.state.portal_session_store = portal_session_store
+    if application.state.portal_session_store is None and config.session_secret:
+        application.state.portal_session_store = PortalSessionStore(
+            config.session_secret,
+            max_age=config.session_cookie_ttl_seconds,
+        )
 
 
 def create_app(
@@ -77,7 +108,10 @@ def create_app(
     auth_codes: AuthCodeRepo | None = None,
     refresh_tokens: RefreshTokenRepo | None = None,
     consents: ConsentRepo | None = None,
+    admins: AdminRepo | None = None,
+    production_requests: ProductionRequestRepo | None = None,
     session_store: SessionStore | None = None,
+    portal_session_store: PortalSessionStore | None = None,
 ) -> FastAPI:
     """Build the ASGI app.
 
@@ -134,12 +168,9 @@ def create_app(
     application.state.auth_codes = auth_codes
     application.state.refresh_tokens = refresh_tokens
     application.state.consents = consents
-    application.state.session_store = session_store
-    if application.state.session_store is None and config.session_secret:
-        application.state.session_store = SessionStore(
-            config.session_secret,
-            max_age=config.session_cookie_ttl_seconds,
-        )
+    application.state.admins = admins
+    application.state.production_requests = production_requests
+    _wire_session_stores(application, config, session_store, portal_session_store)
     application.state.login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
 
     @application.get("/health")
@@ -170,6 +201,8 @@ def create_app(
     application.include_router(authorize_router)
     application.include_router(token_router)
     application.include_router(userinfo_router)
+    application.include_router(portal_router)
+    application.include_router(admin_router)
     application.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     return application

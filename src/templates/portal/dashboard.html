@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="portal-panel" aria-labelledby="portal-heading">
+  <header class="portal-header">
+    <div>
+      <p class="brand">PESU OAuth2</p>
+      <h1 id="portal-heading">Developer portal</h1>
+      <p class="lede">Clients you own. New apps start in Testing until an admin approves Production.</p>
+    </div>
+    <div class="portal-actions">
+      <a class="btn secondary" href="/portal/clients/new">New client</a>
+      <form method="post" action="/portal/logout">
+        <button type="submit" class="btn secondary">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  {% if clients %}
+  <ul class="portal-list">
+    {% for client in clients %}
+    <li>
+      <a href="/portal/clients/{{ client.client_id }}">
+        <strong>{{ client.name }}</strong>
+        <span class="mono">{{ client.client_id }}</span>
+        <span class="status-pill">{{ client.publishing_status }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="lede">No clients yet. Create one to get a client id and secret.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Site links">
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/faq">FAQ</a>
+    <a href="https://github.com/pesu-dev/oauth2">GitHub</a>
+  </nav>
+  <p class="open-source">Signed in as <span class="mono">{{ sub }}</span></p>
+</footer>
+{% endblock %}

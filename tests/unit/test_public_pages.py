@@ -131,6 +131,7 @@ def test_robots_txt_allows_public_and_disallows_auth(client: TestClient) -> None
         "/login",
         "/consent",
         "/settings",
+        "/portal",
         "/admin",
         "/token",
         "/userinfo",

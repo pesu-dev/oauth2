@@ -71,6 +71,7 @@ async def test_ensure_indexes_creates_required_keys() -> None:
         "authorization_codes",
         "refresh_tokens",
         "admins",
+        "production_requests",
     ):
         getattr(db, name).create_index = AsyncMock(side_effect=_capture)
 
