@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from src.repos.testers import TesterRepo
     from src.repos.users import UserRepo
     from src.repos.vault import VaultRepo
-    from src.session_cookie import PortalSessionStore, SessionStore
+    from src.session_cookie import PortalSessionStore, SessionStore, SettingsSessionStore
 
 T = TypeVar("T")
 
@@ -49,6 +49,13 @@ def portal_session_store(request: Request) -> PortalSessionStore:
     if store is None:
         raise HTTPException(status_code=503, detail="Portal session store unavailable")
     return cast("PortalSessionStore", store)
+
+
+def settings_session_store(request: Request) -> SettingsSessionStore:
+    store = getattr(request.app.state, "settings_session_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Settings session store unavailable")
+    return cast("SettingsSessionStore", store)
 
 
 def academy(request: Request) -> AcademyClient:

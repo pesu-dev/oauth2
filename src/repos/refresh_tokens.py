@@ -29,6 +29,18 @@ class RefreshTokenRepo(Protocol):
         """Rotate a valid token; on reuse of a revoked hash, revoke the family and return None."""
         ...
 
+    async def revoke_by_hash(self, token_hash: str) -> bool:
+        """Revoke a single live refresh token by hash; return True if one was live."""
+        ...
+
+    async def revoke_for_subject_client(self, sub: str, client_id: str) -> int:
+        """Revoke all live refresh tokens for ``(sub, client_id)``."""
+        ...
+
+    async def revoke_all_for_subject(self, sub: str) -> int:
+        """Revoke all live refresh tokens for ``sub``."""
+        ...
+
 
 class MongoRefreshTokenRepo:
     """MongoDB-backed RefreshTokenRepo (`refresh_tokens` collection)."""
@@ -46,6 +58,33 @@ class MongoRefreshTokenRepo:
         if doc is None:
             return None
         return _token_from_doc(doc)
+
+    async def revoke_by_hash(self, token_hash: str) -> bool:
+        """Set ``revoked_at`` on a live token hash."""
+        now = datetime.now(UTC)
+        result = await self._tokens.update_one(
+            {"token_hash": token_hash, "revoked_at": None},
+            {"$set": {"revoked_at": now}},
+        )
+        return result.modified_count > 0
+
+    async def revoke_for_subject_client(self, sub: str, client_id: str) -> int:
+        """Revoke live tokens for one app grant."""
+        now = datetime.now(UTC)
+        result = await self._tokens.update_many(
+            {"sub": sub, "client_id": client_id, "revoked_at": None},
+            {"$set": {"revoked_at": now}},
+        )
+        return int(result.modified_count)
+
+    async def revoke_all_for_subject(self, sub: str) -> int:
+        """Revoke every live refresh token for the subject."""
+        now = datetime.now(UTC)
+        result = await self._tokens.update_many(
+            {"sub": sub, "revoked_at": None},
+            {"$set": {"revoked_at": now}},
+        )
+        return int(result.modified_count)
 
     async def rotate_refresh(self, old_token_hash: str, new_token: RefreshToken) -> RefreshToken | None:
         """Atomically claim the presented token, then insert its successor.

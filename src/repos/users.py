@@ -51,6 +51,10 @@ class UserRepo(Protocol):
         """Return a non-deleted user by ``sub``, or None."""
         ...
 
+    async def tombstone(self, sub: str) -> None:
+        """Mark ``sub`` deleted so it is never reused."""
+        ...
+
 
 class MongoUserRepo:
     """MongoDB-backed UserRepo (`users` collection)."""
@@ -64,6 +68,13 @@ class MongoUserRepo:
         if doc is None:
             return None
         return _user_from_doc(doc)
+
+    async def tombstone(self, sub: str) -> None:
+        """Set ``deleted_at`` on an active user; no-op if already missing/tombstoned."""
+        await self._users.update_one(
+            {"sub": sub, "deleted_at": None},
+            {"$set": {"deleted_at": datetime.now(UTC)}},
+        )
 
     async def upsert_user_from_profile(self, profile: AcademyProfile) -> User:
         """Match active users by PRN; insert with ``new_sub`` when none found."""

@@ -1088,3 +1088,91 @@ async def test_mongo_vault_get_upsert_delete() -> None:
     assert await repo.delete_vault("usr_v") is True
     deleted.deleted_count = 0
     assert await repo.delete_vault("usr_v") is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_tombstone_user() -> None:
+    db = _mock_db()
+    db.users.update_one = AsyncMock()
+    await MongoUserRepo(db).tombstone("usr_abc")
+    db.users.update_one.assert_awaited_once()
+    filt, update = db.users.update_one.await_args.args
+    assert filt == {"sub": "usr_abc", "deleted_at": None}
+    assert "deleted_at" in update["$set"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_consent_list_and_delete() -> None:
+    db = _mock_db()
+    now = datetime.now(UTC)
+    doc = {
+        "sub": "usr_abc",
+        "client_id": "cli_test",
+        "scopes": ["openid"],
+        "mode": "identity",
+        "granted_at": now,
+    }
+
+    class _Cursor:
+        def __aiter__(self) -> _Cursor:
+            return self
+
+        async def __anext__(self) -> dict[str, object]:
+            if getattr(self, "_done", False):
+                raise StopAsyncIteration
+            self._done = True
+            return doc
+
+    db.consents.find = MagicMock(return_value=_Cursor())
+    listed = await MongoConsentRepo(db).list_consents_for_sub("usr_abc")
+    assert len(listed) == 1
+    assert listed[0].client_id == "cli_test"
+
+    deleted = MagicMock()
+    deleted.deleted_count = 1
+    db.consents.delete_one = AsyncMock(return_value=deleted)
+    assert await MongoConsentRepo(db).delete_consent("usr_abc", "cli_test") is True
+
+    many = MagicMock()
+    many.deleted_count = 2
+    db.consents.delete_many = AsyncMock(return_value=many)
+    assert await MongoConsentRepo(db).delete_all_for_sub("usr_abc") == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_refresh_revoke_helpers() -> None:
+    db = _mock_db()
+    modified = MagicMock()
+    modified.modified_count = 1
+    db.refresh_tokens.update_one = AsyncMock(return_value=modified)
+    db.refresh_tokens.update_many = AsyncMock(return_value=modified)
+    repo = MongoRefreshTokenRepo(db)
+    assert await repo.revoke_by_hash("abc") is True
+    assert await repo.revoke_for_subject_client("usr_a", "cli_a") == 1
+    assert await repo.revoke_all_for_subject("usr_a") == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fake_consent_list_delete_and_refresh_revoke() -> None:
+    consents = FakeConsentRepo()
+    await consents.upsert_consent(_consent())
+    await consents.upsert_consent(_consent(client_id="cli_other"))
+    listed = await consents.list_consents_for_sub("usr_abc")
+    assert len(listed) == 2
+    assert await consents.delete_consent("usr_abc", "cli_test") is True
+    assert await consents.delete_all_for_sub("usr_abc") == 1
+
+    refresh = FakeRefreshTokenRepo()
+    tok = _refresh()
+    await refresh.store_refresh(tok)
+    assert await refresh.revoke_by_hash(tok.token_hash) is True
+    assert await refresh.revoke_by_hash(tok.token_hash) is False
+    other = _refresh(token_hash=sha256_hex("other-rt"), client_id="cli_b", sub="usr_b")
+    await refresh.store_refresh(other)
+    await refresh.store_refresh(_refresh(token_hash=sha256_hex("same-sub"), client_id="cli_c", sub="usr_b"))
+    assert await refresh.revoke_for_subject_client("usr_b", "cli_b") == 1
+    assert await refresh.revoke_all_for_subject("usr_b") == 1

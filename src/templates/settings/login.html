@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="auth-card settings-reveal" aria-labelledby="settings-login-heading">
+  <p class="brand">PESU OAuth2</p>
+  <h1 id="settings-login-heading">Settings sign in</h1>
+  <p class="lede">Sign in with your PESU Academy account to manage connected apps and saved credentials.</p>
+  {% if error %}
+  <p class="error" role="alert">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/settings/login" class="auth-form">
+    <label>
+      Username
+      <input type="text" name="username" autocomplete="username" required autofocus>
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="btn">Sign in</button>
+  </form>
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Trust links">
+    <a href="/privacy">Privacy</a>
+    <a href="/faq">FAQ</a>
+    <a href="https://github.com/pesu-dev/oauth2">GitHub</a>
+  </nav>
+  <p class="open-source">Open source (MIT) · <a href="https://github.com/pesu-dev/oauth2">https://github.com/pesu-dev/oauth2</a></p>
+</footer>
+{% endblock %}

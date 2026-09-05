@@ -12,6 +12,7 @@ from src.models.consent import ConsentMode
 _SALT = "oauth2-login-pending"
 _PORTAL_SALT = "oauth2-portal-session"
 _FLASH_SALT = "oauth2-portal-flash"
+_SETTINGS_SALT = "oauth2-settings-session"
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,13 @@ class LoginPendingState:
 @dataclass(frozen=True)
 class PortalSession:
     """Authenticated developer/admin subject for portal and admin HTML."""
+
+    sub: str
+
+
+@dataclass(frozen=True)
+class SettingsSession:
+    """Authenticated student subject for settings HTML (distinct from portal)."""
 
     sub: str
 
@@ -113,5 +121,25 @@ class PortalSessionStore:
                 client_id=str(payload["client_id"]),
                 client_secret=str(payload["client_secret"]),
             )
+        except (BadData, KeyError, TypeError, ValueError):
+            return None
+
+
+class SettingsSessionStore:
+    """Dump/load student settings session (dedicated cookie, not portal)."""
+
+    def __init__(self, secret: str, max_age: int = SESSION_COOKIE_TTL_SECONDS) -> None:
+        self._session = URLSafeTimedSerializer(secret, salt=_SETTINGS_SALT)
+        self.max_age = max_age
+
+    def dump_session(self, session: SettingsSession) -> str:
+        """Serialize settings session."""
+        return self._session.dumps({"sub": session.sub})
+
+    def load_session(self, token: str) -> SettingsSession | None:
+        """Deserialize settings session, or None if invalid/expired."""
+        try:
+            payload = self._session.loads(token, max_age=self.max_age)
+            return SettingsSession(sub=str(payload["sub"]))
         except (BadData, KeyError, TypeError, ValueError):
             return None

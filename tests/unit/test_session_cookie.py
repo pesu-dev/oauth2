@@ -157,3 +157,13 @@ def test_portal_session_and_flash_round_trip() -> None:
     )
     assert store.load_session("tampered") is None
     assert store.load_flash("tampered") is None
+
+
+@pytest.mark.unit
+def test_settings_session_round_trip_and_fail_closed() -> None:
+    from src.session_cookie import SettingsSession, SettingsSessionStore
+
+    store = SettingsSessionStore(secret="settings-secret")
+    token = store.dump_session(SettingsSession(sub="usr_settings"))
+    assert store.load_session(token) == SettingsSession(sub="usr_settings")
+    assert store.load_session("tampered") is None

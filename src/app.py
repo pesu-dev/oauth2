@@ -23,6 +23,7 @@ from src.oidc.discovery import router as discovery_router
 from src.oidc.jwks import router as jwks_router
 from src.oidc.pending_credentials import PendingCredentialStore
 from src.oidc.rate_limit import SlidingWindowRateLimiter
+from src.oidc.revoke import router as revoke_router
 from src.oidc.token import router as token_router
 from src.oidc.userinfo import router as userinfo_router
 from src.portal.router import router as portal_router
@@ -37,7 +38,8 @@ from src.repos.refresh_tokens import MongoRefreshTokenRepo
 from src.repos.testers import MongoTesterRepo
 from src.repos.users import MongoUserRepo
 from src.repos.vault import MongoVaultRepo
-from src.session_cookie import PortalSessionStore, SessionStore
+from src.session_cookie import PortalSessionStore, SessionStore, SettingsSessionStore
+from src.settings_ui.router import router as settings_router
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -86,8 +88,9 @@ def _wire_session_stores(
     config: AppConfig,
     session_store: SessionStore | None,
     portal_session_store: PortalSessionStore | None,
+    settings_session_store: SettingsSessionStore | None = None,
 ) -> None:
-    """Attach OIDC and portal session stores (shared secret, distinct salts)."""
+    """Attach OIDC, portal, and settings session stores (shared secret, distinct salts)."""
     application.state.session_store = session_store
     if application.state.session_store is None and config.session_secret:
         application.state.session_store = SessionStore(
@@ -97,6 +100,12 @@ def _wire_session_stores(
     application.state.portal_session_store = portal_session_store
     if application.state.portal_session_store is None and config.session_secret:
         application.state.portal_session_store = PortalSessionStore(
+            config.session_secret,
+            max_age=config.session_cookie_ttl_seconds,
+        )
+    application.state.settings_session_store = settings_session_store
+    if application.state.settings_session_store is None and config.session_secret:
+        application.state.settings_session_store = SettingsSessionStore(
             config.session_secret,
             max_age=config.session_cookie_ttl_seconds,
         )
@@ -119,6 +128,7 @@ def create_app(
     vault: VaultRepo | None = None,
     session_store: SessionStore | None = None,
     portal_session_store: PortalSessionStore | None = None,
+    settings_session_store: SettingsSessionStore | None = None,
 ) -> FastAPI:
     """Build the ASGI app.
 
@@ -178,7 +188,13 @@ def create_app(
     application.state.admins = admins
     application.state.production_requests = production_requests
     application.state.vault = vault
-    _wire_session_stores(application, config, session_store, portal_session_store)
+    _wire_session_stores(
+        application,
+        config,
+        session_store,
+        portal_session_store,
+        settings_session_store,
+    )
     application.state.login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
     application.state.pending_credentials = PendingCredentialStore(
         ttl_seconds=float(config.session_cookie_ttl_seconds),
@@ -214,6 +230,8 @@ def create_app(
     application.include_router(userinfo_router)
     application.include_router(portal_router)
     application.include_router(admin_router)
+    application.include_router(settings_router)
+    application.include_router(revoke_router)
     application.include_router(exchange_router)
     application.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 

@@ -33,6 +33,18 @@ class ConsentRepo(Protocol):
         """Create or replace the grant for (sub, client_id)."""
         ...
 
+    async def list_consents_for_sub(self, sub: str) -> list[Consent]:
+        """Return all grants for ``sub``."""
+        ...
+
+    async def delete_consent(self, sub: str, client_id: str) -> bool:
+        """Delete the grant for the pair; return True if one existed."""
+        ...
+
+    async def delete_all_for_sub(self, sub: str) -> int:
+        """Delete every grant for ``sub``; return how many were removed."""
+        ...
+
 
 class MongoConsentRepo:
     """MongoDB-backed ConsentRepo (`consents` collection)."""
@@ -67,3 +79,18 @@ class MongoConsentRepo:
         )
         assert doc is not None
         return _consent_from_doc(doc)
+
+    async def list_consents_for_sub(self, sub: str) -> list[Consent]:
+        """List all consents for a subject."""
+        cursor = self._consents.find({"sub": sub})
+        return [_consent_from_doc(doc) async for doc in cursor]
+
+    async def delete_consent(self, sub: str, client_id: str) -> bool:
+        """Remove one consent row."""
+        result = await self._consents.delete_one({"sub": sub, "client_id": client_id})
+        return result.deleted_count > 0
+
+    async def delete_all_for_sub(self, sub: str) -> int:
+        """Remove all consents for ``sub``."""
+        result = await self._consents.delete_many({"sub": sub})
+        return int(result.deleted_count)

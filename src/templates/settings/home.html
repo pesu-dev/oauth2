@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block main_class %}portal-shell{% endblock %}
+{% block content %}
+<section class="portal-panel settings-reveal" aria-labelledby="settings-heading">
+  <header class="portal-header">
+    <div>
+      <p class="brand">PESU OAuth2</p>
+      <h1 id="settings-heading">Settings</h1>
+      <p class="lede">Revoke apps, remove saved credentials, or delete your account.</p>
+    </div>
+    <div class="portal-actions">
+      <form method="post" action="/settings/logout">
+        <button type="submit" class="btn secondary">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  {% if error %}
+  <p class="error" role="alert">{{ error }}</p>
+  {% endif %}
+
+  <section class="portal-section" aria-labelledby="apps-heading">
+    <h2 id="apps-heading">Connected apps</h2>
+    {% if apps %}
+    <ul class="portal-list settings-apps">
+      {% for app in apps %}
+      <li class="settings-app-row">
+        <div>
+          <strong>{{ app.name }}</strong>
+          <span class="mono">{{ app.client_id }}</span>
+          <span class="status-pill">{{ app.mode }}</span>
+        </div>
+        <form method="post" action="/settings/apps/{{ app.client_id }}/revoke">
+          <button type="submit" class="btn secondary">Revoke</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lede">No connected apps yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="portal-section" aria-labelledby="vault-heading">
+    <h2 id="vault-heading">Saved credentials</h2>
+    {% if has_vault %}
+    <p class="lede">We store an encrypted PESU password and Academy session for delegated apps.</p>
+    <form method="post" action="/settings/credentials/delete">
+      <button type="submit" class="btn secondary">Delete saved credentials</button>
+    </form>
+    {% else %}
+    <p class="lede">No saved credentials. Identity-only sign-ins do not create a vault.</p>
+    {% endif %}
+  </section>
+
+  <section class="portal-section danger-zone" aria-labelledby="account-heading">
+    <h2 id="account-heading">Delete account</h2>
+    <p class="lede">
+      Tombstones your subject forever, revokes grants and tokens, and deletes vault data.
+      Type <strong>DELETE</strong> to confirm.
+    </p>
+    <form method="post" action="/settings/account/delete" class="auth-form">
+      <label>
+        Confirm
+        <input type="text" name="confirm" autocomplete="off" placeholder="DELETE" required>
+      </label>
+      <button type="submit" class="btn danger">Delete account</button>
+    </form>
+  </section>
+</section>
+{% endblock %}
+{% block footer %}
+<footer class="auth-footer">
+  <nav aria-label="Site links">
+    <a href="/">Home</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/faq">FAQ</a>
+    <a href="https://github.com/pesu-dev/oauth2">GitHub</a>
+  </nav>
+  <p class="open-source">Signed in as <span class="mono">{{ sub }}</span></p>
+</footer>
+{% endblock %}

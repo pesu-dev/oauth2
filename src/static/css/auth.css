@@ -657,6 +657,53 @@ a.btn {
   text-decoration: none;
 }
 
+.btn.danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn.danger:active {
+  transform: scale(0.97);
+  background: color-mix(in srgb, var(--danger) 88%, black);
+}
+
+.settings-app-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.settings-app-row > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.danger-zone {
+  border-top-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+.settings-reveal {
+  animation: settings-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn,
   a.btn {
@@ -666,7 +713,8 @@ a.btn {
   .btn:active,
   a.btn:active,
   .btn.is-pressed,
-  .btn.copy-for-llm.is-pressed {
+  .btn.copy-for-llm.is-pressed,
+  .btn.danger:active {
     transform: none;
     opacity: 0.88;
   }
@@ -674,6 +722,10 @@ a.btn {
   .portal-list li a:active {
     transform: none;
     opacity: 0.9;
+  }
+
+  .settings-reveal {
+    animation: none;
   }
 }
 

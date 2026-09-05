@@ -335,6 +335,65 @@ class FakeRefreshTokenRepo:
                     revoked_at=now,
                 )
 
+    async def revoke_by_hash(self, token_hash: str) -> bool:
+        """Revoke a single live token by hash."""
+        async with self._lock:
+            tok = self._by_hash.get(token_hash)
+            if tok is None or tok.revoked_at is not None:
+                return False
+            now = datetime.now(UTC)
+            self._by_hash[token_hash] = RefreshToken(
+                token_hash=tok.token_hash,
+                family_id=tok.family_id,
+                client_id=tok.client_id,
+                sub=tok.sub,
+                scopes=tok.scopes,
+                expires_at=tok.expires_at,
+                created_at=tok.created_at,
+                revoked_at=now,
+            )
+            return True
+
+    async def revoke_for_subject_client(self, sub: str, client_id: str) -> int:
+        """Revoke live tokens for one app grant."""
+        async with self._lock:
+            now = datetime.now(UTC)
+            count = 0
+            for h, tok in list(self._by_hash.items()):
+                if tok.sub == sub and tok.client_id == client_id and tok.revoked_at is None:
+                    self._by_hash[h] = RefreshToken(
+                        token_hash=tok.token_hash,
+                        family_id=tok.family_id,
+                        client_id=tok.client_id,
+                        sub=tok.sub,
+                        scopes=tok.scopes,
+                        expires_at=tok.expires_at,
+                        created_at=tok.created_at,
+                        revoked_at=now,
+                    )
+                    count += 1
+            return count
+
+    async def revoke_all_for_subject(self, sub: str) -> int:
+        """Revoke every live refresh token for the subject."""
+        async with self._lock:
+            now = datetime.now(UTC)
+            count = 0
+            for h, tok in list(self._by_hash.items()):
+                if tok.sub == sub and tok.revoked_at is None:
+                    self._by_hash[h] = RefreshToken(
+                        token_hash=tok.token_hash,
+                        family_id=tok.family_id,
+                        client_id=tok.client_id,
+                        sub=tok.sub,
+                        scopes=tok.scopes,
+                        expires_at=tok.expires_at,
+                        created_at=tok.created_at,
+                        revoked_at=now,
+                    )
+                    count += 1
+            return count
+
 
 class FakeConsentRepo:
     """In-memory ConsentRepo."""
@@ -350,6 +409,21 @@ class FakeConsentRepo:
         """Replace grant for the pair."""
         self._by_pair[(consent.sub, consent.client_id)] = consent
         return consent
+
+    async def list_consents_for_sub(self, sub: str) -> list[Consent]:
+        """Return all grants for ``sub``."""
+        return [c for (s, _), c in self._by_pair.items() if s == sub]
+
+    async def delete_consent(self, sub: str, client_id: str) -> bool:
+        """Delete one grant."""
+        return self._by_pair.pop((sub, client_id), None) is not None
+
+    async def delete_all_for_sub(self, sub: str) -> int:
+        """Delete all grants for ``sub``."""
+        keys = [k for k in self._by_pair if k[0] == sub]
+        for key in keys:
+            del self._by_pair[key]
+        return len(keys)
 
 
 class FakeVaultRepo:
