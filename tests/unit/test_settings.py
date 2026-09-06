@@ -621,3 +621,84 @@ def test_update_credentials_bad_password(
     )
     assert resp.status_code == 401
     assert "Incorrect" in resp.text
+
+
+@pytest.mark.unit
+def test_update_credentials_without_vault_master_key(
+    settings_env: dict[str, object],
+    rsa_pem: str,
+) -> None:
+    from src.crypto.vault_payload import VaultPlaintext, pack_vault_plaintext
+
+    vault: FakeVaultRepo = settings_env["vault"]  # type: ignore[assignment]
+    master = master_key_from_secret(VAULT_MASTER)
+    vault._by_sub[SUB] = VaultEntry(
+        sub=SUB,
+        blob=seal(
+            master,
+            pack_vault_plaintext(
+                VaultPlaintext(
+                    username="student",
+                    password=PASSWORD,
+                    session=AcademySession(token="s", user_id="uid-s"),
+                )
+            ),
+            1,
+        ),
+        session_expires_at=None,
+    )
+    config = replace(settings_env["config"], vault_master_key=None)  # type: ignore[arg-type]
+    app = create_app(
+        config,
+        academy=settings_env["academy"],  # type: ignore[arg-type]
+        users=settings_env["users"],  # type: ignore[arg-type]
+        clients=settings_env["clients"],  # type: ignore[arg-type]
+        testers=settings_env["testers"],  # type: ignore[arg-type]
+        auth_codes=settings_env["auth_codes"],  # type: ignore[arg-type]
+        refresh_tokens=settings_env["refresh_tokens"],  # type: ignore[arg-type]
+        consents=settings_env["consents"],  # type: ignore[arg-type]
+        vault=vault,
+    )
+    with TestClient(app) as client:
+        # settings session was created with original secret — reuse same secret
+        login = client.post(
+            "/settings/login",
+            data={"username": "student", "password": PASSWORD},
+            follow_redirects=False,
+        )
+        assert login.status_code in {302, 303}
+        resp = client.post(
+            "/settings/credentials/update",
+            data={"username": "student", "password": PASSWORD},
+        )
+        assert resp.status_code == 503
+        assert "not configured" in resp.text.lower()
+
+
+@pytest.mark.unit
+def test_revoke_survives_notify_raise(
+    settings_client: TestClient,
+    settings_env: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    consents: FakeConsentRepo = settings_env["consents"]  # type: ignore[assignment]
+    consents._by_pair[(SUB, CLIENT_ID)] = Consent(
+        sub=SUB,
+        client_id=CLIENT_ID,
+        scopes=frozenset({"openid"}),
+        mode=ConsentMode.IDENTITY,
+        granted_at=now,
+    )
+
+    def _boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("notify boom")
+
+    monkeypatch.setattr("src.settings_ui.router.notify_sub_quietly", _boom)
+    _login(settings_client)
+    resp = settings_client.post(
+        f"/settings/apps/{CLIENT_ID}/revoke",
+        follow_redirects=False,
+    )
+    assert resp.status_code in {302, 303}
+    assert (SUB, CLIENT_ID) not in consents._by_pair

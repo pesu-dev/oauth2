@@ -801,3 +801,263 @@ def test_token_exchange_corrupt_vault_returns_non_500(
     )
     assert resp.status_code in {403, 502}
     assert resp.status_code != 500
+
+
+@pytest.mark.unit
+def test_exchange_secret_empty_configured_returns_401(rsa_pem: str) -> None:
+    from starlette.requests import Request
+
+    from src.exchange.router import _exchange_secret_ok
+
+    scope = {"type": "http", "headers": [], "method": "POST", "path": "/"}
+    request = Request(scope)
+    assert _exchange_secret_ok(request, None) is False
+    assert _exchange_secret_ok(request, "") is False
+
+
+@pytest.mark.unit
+def test_exchange_secret_non_bearer_auth_returns_false() -> None:
+    from starlette.requests import Request
+
+    from src.exchange.router import _exchange_secret_ok
+
+    scope = {
+        "type": "http",
+        "headers": [(b"authorization", b"Basic abc")],
+        "method": "POST",
+        "path": "/",
+    }
+    assert _exchange_secret_ok(Request(scope), "secret") is False
+    scope2 = {
+        "type": "http",
+        "headers": [(b"authorization", b"Bearer")],
+        "method": "POST",
+        "path": "/",
+    }
+    assert _exchange_secret_ok(Request(scope2), "secret") is False
+
+
+@pytest.mark.unit
+def test_exchange_bearer_compare_digest_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.requests import Request
+
+    from src.exchange.router import _exchange_secret_ok
+
+    def _raise(a: str, b: str) -> bool:
+        raise TypeError("bad")
+
+    monkeypatch.setattr("src.exchange.router.hmac.compare_digest", _raise)
+    scope = {
+        "type": "http",
+        "headers": [(b"authorization", b"Bearer secret")],
+        "method": "POST",
+        "path": "/",
+    }
+    assert _exchange_secret_ok(Request(scope), "secret") is False
+
+
+@pytest.mark.unit
+def test_session_response_optional_fields() -> None:
+    from src.exchange.router import _session_response
+
+    only_token = _session_response("tok", access_token=None, user_id=None)
+    assert only_token == {"token": "tok"}
+    with_uid = _session_response("tok", access_token=None, user_id="u1")
+    assert with_uid == {"token": "tok", "user_id": "u1"}
+    with_at = _session_response("tok", access_token="at", user_id=None)
+    assert with_at == {"token": "tok", "access_token": "at"}
+
+
+@pytest.mark.unit
+def test_require_first_party_compare_digest_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.exchange.router import _require_first_party_client
+
+    def _raise(a: str, b: str) -> bool:
+        raise ValueError("bad")
+
+    monkeypatch.setattr("src.exchange.router.hmac.compare_digest", _raise)
+    err = _require_first_party_client("cli_a", "cli_b")
+    assert err is not None
+    assert err.status_code == 403
+
+
+@pytest.mark.unit
+def test_token_exchange_missing_client_audience(
+    deleg_client: TestClient,
+    rsa_pem: str,
+) -> None:
+    import jwt as pyjwt
+
+    from src.crypto.jwt_keys import JwtKeySet
+    from src.crypto.tokens import sign_access_token
+
+    keys = JwtKeySet.from_pem(rsa_pem, kid="default")
+    access = sign_access_token(
+        keys,
+        issuer=deleg_client.app.state.config.issuer_url,
+        sub=OWNER_SUB,
+        client_id=CLIENT_ID,
+        scope="openid",
+        ttl_seconds=300,
+    )
+    # aud is required by verify_access_token; empty aud + no client_id hits line 109
+    claims = pyjwt.decode(access, options={"verify_signature": False})
+    claims.pop("client_id", None)
+    claims["aud"] = ""
+    rebuilt = pyjwt.encode(
+        claims,
+        keys.private_key,
+        algorithm="RS256",
+        headers={"kid": keys.kid},
+    )
+    resp = deleg_client.post(
+        "/oauth/token-exchange",
+        headers={"X-Token-Exchange-Secret": EXCHANGE_SECRET},
+        data={"access_token": rebuilt},
+    )
+    assert resp.status_code == 401
+    assert "client audience" in resp.json()["error_description"].lower()
+
+
+@pytest.mark.unit
+def test_token_exchange_vault_master_key_none(
+    rsa_pem: str,
+    deleg_deps: dict[str, object],
+) -> None:
+    from src.models.consent import Consent, ConsentMode
+
+    config = replace(
+        deleg_deps["config"],  # type: ignore[arg-type]
+        vault_master_key=None,
+    )
+    consents: FakeConsentRepo = deleg_deps["consents"]  # type: ignore[assignment]
+    consents._by_pair[(OWNER_SUB, CLIENT_ID)] = Consent(
+        sub=OWNER_SUB,
+        client_id=CLIENT_ID,
+        scopes=frozenset({"openid"}),
+        mode=ConsentMode.DELEGATED,
+        granted_at=datetime.now(UTC),
+    )
+    application = create_app(
+        config,
+        academy=deleg_deps["academy"],  # type: ignore[arg-type]
+        users=deleg_deps["users"],  # type: ignore[arg-type]
+        clients=deleg_deps["clients"],  # type: ignore[arg-type]
+        testers=deleg_deps["testers"],  # type: ignore[arg-type]
+        auth_codes=deleg_deps["auth_codes"],  # type: ignore[arg-type]
+        refresh_tokens=deleg_deps["refresh_tokens"],  # type: ignore[arg-type]
+        consents=consents,
+        vault=deleg_deps["vault"],  # type: ignore[arg-type]
+    )
+    from src.crypto.jwt_keys import JwtKeySet
+    from src.crypto.tokens import sign_access_token
+
+    with TestClient(application) as client:
+        keys = JwtKeySet.from_pem(rsa_pem, kid="default")
+        access = sign_access_token(
+            keys,
+            issuer=config.issuer_url,
+            sub=OWNER_SUB,
+            client_id=CLIENT_ID,
+            scope="openid",
+            ttl_seconds=300,
+        )
+        resp = client.post(
+            "/oauth/token-exchange",
+            headers={"X-Token-Exchange-Secret": EXCHANGE_SECRET},
+            data={"access_token": access},
+        )
+        assert resp.status_code == 503
+        assert "Vault master key" in resp.json()["error_description"]
+
+
+@pytest.mark.unit
+def test_delegated_consent_skip_reseals_vault(
+    deleg_client: TestClient,
+    deleg_deps: dict[str, object],
+) -> None:
+    """Prior delegated consent skips consent page and reseals vault (433-446)."""
+    from src.models.consent import Consent, ConsentMode
+
+    consents: FakeConsentRepo = deleg_deps["consents"]  # type: ignore[assignment]
+    consents._by_pair[(OWNER_SUB, CLIENT_ID)] = Consent(
+        sub=OWNER_SUB,
+        client_id=CLIENT_ID,
+        scopes=frozenset({"openid", "profile", "email"}),
+        mode=ConsentMode.DELEGATED,
+        granted_at=datetime.now(UTC),
+    )
+    verifier = "d" * 43
+    deleg_client.get(
+        "/authorize",
+        params={
+            "response_type": "code",
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "scope": "openid",
+            "code_challenge": _s256_challenge(verifier),
+            "code_challenge_method": "S256",
+        },
+        follow_redirects=False,
+    )
+    login = deleg_client.post(
+        "/login",
+        data={"username": "owner", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert login.status_code in {302, 303}
+    assert "code=" in login.headers["location"]
+    vault: FakeVaultRepo = deleg_deps["vault"]  # type: ignore[assignment]
+    assert OWNER_SUB in vault._by_sub
+
+
+@pytest.mark.unit
+def test_delegated_allow_without_pending_cred_id(
+    deleg_client: TestClient,
+) -> None:
+    """Mutate session cookie to drop pending_cred_id before Allow (line 520)."""
+    from src.session_cookie import LoginPendingState
+
+    verifier = "e" * 43
+    deleg_client.get(
+        "/authorize",
+        params={
+            "response_type": "code",
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "scope": "openid",
+            "code_challenge": _s256_challenge(verifier),
+            "code_challenge_method": "S256",
+        },
+        follow_redirects=False,
+    )
+    login = deleg_client.post(
+        "/login",
+        data={"username": "owner", "password": PASSWORD},
+        follow_redirects=False,
+    )
+    assert "/consent" in login.headers["location"]
+    store = deleg_client.app.state.session_store
+    raw = deleg_client.cookies.get(SESSION_COOKIE)
+    assert raw is not None
+    pending = store.load(raw)
+    assert pending is not None
+    stripped = LoginPendingState(
+        client_id=pending.client_id,
+        redirect_uri=pending.redirect_uri,
+        scopes=pending.scopes,
+        code_challenge=pending.code_challenge,
+        mode=pending.mode,
+        state=pending.state,
+        nonce=pending.nonce,
+        authenticated_sub=pending.authenticated_sub,
+        pending_cred_id=None,
+    )
+    deleg_client.cookies.set(SESSION_COOKIE, store.dump(stripped))
+    resp = deleg_client.post("/consent", data={"decision": "allow"})
+    assert resp.status_code == 400
+    assert "Session expired" in resp.text or "Start again" in resp.text

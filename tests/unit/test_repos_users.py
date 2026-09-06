@@ -1176,3 +1176,109 @@ async def test_fake_consent_list_delete_and_refresh_revoke() -> None:
     await refresh.store_refresh(_refresh(token_hash=sha256_hex("same-sub"), client_id="cli_c", sub="usr_b"))
     assert await refresh.revoke_for_subject_client("usr_b", "cli_b") == 1
     assert await refresh.revoke_all_for_subject("usr_b") == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fake_update_client_missing_and_duplicate_request() -> None:
+    from src.models.production_request import ProductionRequest, ProductionRequestStatus
+    from src.repos.fakes import FakeProductionRequestRepo
+
+    clients = FakeClientRepo()
+    with pytest.raises(KeyError):
+        await clients.update_client(_client())
+
+    queue = FakeProductionRequestRepo()
+    now = datetime.now(UTC)
+    req = ProductionRequest(
+        request_id="req_dup",
+        client_id="cli_test",
+        requested_by_sub="usr_owner",
+        status=ProductionRequestStatus.PENDING,
+        delegated_requested=False,
+        created_at=now,
+        resolved_at=None,
+        resolved_by_sub=None,
+    )
+    await queue.create_request(req)
+    with pytest.raises(DuplicateKeyError):
+        await queue.create_request(req)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fake_rotate_revoked_with_dead_successor_and_live_count() -> None:
+    repo = FakeRefreshTokenRepo()
+    now = datetime.now(UTC)
+    old = _refresh(token_hash=sha256_hex("old-dead-succ"), family_id="fam_dead")
+    await repo.store_refresh(old)
+    new = _refresh(token_hash=sha256_hex("succ-dead"), family_id="fam_dead")
+    await repo.store_refresh(new)
+    # Rotate once to establish successor link
+    rotated = await repo.rotate_refresh(old.token_hash, new)
+    assert rotated is None  # clash path — new already stored; family revoked
+
+    # Fresh family: revoke old, point successor at already-revoked/expired token
+    old2 = _refresh(token_hash=sha256_hex("old2"), family_id="fam_dead2")
+    succ = _refresh(
+        token_hash=sha256_hex("succ2"),
+        family_id="fam_dead2",
+        expires_at=now - timedelta(days=1),
+    )
+    await repo.store_refresh(old2)
+    await repo.store_refresh(succ)
+    repo._by_hash[old2.token_hash] = RefreshToken(
+        token_hash=old2.token_hash,
+        family_id=old2.family_id,
+        client_id=old2.client_id,
+        sub=old2.sub,
+        scopes=old2.scopes,
+        expires_at=old2.expires_at,
+        created_at=old2.created_at,
+        revoked_at=now,
+    )
+    repo._successors[old2.token_hash] = succ.token_hash
+    # Successor expired → condition false, no family revoke needed
+    assert await repo.rotate_refresh(old2.token_hash, _refresh(token_hash=sha256_hex("x"))) is None
+
+    # live != 1: pre-seed another live token in same family before rotate
+    base = _refresh(token_hash=sha256_hex("base-live"), family_id="fam_multi")
+    extra = _refresh(token_hash=sha256_hex("extra-live"), family_id="fam_multi")
+    await repo.store_refresh(base)
+    await repo.store_refresh(extra)
+    assert (
+        await repo.rotate_refresh(
+            base.token_hash,
+            _refresh(token_hash=sha256_hex("new-live"), family_id="fam_multi"),
+        )
+        is None
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_mongo_production_request_none_and_bad_status() -> None:
+    from src.models.production_request import ProductionRequestStatus
+    from src.repos.production_requests import MongoProductionRequestRepo
+
+    db = _mock_db()
+    db.production_requests.find_one = AsyncMock(return_value=None)
+    db.production_requests.find_one_and_update = AsyncMock(return_value=None)
+    prod = MongoProductionRequestRepo(db)
+    assert await prod.get_request("missing") is None
+    with pytest.raises(ValueError, match="approved or rejected"):
+        await prod.resolve_request(
+            "req_1",
+            status=ProductionRequestStatus.PENDING,
+            resolved_by_sub="usr_a",
+            resolved_at=datetime.now(UTC),
+        )
+    assert (
+        await prod.resolve_request(
+            "req_1",
+            status=ProductionRequestStatus.APPROVED,
+            resolved_by_sub="usr_a",
+            resolved_at=datetime.now(UTC),
+        )
+        is None
+    )

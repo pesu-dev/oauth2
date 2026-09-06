@@ -745,3 +745,168 @@ def test_admin_approve_skips_resolve_when_client_update_fails(
         assert queue._by_id[request_id].status.value == "pending"
         assert order == ["update_client"]
         assert "resolve_request" not in order
+
+
+@pytest.mark.unit
+def test_admin_unauthenticated_redirects(portal_client: TestClient) -> None:
+    portal_client.cookies.clear()
+    resp = portal_client.get("/admin", follow_redirects=False)
+    assert resp.status_code in {302, 303}
+    assert "/portal/login" in resp.headers["location"]
+    approve = portal_client.post(
+        "/admin/requests/req_x/approve",
+        data={"delegated_allowed": "false"},
+        follow_redirects=False,
+    )
+    assert approve.status_code in {302, 303}
+    reject = portal_client.post(
+        "/admin/requests/req_x/reject",
+        follow_redirects=False,
+    )
+    assert reject.status_code in {302, 303}
+
+
+@pytest.mark.unit
+def test_admin_approve_and_reject_missing_client(
+    portal_deps: dict[str, object],
+) -> None:
+    from datetime import UTC, datetime
+
+    from src.models.production_request import ProductionRequest, ProductionRequestStatus
+
+    queue = portal_deps["production_requests"]
+    assert isinstance(queue, FakeProductionRequestRepo)
+    now = datetime.now(UTC)
+    queue._by_id["req_orphan"] = ProductionRequest(
+        request_id="req_orphan",
+        client_id="cli_missing",
+        requested_by_sub=OWNER_SUB,
+        status=ProductionRequestStatus.PENDING,
+        delegated_requested=False,
+        created_at=now,
+        resolved_at=None,
+        resolved_by_sub=None,
+    )
+    with _portal_client_with_deps(portal_deps) as client:
+        _portal_login(client, username="admin")
+        approve = client.post(
+            "/admin/requests/req_orphan/approve",
+            data={"delegated_allowed": "false"},
+        )
+        assert approve.status_code == 404
+        assert "Client missing" in approve.text
+
+        queue._by_id["req_orphan2"] = ProductionRequest(
+            request_id="req_orphan2",
+            client_id="cli_missing",
+            requested_by_sub=OWNER_SUB,
+            status=ProductionRequestStatus.PENDING,
+            delegated_requested=False,
+            created_at=now,
+            resolved_at=None,
+            resolved_by_sub=None,
+        )
+        reject = client.post("/admin/requests/req_orphan2/reject")
+        assert reject.status_code == 404
+        assert "Client missing" in reject.text
+
+
+@pytest.mark.unit
+def test_admin_reject_unknown_request(portal_client: TestClient) -> None:
+    _portal_login(portal_client, username="admin")
+    resp = portal_client.post("/admin/requests/req_missing/reject")
+    assert resp.status_code == 404
+
+
+@pytest.mark.unit
+def test_admin_reject_skips_resolve_when_client_update_fails(
+    portal_deps: dict[str, object],
+) -> None:
+    order: list[str] = []
+    clients = _OrderTrackingClientRepo(order)
+    queue = _OrderTrackingQueueRepo(order)
+    portal_deps["clients"] = clients
+    portal_deps["production_requests"] = queue
+    with _portal_client_with_deps(portal_deps) as client:
+        _portal_login(client)
+        client_id, _ = _create_client(client)
+        client.post(f"/portal/clients/{client_id}/request-production", follow_redirects=False)
+        client.cookies.clear()
+        _portal_login(client, username="admin")
+        request_id = next(iter(queue._by_id))
+        clients.fail_update = True
+        order.clear()
+        resp = client.post(f"/admin/requests/{request_id}/reject")
+        assert resp.status_code >= 400
+        assert "Reject failed" in resp.text or resp.status_code == 500
+        assert queue._by_id[request_id].status.value == "pending"
+        assert "resolve_request" not in order
+
+
+@pytest.mark.unit
+def test_portal_redirect_uri_helpers_and_auth_gates(portal_client: TestClient) -> None:
+    from src.portal.router import _parse_redirect_uris, _valid_https_redirect
+
+    assert _valid_https_redirect("http://localhost:3000/cb") is True
+    assert _valid_https_redirect("http://127.0.0.1/cb") is True
+    assert _valid_https_redirect("http://evil.example/cb") is False
+    assert _parse_redirect_uris("not-a-uri\nhttps://ok.example/cb") is None
+    parsed = _parse_redirect_uris("https://a.example/cb\nhttps://a.example/cb\nhttps://b.example/cb")
+    assert parsed == ("https://a.example/cb", "https://b.example/cb")
+
+    # Unauthenticated gates
+    portal_client.cookies.clear()
+    for path, method in (
+        ("/portal/clients/new", "get"),
+        ("/portal/clients", "post"),
+        ("/portal/clients/cli_x", "get"),
+        ("/portal/clients/cli_x/redirect-uris", "post"),
+        ("/portal/clients/cli_x/testers", "post"),
+        ("/portal/clients/cli_x/request-production", "post"),
+    ):
+        if method == "get":
+            resp = portal_client.get(path, follow_redirects=False)
+        else:
+            resp = portal_client.post(
+                path,
+                data={
+                    "name": "x",
+                    "redirect_uri": "https://x",
+                    "redirect_uris": "https://x",
+                    "sub": "usr_x",
+                },
+                follow_redirects=False,
+            )
+        assert resp.status_code in {302, 303}, path
+        assert "/portal/login" in resp.headers["location"]
+
+
+@pytest.mark.unit
+def test_portal_login_get_redirects_when_signed_in(portal_client: TestClient) -> None:
+    _portal_login(portal_client)
+    resp = portal_client.get("/portal/login", follow_redirects=False)
+    assert resp.status_code in {302, 303}
+    assert resp.headers["location"].rstrip("/").endswith("/portal")
+
+
+@pytest.mark.unit
+def test_portal_login_rate_limited(portal_client: TestClient) -> None:
+    for _ in range(10):
+        portal_client.post("/portal/login", data={"username": "nope", "password": "nope"})
+    resp = portal_client.post("/portal/login", data={"username": "nope", "password": "nope"})
+    assert resp.status_code == 429
+
+
+@pytest.mark.unit
+def test_portal_owned_client_not_found(portal_client: TestClient) -> None:
+    _portal_login(portal_client)
+    for path in (
+        "/portal/clients/cli_missing/redirect-uris",
+        "/portal/clients/cli_missing/testers",
+        "/portal/clients/cli_missing/request-production",
+    ):
+        resp = portal_client.post(
+            path,
+            data={"redirect_uris": "https://a.example/cb", "sub": "usr_t"},
+        )
+        assert resp.status_code == 404
