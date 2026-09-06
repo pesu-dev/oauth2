@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 from dataclasses import asdict, dataclass
 
+from cryptography.fernet import Fernet, InvalidToken
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 from src.config import SESSION_COOKIE_TTL_SECONDS
@@ -56,6 +60,12 @@ class PortalFlash:
     client_secret: str
 
 
+def _fernet_from_secret(secret: str, *, purpose: str) -> Fernet:
+    """Derive a Fernet key from the session secret + purpose string."""
+    digest = hashlib.sha256(f"{secret}:{purpose}".encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
 class SessionStore:
     """Dump/load ``LoginPendingState`` via ``URLSafeTimedSerializer``."""
 
@@ -94,7 +104,7 @@ class PortalSessionStore:
 
     def __init__(self, secret: str, max_age: int = SESSION_COOKIE_TTL_SECONDS) -> None:
         self._session = URLSafeTimedSerializer(secret, salt=_PORTAL_SALT)
-        self._flash = URLSafeTimedSerializer(secret, salt=_FLASH_SALT)
+        self._flash = _fernet_from_secret(secret, purpose=_FLASH_SALT)
         self.max_age = max_age
 
     def dump_session(self, session: PortalSession) -> str:
@@ -110,18 +120,23 @@ class PortalSessionStore:
             return None
 
     def dump_flash(self, flash: PortalFlash) -> str:
-        """Serialize one-time flash."""
-        return self._flash.dumps({"client_id": flash.client_id, "client_secret": flash.client_secret})
+        """Serialize one-time flash with authenticated encryption (Fernet)."""
+        payload = json.dumps(
+            {"client_id": flash.client_id, "client_secret": flash.client_secret},
+            separators=(",", ":"),
+        ).encode()
+        return self._flash.encrypt(payload).decode("ascii")
 
     def load_flash(self, token: str) -> PortalFlash | None:
         """Deserialize flash, or None if invalid/expired."""
         try:
-            payload = self._flash.loads(token, max_age=self.max_age)
+            raw = self._flash.decrypt(token.encode("ascii"), ttl=self.max_age)
+            payload = json.loads(raw.decode())
             return PortalFlash(
                 client_id=str(payload["client_id"]),
                 client_secret=str(payload["client_secret"]),
             )
-        except (BadData, KeyError, TypeError, ValueError):
+        except (InvalidToken, BadData, KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
             return None
 
 

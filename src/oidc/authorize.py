@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from src.academy.models import AcademyAuthError
+from src.client_ip import client_ip
 from src.crypto.hashing import sha256_hex
 from src.crypto.vault_crypto import master_key_from_secret, seal
 from src.crypto.vault_payload import CURRENT_VAULT_KEY_VERSION, VaultPlaintext, pack_vault_plaintext
@@ -90,15 +91,6 @@ def _error_page(request: Request, *, title: str, message: str, status_code: int 
         {"title": title, "message": message},
         status_code=status_code,
     )
-
-
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client is not None:
-        return request.client.host
-    return "unknown"
 
 
 def _testing_gate_required(status: PublishingStatus) -> bool:
@@ -346,7 +338,7 @@ async def login_post(
     limiter = deps.login_limiter(request)
 
     # 10 POSTs / minute / client IP (in-memory; see SlidingWindowRateLimiter caveat).
-    if not limiter.allow(_client_ip(request)):
+    if not limiter.allow(client_ip(request)):
         return _error_page(
             request,
             title="Too many attempts",

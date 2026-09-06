@@ -22,6 +22,16 @@ async def test_ensure_indexes_creates_users_sub_unique(mongo_db: AsyncDatabase) 
     assert any("sub" in str(v.get("key")) for v in indexes.values())
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ensure_indexes_creates_refresh_tokens_family_id(mongo_db: AsyncDatabase) -> None:
+    from src.db.indexes import ensure_indexes
+
+    await ensure_indexes(mongo_db)
+    indexes = await mongo_db.refresh_tokens.index_information()
+    assert any(v.get("key") == [("family_id", 1)] for v in indexes.values())
+
+
 def _atlas_smoke_ready() -> bool:
     cert_path = os.environ.get("MONGO_X509_CERT_PATH")
     if not cert_path or not Path(cert_path).is_file():

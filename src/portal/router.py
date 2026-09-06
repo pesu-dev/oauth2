@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from src.academy.models import AcademyAuthError
+from src.client_ip import client_ip
 from src.crypto.hashing import sha256_hex
 from src.crypto.ids import new_client_id, new_request_id
 from src.mailer.port import notify_sub_quietly
@@ -171,8 +172,7 @@ async def portal_login_post(
     """Authenticate via Academy and set the portal session cookie."""
     config = deps.config(request)
     limiter = deps.login_limiter(request)
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    ip = client_ip(request)
     if not limiter.allow(f"portal:{ip}"):
         return _error_page(
             request,

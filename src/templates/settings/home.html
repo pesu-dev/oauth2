@@ -45,7 +45,18 @@
     <h2 id="vault-heading">Saved credentials</h2>
     {% if has_vault %}
     <p class="lede">We store an encrypted PESU password and Academy session for delegated apps.</p>
-    <form method="post" action="/settings/credentials/delete">
+    <form method="post" action="/settings/credentials/update" class="auth-form">
+      <label>
+        PESU username
+        <input type="text" name="username" autocomplete="username" required>
+      </label>
+      <label>
+        Current PESU password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn">Update saved credentials</button>
+    </form>
+    <form method="post" action="/settings/credentials/delete" class="settings-delete-creds">
       <button type="submit" class="btn secondary">Delete saved credentials</button>
     </form>
     {% else %}

@@ -160,6 +160,23 @@ def test_portal_session_and_flash_round_trip() -> None:
 
 
 @pytest.mark.unit
+def test_portal_flash_cookie_hides_plaintext_secret() -> None:
+    """Flash must be encrypted so cookie bytes do not reveal the client secret."""
+    from src.session_cookie import PortalFlash, PortalSessionStore
+
+    secret = "sec-once-plaintext-must-not-appear"
+    store = PortalSessionStore(secret="portal-secret")
+    flash_token = store.dump_flash(PortalFlash(client_id="cli_bound", client_secret=secret))
+    assert secret not in flash_token
+    assert "cli_bound" not in flash_token
+    # Must not be readable as a plain itsdangerous signed JSON blob.
+    from itsdangerous import BadData, URLSafeTimedSerializer
+
+    with pytest.raises(BadData):
+        URLSafeTimedSerializer("portal-secret", salt="oauth2-portal-flash").loads(flash_token)
+
+
+@pytest.mark.unit
 def test_settings_session_round_trip_and_fail_closed() -> None:
     from src.session_cookie import SettingsSession, SettingsSessionStore
 

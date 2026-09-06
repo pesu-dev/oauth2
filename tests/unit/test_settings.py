@@ -402,6 +402,7 @@ def test_settings_post_requires_login(settings_client: TestClient) -> None:
     for path in (
         f"/settings/apps/{CLIENT_ID}/revoke",
         "/settings/credentials/delete",
+        "/settings/credentials/update",
         "/settings/account/delete",
     ):
         resp = settings_client.post(path, data={"confirm": "DELETE"}, follow_redirects=False)
@@ -465,3 +466,158 @@ def test_settings_login_rate_limited(settings_client: TestClient) -> None:
     )
     assert resp.status_code == 429
     assert "Too many" in resp.text
+
+
+@pytest.mark.unit
+def test_settings_login_rate_limit_uses_xff(settings_client: TestClient) -> None:
+    """X-Forwarded-For must bucket settings login like authorize/portal."""
+    for _ in range(10):
+        settings_client.post(
+            "/settings/login",
+            data={"username": "nope", "password": "nope"},
+            headers={"X-Forwarded-For": "198.51.100.50"},
+        )
+    # Exhausted that forwarded IP — a different XFF should still be allowed.
+    other = settings_client.post(
+        "/settings/login",
+        data={"username": "student", "password": PASSWORD},
+        headers={"X-Forwarded-For": "198.51.100.99"},
+        follow_redirects=False,
+    )
+    assert other.status_code in {302, 303}
+    blocked = settings_client.post(
+        "/settings/login",
+        data={"username": "nope", "password": "nope"},
+        headers={"X-Forwarded-For": "198.51.100.50"},
+    )
+    assert blocked.status_code == 429
+
+
+@pytest.mark.unit
+def test_update_credentials_overwrites_vault(
+    settings_client: TestClient,
+    settings_env: dict[str, object],
+) -> None:
+    from src.crypto.vault_crypto import open as open_blob
+    from src.crypto.vault_payload import VaultPlaintext, pack_vault_plaintext, unpack_vault_plaintext
+
+    now = datetime.now(UTC)
+    vault: FakeVaultRepo = settings_env["vault"]  # type: ignore[assignment]
+    academy: FakeAcademyClient = settings_env["academy"]  # type: ignore[assignment]
+    master = master_key_from_secret(VAULT_MASTER)
+    old = pack_vault_plaintext(
+        VaultPlaintext(
+            username="student",
+            password="old-password",
+            session=AcademySession(token="old-sess", user_id="uid-s"),
+        )
+    )
+    vault._by_sub[SUB] = VaultEntry(sub=SUB, blob=seal(master, old, 1), session_expires_at=None)
+    academy._users[("student", "new-password")] = AcademyAuthResult(
+        profile=_profile(),
+        session=AcademySession(token="new-sess", user_id="uid-s", expires_at=now + timedelta(hours=1)),
+    )
+
+    _login(settings_client)
+    home = settings_client.get("/settings")
+    assert home.status_code == 200
+    assert 'action="/settings/credentials/update"' in home.text
+
+    resp = settings_client.post(
+        "/settings/credentials/update",
+        data={"username": "student", "password": "new-password"},
+        follow_redirects=False,
+    )
+    assert resp.status_code in {302, 303}
+
+    entry = vault._by_sub[SUB]
+    plain = unpack_vault_plaintext(open_blob(master, entry.blob))
+    assert plain.password == "new-password"
+    assert plain.session.token == "new-sess"
+
+
+@pytest.mark.unit
+def test_update_credentials_rejects_wrong_account(
+    settings_client: TestClient,
+    settings_env: dict[str, object],
+) -> None:
+    from src.crypto.vault_payload import VaultPlaintext, pack_vault_plaintext
+
+    vault: FakeVaultRepo = settings_env["vault"]  # type: ignore[assignment]
+    academy: FakeAcademyClient = settings_env["academy"]  # type: ignore[assignment]
+    master = master_key_from_secret(VAULT_MASTER)
+    vault._by_sub[SUB] = VaultEntry(
+        sub=SUB,
+        blob=seal(
+            master,
+            pack_vault_plaintext(
+                VaultPlaintext(
+                    username="student",
+                    password=PASSWORD,
+                    session=AcademySession(token="s", user_id="uid-s"),
+                )
+            ),
+            1,
+        ),
+        session_expires_at=None,
+    )
+    academy._users[("other", PASSWORD)] = AcademyAuthResult(
+        profile=_profile(prn="PES2202599999", name="OTHER"),
+        session=AcademySession(token="other-sess", user_id="uid-o"),
+    )
+
+    _login(settings_client)
+    before = vault._by_sub[SUB].blob
+    resp = settings_client.post(
+        "/settings/credentials/update",
+        data={"username": "other", "password": PASSWORD},
+    )
+    assert resp.status_code == 400
+    assert "different account" in resp.text.lower()
+    assert vault._by_sub[SUB].blob == before
+
+
+@pytest.mark.unit
+def test_update_credentials_requires_existing_vault(
+    settings_client: TestClient,
+) -> None:
+    _login(settings_client)
+    resp = settings_client.post(
+        "/settings/credentials/update",
+        data={"username": "student", "password": PASSWORD},
+    )
+    assert resp.status_code == 400
+    assert "No saved credentials" in resp.text
+
+
+@pytest.mark.unit
+def test_update_credentials_bad_password(
+    settings_client: TestClient,
+    settings_env: dict[str, object],
+) -> None:
+    from src.crypto.vault_payload import VaultPlaintext, pack_vault_plaintext
+
+    vault: FakeVaultRepo = settings_env["vault"]  # type: ignore[assignment]
+    master = master_key_from_secret(VAULT_MASTER)
+    vault._by_sub[SUB] = VaultEntry(
+        sub=SUB,
+        blob=seal(
+            master,
+            pack_vault_plaintext(
+                VaultPlaintext(
+                    username="student",
+                    password=PASSWORD,
+                    session=AcademySession(token="s", user_id="uid-s"),
+                )
+            ),
+            1,
+        ),
+        session_expires_at=None,
+    )
+    _login(settings_client)
+    resp = settings_client.post(
+        "/settings/credentials/update",
+        data={"username": "student", "password": "wrong"},
+    )
+    assert resp.status_code == 401
+    assert "Incorrect" in resp.text

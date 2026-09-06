@@ -1,4 +1,4 @@
-"""Student settings: revoke apps, delete credentials, delete account."""
+"""Student settings: revoke apps, update/delete credentials, delete account."""
 
 from __future__ import annotations
 
@@ -11,8 +11,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from src.academy.models import AcademyAuthError
+from src.client_ip import client_ip
+from src.crypto.vault_crypto import master_key_from_secret, seal
+from src.crypto.vault_payload import CURRENT_VAULT_KEY_VERSION, VaultPlaintext, pack_vault_plaintext
 from src.mailer.port import notify_sub_quietly
 from src.models.consent import ConsentMode
+from src.models.vault import VaultEntry
 from src.oidc import deps
 from src.session_cookie import SettingsSession
 
@@ -93,6 +97,25 @@ async def _connected_apps(request: Request, sub: str) -> list[dict[str, str]]:
     return apps
 
 
+async def _home_context(
+    request: Request,
+    *,
+    sub: str,
+    error: str | None = None,
+) -> dict[str, object]:
+    apps = await _connected_apps(request, sub)
+    vault_entry = await deps.vault(request).get_vault(sub)
+    ctx: dict[str, object] = {
+        "title": "Settings — PESU OAuth2",
+        "sub": sub,
+        "apps": apps,
+        "has_vault": vault_entry is not None,
+    }
+    if error is not None:
+        ctx["error"] = error
+    return ctx
+
+
 @router.get("/login", response_class=HTMLResponse)
 async def settings_login_get(request: Request) -> Response:
     """PESU Academy login for student settings (dedicated cookie)."""
@@ -114,7 +137,7 @@ async def settings_login_post(
     """Authenticate via Academy and set the settings session cookie."""
     config = deps.config(request)
     limiter = deps.login_limiter(request)
-    ip = request.client.host if request.client else "unknown"
+    ip = client_ip(request)
     if not limiter.allow(f"settings:{ip}"):
         return templates.TemplateResponse(
             request,
@@ -170,17 +193,10 @@ async def settings_home(request: Request) -> Response:
         _clear_settings_cookie(response, config)
         return response
 
-    apps = await _connected_apps(request, session.sub)
-    vault_entry = await deps.vault(request).get_vault(session.sub)
     return templates.TemplateResponse(
         request,
         "settings/home.html",
-        {
-            "title": "Settings — PESU OAuth2",
-            "sub": session.sub,
-            "apps": apps,
-            "has_vault": vault_entry is not None,
-        },
+        await _home_context(request, sub=session.sub),
     )
 
 
@@ -218,6 +234,88 @@ async def settings_revoke_app(request: Request, client_id: str) -> Response:
     return RedirectResponse(url="/settings", status_code=302)
 
 
+@router.post("/credentials/update", response_model=None)
+async def settings_update_credentials(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+) -> Response:
+    """Re-auth with PESU password and overwrite the vault (spec vault lifecycle §3)."""
+    session = _require_settings_session(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    existing = await deps.vault(request).get_vault(session.sub)
+    if existing is None:
+        return templates.TemplateResponse(
+            request,
+            "settings/home.html",
+            await _home_context(request, sub=session.sub, error="No saved credentials to update."),
+            status_code=400,
+        )
+
+    config = deps.config(request)
+    if config.vault_master_key is None:
+        return templates.TemplateResponse(
+            request,
+            "settings/home.html",
+            await _home_context(
+                request,
+                sub=session.sub,
+                error="Credential storage is not configured. Try again later.",
+            ),
+            status_code=503,
+        )
+
+    try:
+        result = await deps.academy(request).login(username.strip(), password)
+    except AcademyAuthError:
+        return templates.TemplateResponse(
+            request,
+            "settings/home.html",
+            await _home_context(
+                request,
+                sub=session.sub,
+                error="Incorrect username or password.",
+            ),
+            status_code=401,
+        )
+
+    user = await deps.users(request).upsert_user_from_profile(result.profile)
+    if user.sub != session.sub:
+        return templates.TemplateResponse(
+            request,
+            "settings/home.html",
+            await _home_context(
+                request,
+                sub=session.sub,
+                error="Those credentials belong to a different account.",
+            ),
+            status_code=400,
+        )
+
+    plaintext = pack_vault_plaintext(
+        VaultPlaintext(
+            username=username.strip(),
+            password=password,
+            session=result.session,
+        )
+    )
+    master = master_key_from_secret(config.vault_master_key)
+    blob = seal(master, plaintext, key_version=CURRENT_VAULT_KEY_VERSION)
+    await deps.vault(request).upsert_vault(
+        VaultEntry(sub=session.sub, blob=blob, session_expires_at=result.session.expires_at),
+    )
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=session.sub,
+        subject="Saved credentials updated",
+        body="Your stored PESU Academy credentials were updated after a successful re-authentication.",
+    )
+    return RedirectResponse(url="/settings", status_code=302)
+
+
 @router.post("/credentials/delete", response_model=None)
 async def settings_delete_credentials(request: Request) -> Response:
     """Delete vault only; identity consents may remain."""
@@ -250,18 +348,14 @@ async def settings_delete_account(
         return session
 
     if confirm.strip() != "DELETE":
-        apps = await _connected_apps(request, session.sub)
-        vault_entry = await deps.vault(request).get_vault(session.sub)
         return templates.TemplateResponse(
             request,
             "settings/home.html",
-            {
-                "title": "Settings — PESU OAuth2",
-                "sub": session.sub,
-                "apps": apps,
-                "has_vault": vault_entry is not None,
-                "error": "Type DELETE to confirm account deletion.",
-            },
+            await _home_context(
+                request,
+                sub=session.sub,
+                error="Type DELETE to confirm account deletion.",
+            ),
             status_code=400,
         )
 

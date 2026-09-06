@@ -129,4 +129,6 @@ GitHub **repository variables** used by workflows:
 
 Deploy auth is Workload Identity Federation (no JSON key). Cloud Run revisions run as `CLOUD_RUN_RUNTIME_SA`.
 
+Deploy workflows pin **`--max-instances=1`**. Process-local pending credentials and login rate limits require a single instance; do not scale out until those move to shared storage.
+
 Mongo X.509 PEMs are mounted in the Cloud Run console at `/run/secrets/mongo.pem`. Deploy sets `MONGO_X509_CERT_PATH` to that path.

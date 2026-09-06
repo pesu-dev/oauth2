@@ -164,6 +164,7 @@ jobs:
           flags: >-
             --port=8080
             --allow-unauthenticated
+            --max-instances=1
             --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
 
       - name: Rollback prod to last stable prod image
@@ -179,6 +180,7 @@ jobs:
           flags: >-
             --port=8080
             --allow-unauthenticated
+            --max-instances=1
             --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
 
       - name: Mark deployment as failed after rollback
