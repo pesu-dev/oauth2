@@ -44,7 +44,12 @@ uv run pytest -m integration
 
 ## What to work on
 
-Read [docs/plans/architecture.md](../docs/plans/architecture.md) and [docs/plans/technical.md](../docs/plans/technical.md) before implementing OIDC flows, MongoDB collections, or Cloud Run deploy wiring.
+Before implementing OIDC flows, MongoDB collections, or Cloud Run deploy wiring, read:
+
+1. **Product + tech contract:** [docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md](../docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) (approved MVP design)
+2. **Implementation plan:** [docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md](../docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md)
+
+[docs/plans/architecture.md](../docs/plans/architecture.md) is **historical** (ADR log). [docs/plans/technical.md](../docs/plans/technical.md) is an **outdated bootstrap** stub — prefer the design spec for locked technical choices.
 
 **Do not commit secrets.** Use `.env` locally and GitHub environment secrets (`staging` / `prod`) in CI/CD.
 
@@ -78,7 +83,7 @@ Report vulnerabilities per [SECURITY.md](SECURITY.md). Do not open public issues
 - Python 3.13+, type hints, Ruff for lint/format
 - Immutable data patterns where practical
 - Tests for new behavior (`unit` / `integration` markers)
-- Follow curated rules in `.cursor/rules/`
+- Follow curated Cursor rules in [`.cursor/rules/`](../.cursor/rules/) (style/security). Repo stack, commands, and product contract still follow [`AGENTS.md`](../AGENTS.md) and `docs/superpowers/` when a rule is generic or conflicts.
 
 ## License
 

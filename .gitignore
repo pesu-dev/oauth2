@@ -78,3 +78,5 @@ scratch/
 *.pem
 *.key
 *.csr
+# SDD / agent scratch (not source of truth)
+.superpowers/

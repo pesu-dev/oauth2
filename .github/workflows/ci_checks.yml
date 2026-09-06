@@ -84,9 +84,19 @@ jobs:
     name: Integration tests
     needs: [pr_target_checker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Verify Docker for Testcontainers
+        run: |
+          set -euo pipefail
+          docker version
+          docker info
+
+      - name: Pre-pull Mongo image
+        run: docker pull mongo:7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
@@ -99,6 +109,8 @@ jobs:
 
       - name: Run integration tests
         run: uv run pytest -m integration
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock
 
   pr_image_build:
     name: Build image on PR

@@ -1,10 +1,20 @@
 # PESU OAuth2 + API architecture
 
+> **Status: Historical (product ADRs).** Do not use this file as the current build checklist or implementation contract.
+>
+> | Role | Canonical document |
+> | --- | --- |
+> | Product + tech contract (approved) | [OIDC authorization server MVP design](../superpowers/specs/2026-09-03-oidc-authorization-server-design.md) |
+> | Implementation plan | [MVP plan](../superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) |
+> | Shipped status | [README.md](../../README.md) Status table |
+>
+> Keep the inlined ADRs below as **history**. Verification-plan rows near the end are stale relative to the shipped MVP.
+
 This is a **high-level design**, not an implementation plan. No code, no stack, no `sub` generator, no API scope catalog.
 
 It was drilled down with three ECC skills: **product-lens**, **architecture-decision-records** (proposed, inlined here — no `docs/adr/` until there is an OAuth repo), and **intent-driven-development** (architecture-level acceptance brief).
 
-After this document is approved, the next step is a **new technical-details plan** — still not building.
+**Superseded for build work** by the approved design spec and MVP plan linked above.
 
 ---
 
@@ -340,6 +350,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 ### Acceptance criteria
 
 ### AC-001: Third-party OIDC without password leak
+
 - **Scenario:** Testing client, allowlisted tester, identity-only.
 - **Action:** ClubSite runs authorization-code + PKCE against the AS using a standard OIDC library.
 - **Expected:** App receives id_token / access_token / userinfo for that student. App never receives the PESU password.
@@ -348,6 +359,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required (MVP thesis)
 
 ### AC-002: Testing enforces tester allowlist
+
 - **Scenario:** Testing client. Student is a valid Academy user but not developer or tester.
 - **Action:** Complete login.
 - **Expected:** Authorization fails before tokens. Production users cannot be added by the developer alone.
@@ -356,6 +368,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-003: Identity-only leaves no vault row
+
 - **Scenario:** Student has never consented to a delegated client.
 - **Action:** Successful identity-only login.
 - **Expected:** Tokens issued. No stored password, no stored Academy session for that `sub`.
@@ -364,6 +377,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-004: Consent storage sentence matches mode
+
 - **Scenario:** Identity-only client vs delegated-capable client.
 - **Action:** User reads consent before Allow.
 - **Expected:** Identity-only: we do **not** store PESU credentials; this app cannot call the future API on your behalf. Delegated: we **will** store password and session because this client will make future API requests on your behalf.
@@ -372,6 +386,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-005: Production requires admin
+
 - **Scenario:** Testing client, testers work.
 - **Action:** Non-tester tries login **before** admin Production approval; then again after approval.
 - **Expected:** Refused, then allowed.
@@ -380,6 +395,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-006: Scope least privilege
+
 - **Scenario:** Client requested `openid profile` only.
 - **Action:** Inspect id_token and userinfo.
 - **Expected:** Name/PRN/campus-class claims as designed. No email, no phone.
@@ -388,6 +404,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-007: Failed Academy login is a no-op
+
 - **Scenario:** Wrong password or dispatcher error.
 - **Action:** Submit login.
 - **Expected:** Error on the login page. No new `sub`, no vault write, no code issued.
@@ -395,6 +412,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-008: Revoke and delete behave as specified
+
 - **Scenario:** Student has refresh tokens for an app; optionally a vault row.
 - **Action:** Revoke app / delete saved credentials / delete account.
 - **Expected:** Revoke: refresh fails, access dies at expiry. Delete credentials: vault gone, identity grants remain. Delete account: `sub` never reused; all grants dead.
@@ -403,6 +421,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-009: Delegated vault (when mode is on)
+
 - **Scenario:** Admin-allowed delegated client, student consents.
 - **Action:** Allow on consent; later token exchange (when API exists).
 - **Expected:** Vault has password + session. Exchange uses session if valid, else silent re-login. Third parties cannot call exchange.
@@ -411,6 +430,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Important (architecture required; may be gated in v1)
 
 ### AC-010: pesu-auth unchanged
+
 - **Scenario:** Existing Discord / third-party password POST.
 - **Action:** Call pesu-auth `/authenticate`.
 - **Expected:** Same behavior as today.
@@ -419,6 +439,7 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 - **Priority:** Required
 
 ### AC-011: No website scrape on AS/API
+
 - **Scenario:** Mobile dispatcher unavailable.
 - **Action:** Login or future API fetch.
 - **Expected:** Failure. No HTML scrape fallback.
@@ -427,11 +448,13 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 
 ### Verification plan
 
-| Criterion | Evidence | Status |
-| --- | --- | --- |
-| AC-001–AC-007, AC-010, AC-011 | MVP / architecture invariants | Pending technical plan |
-| AC-008 | Settings + token lifecycle | Pending technical plan |
-| AC-009 | When delegated is enabled | Pending; may follow v1 |
+> **Outdated.** MVP Tasks 1–15 shipped identity + delegated vault + settings/revoke + mailer. Treat the design spec and plan as the acceptance source; do not update this table as a live dashboard.
+
+| Criterion                     | Evidence                      | Status                 |
+| ----------------------------- | ----------------------------- | ---------------------- |
+| AC-001–AC-007, AC-010, AC-011 | MVP / architecture invariants | See design spec + plan |
+| AC-008                        | Settings + token lifecycle    | See design spec + plan |
+| AC-009                        | When delegated is enabled     | See design spec + plan |
 
 ---
 
@@ -450,14 +473,12 @@ Not v1. Separate deployable. Token exchange → dispatcher → JSON defined late
 
 ## Next step after approval
 
-**New technical-details plan** (not a build): token encoding, `sub` generator, vault crypto, Testing/Production data model, dispatcher adapter, how AC-001–AC-011 are tested.
+**Done historically:** bootstrap technical notes (`technical.md`), then the approved MVP design + plan under `docs/superpowers/`. Prefer those for new work.
 
-When an OAuth repo exists: ask before creating `docs/adr/`, then file ADR-0001–0006 as `accepted`.
-
-Optional: plan-canvas to annotate diagrams.
+When filing formal ADRs outside this document: ask before creating `docs/adr/`.
 
 ---
 
 ## Harness note
 
-Workspace `.cursor/` is mostly ECC noise. **Used in this revision:** product-lens, ADRs, intent-driven acceptance brief. **Later:** codebase-onboarding, living-docs, TDD, browser-qa, security-reviewer. **Do not** run `orch-build-mvp` / `prp-*` against this work.
+Curated skills live under `.cursor/skills/` (Apple-design, living-docs, TDD, etc.). This document remains historical product context only.

@@ -1,8 +1,18 @@
 # OAuth2 technical plan (not a product build)
 
-**Do not press Build on the architecture plan.** Build **this** plan only to create `oauth2/`, copy docs/skills, and write technical docs. **Do not implement login, tokens, or Mongo writers.**
+> **Status: Outdated bootstrap stub.** Used to create this repo and lock early hosting/stack choices. **Do not** treat this as the current implementation contract.
+>
+> | Role | Canonical document |
+> | --- | --- |
+> | Product + tech contract (approved) | [OIDC authorization server MVP design](../superpowers/specs/2026-09-03-oidc-authorization-server-design.md) |
+> | Implementation plan | [MVP plan](../superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) |
+> | Product ADRs (historical) | [architecture.md](architecture.md) |
+>
+> Hosting (Cloud Run), Atlas X.509 split, and Gmail SMTP notes below are still generally accurate; locked MVP choices (JWT, vault, endpoints) live in the design spec.
 
-Architecture spec: [architecture.md](architecture.md).
+**Historical instruction (repo bootstrap only):** create `oauth2/`, copy docs/skills, and write technical docs — not a product build checklist anymore.
+
+Architecture ADRs: [architecture.md](architecture.md).
 
 ## Hosting (verified)
 
@@ -25,10 +35,10 @@ Two Cloud Run services: **staging** and **prod** (separate URLs, separate env). 
 
 **MongoDB Atlas M0** — **two clusters**, same URI split as discord_bot (not one shared cluster):
 
-| `APP_ENV` | Cluster (discord_bot equivalent) | SRV host |
-| --- | --- | --- |
-| `local`, `staging` | dev / staging | `pesudev.andmjbp.mongodb.net` |
-| `prod` | prod | `pesudev.nkzgere.mongodb.net` |
+| `APP_ENV`          | Cluster (discord_bot equivalent) | SRV host                      |
+| ------------------ | -------------------------------- | ----------------------------- |
+| `local`, `staging` | dev / staging                    | `pesudev.andmjbp.mongodb.net` |
+| `prod`             | prod                             | `pesudev.nkzgere.mongodb.net` |
 
 Database name **`oauth2`** on both (not `discord`). **Auth: self-managed CUSTOMER X.509** — **not SCRAM**. URIs are **hardcoded in app config** (like discord_bot `Config.ENVIRONMENTS`), not an env var. Client cert via optional `MONGO_X509_CERT_PATH` (defaults to `scratch/mongo-dev.pem`). Accept: staging and prod are separate Atlas targets; prod breach does not imply staging data. Revisit isolation if we enable delegated mode and vault density grows.
 
@@ -38,7 +48,7 @@ Database name **`oauth2`** on both (not `discord`). **Auth: self-managed CUSTOME
 
 **OIDC, Mongo, dispatcher client, admin queue, HTML shells — Python** (FastAPI + Jinja2, same family as `auth/`). Off-the-shelf OIDC **clients** (Auth.js, etc.) talk HTTP to us; they do not require a Node server.
 
-**v1 UI is not HTML/CSS-only.** Login, consent, errors, developer portal, and student settings ship with [Apple-design](../../design/apple-design/SKILL.md): instant press feedback, interruptible springs, spatial consistency, rubber-banding on sheets, `prefers-reduced-motion`. That is **static browser JS** in the Python templates (e.g. Motion), not a separate JS backend. No split frontend repo unless we later add a Netlify docs site.
+**v1 UI is not HTML/CSS-only.** Login, consent, errors, developer portal, and student settings ship with [Apple-design](../../.cursor/skills/apple-design/SKILL.md): instant press feedback, interruptible springs, spatial consistency, rubber-banding on sheets, `prefers-reduced-motion`. That is **static browser JS** in the Python templates (e.g. Motion), not a separate JS backend. No split frontend repo unless we later add a Netlify docs site.
 
 ## Design (v1, not later)
 

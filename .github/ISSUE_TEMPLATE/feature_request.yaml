@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an enhancement aligned with the architecture plan
+description: Suggest an enhancement aligned with the approved design spec
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check [docs/plans/architecture.md](../../docs/plans/architecture.md) and [docs/plans/technical.md](../../docs/plans/technical.md) first.
+        Check the approved [design spec](../../docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) and [MVP plan](../../docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) first. `docs/plans/*` is historical/outdated.
 
   - type: textarea
     id: problem
