@@ -131,4 +131,4 @@ Deploy auth is Workload Identity Federation (no JSON key). Cloud Run revisions r
 
 Deploy workflows pin **`--max-instances=1`**. Process-local pending credentials and login rate limits require a single instance; do not scale out until those move to shared storage.
 
-Mongo X.509 PEMs are mounted in the Cloud Run console at `/run/secrets/mongo.pem`. Deploy sets `MONGO_X509_CERT_PATH` to that path.
+Mongo X.509 PEMs are mounted at `/run/secrets/mongo.pem` with `MONGO_X509_CERT_PATH` (and `APP_ENV`) set on the Cloud Run service; deploy updates the image only and leaves those env vars in place.

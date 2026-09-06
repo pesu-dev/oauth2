@@ -127,7 +127,6 @@ jobs:
       environment: prod
       service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
       image: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.target_sha }}
-      app_env: prod
     permissions:
       contents: read
       id-token: write
@@ -141,7 +140,6 @@ jobs:
       environment: prod
       service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
       image: ghcr.io/${{ github.repository }}:prod
-      app_env: prod
     permissions:
       contents: read
       id-token: write

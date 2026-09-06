@@ -15,10 +15,6 @@ on:
         description: Fully qualified image reference (registry/repo:tag)
         required: true
         type: string
-      app_env:
-        description: APP_ENV value for the revision (staging / prod)
-        required: true
-        type: string
     outputs:
       url:
         description: Deployed Cloud Run service URL
@@ -30,7 +26,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to Cloud Run (${{ inputs.app_env }})
+    name: Deploy to Cloud Run (${{ inputs.environment }})
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -50,8 +46,6 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           image: ${{ inputs.image }}
           timeout: 60s
-          env_vars: APP_ENV=${{ inputs.app_env }},MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
-          env_vars_update_strategy: merge
           flags: >-
             --port=8080
             --allow-unauthenticated

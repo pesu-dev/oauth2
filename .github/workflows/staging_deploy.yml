@@ -45,7 +45,6 @@ jobs:
       environment: staging
       service: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
       image: ghcr.io/${{ github.repository }}:${{ github.event.workflow_run.head_sha }}
-      app_env: staging
     permissions:
       contents: read
       id-token: write
