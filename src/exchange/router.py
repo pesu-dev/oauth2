@@ -80,6 +80,50 @@ def _open_vault_plaintext(master_key: bytes, entry: VaultEntry) -> VaultPlaintex
         return _forbidden("Vault credentials unreadable")
 
 
+def _require_first_party_client(config_client_id: str | None, token_client_id: str) -> JSONResponse | None:
+    """Return an error response when the JWT client is not the configured first-party API."""
+    if config_client_id is None or config_client_id == "":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "misconfigured",
+                "error_description": "FIRST_PARTY_API_CLIENT_ID is not configured",
+            },
+        )
+    try:
+        if not hmac.compare_digest(token_client_id, config_client_id):
+            return _forbidden("Token client is not the first-party API client")
+    except (TypeError, ValueError):
+        return _forbidden("Token client is not the first-party API client")
+    return None
+
+
+def _subject_and_allowed_client(
+    *,
+    access_token: str,
+    request: Request,
+) -> tuple[str, str] | JSONResponse:
+    """Validate access JWT and first-party allowlist; return ``(sub, client_id)``."""
+    config = deps.config(request)
+    keys = deps.jwt_keys(request)
+    try:
+        claims = verify_access_token(access_token, keys, issuer=config.issuer_url)
+    except jwt.PyJWTError:
+        return _unauthorized("Invalid or expired access token")
+
+    sub = str(claims["sub"])
+    client_id = str(claims.get("client_id") or claims.get("aud") or "")
+    if not client_id:
+        return _unauthorized("Access token missing client audience")
+
+    allowed = config.first_party_api_client_id
+    allow_err = _require_first_party_client(allowed, client_id)
+    if allow_err is not None:
+        return allow_err
+    assert allowed is not None
+    return sub, allowed
+
+
 async def _refresh_vault_session(
     request: Request,
     *,
@@ -135,18 +179,12 @@ async def token_exchange(
             content={"error": "invalid_request", "error_description": "access_token is required"},
         )
 
-    keys = deps.jwt_keys(request)
-    try:
-        claims = verify_access_token(access_token, keys, issuer=config.issuer_url)
-    except jwt.PyJWTError:
-        return _unauthorized("Invalid or expired access token")
+    parsed = _subject_and_allowed_client(access_token=access_token, request=request)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+    sub, allowed = parsed
 
-    sub = str(claims["sub"])
-    client_id = str(claims.get("client_id") or claims.get("aud") or "")
-    if not client_id:
-        return _unauthorized("Access token missing client audience")
-
-    consent = await deps.consents(request).get_consent(sub, client_id)
+    consent = await deps.consents(request).get_consent(sub, allowed)
     if consent is None or consent.mode != ConsentMode.DELEGATED:
         return _forbidden("Delegated consent required")
 

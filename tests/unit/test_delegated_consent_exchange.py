@@ -128,6 +128,7 @@ def deleg_deps(rsa_pem: str) -> dict[str, object]:
             session_secret="unit-session-secret-for-tests",
             vault_master_key=VAULT_MASTER,
             token_exchange_secret=EXCHANGE_SECRET,
+            first_party_api_client_id=CLIENT_ID,
         ),
     }
 
@@ -191,6 +192,75 @@ def test_delegated_consent_seals_vault(deleg_client: TestClient, deleg_deps: dic
     consents: FakeConsentRepo = deleg_deps["consents"]  # type: ignore[assignment]
     grant = consents._by_pair[(OWNER_SUB, CLIENT_ID)]
     assert grant.mode is ConsentMode.DELEGATED
+
+
+@pytest.mark.unit
+def test_token_exchange_rejects_non_first_party_client(
+    deleg_client: TestClient,
+    deleg_deps: dict[str, object],
+    rsa_pem: str,
+) -> None:
+    """Club-site tokens must not exchange even with a valid secret + delegated consent."""
+    from src.crypto.jwt_keys import JwtKeySet
+    from src.crypto.tokens import sign_access_token
+
+    other_id = "cli_club_third_party"
+    now = datetime.now(UTC)
+    clients: FakeClientRepo = deleg_deps["clients"]  # type: ignore[assignment]
+    consents: FakeConsentRepo = deleg_deps["consents"]  # type: ignore[assignment]
+    vault: FakeVaultRepo = deleg_deps["vault"]  # type: ignore[assignment]
+    clients._by_id[other_id] = Client(
+        client_id=other_id,
+        client_secret_hash=None,
+        name="Third Party Club",
+        owner_sub=OWNER_SUB,
+        redirect_uris=(REDIRECT_URI,),
+        token_endpoint_auth_method="none",
+        publishing_status=PublishingStatus.PRODUCTION,
+        delegated_allowed=True,
+        created_at=now,
+        updated_at=now,
+    )
+    consents._by_pair[(OWNER_SUB, other_id)] = Consent(
+        sub=OWNER_SUB,
+        client_id=other_id,
+        scopes=frozenset({"openid", "profile"}),
+        mode=ConsentMode.DELEGATED,
+        granted_at=now,
+    )
+    master = master_key_from_secret(VAULT_MASTER)
+    vault._by_sub[OWNER_SUB] = VaultEntry(
+        sub=OWNER_SUB,
+        blob=seal(
+            master,
+            pack_vault_plaintext(
+                VaultPlaintext(
+                    username="owner",
+                    password=PASSWORD,
+                    session=AcademySession(token="academy-tok", user_id="uid-1"),
+                )
+            ),
+            CURRENT_VAULT_KEY_VERSION,
+        ),
+        session_expires_at=None,
+    )
+    keys = JwtKeySet.from_pem(rsa_pem, kid="unit-test")
+    access = sign_access_token(
+        keys,
+        sub=OWNER_SUB,
+        client_id=other_id,
+        scope="openid",
+        issuer="http://localhost:8080",
+        ttl_seconds=3600,
+    )
+
+    exchange = deleg_client.post(
+        "/oauth/token-exchange",
+        headers={"X-Token-Exchange-Secret": EXCHANGE_SECRET},
+        data={"access_token": access},
+    )
+    assert exchange.status_code == 403
+    assert exchange.json()["error"] == "forbidden"
 
 
 @pytest.mark.unit
@@ -612,6 +682,7 @@ def test_seal_failure_does_not_write_delegated_consent(
             session_secret="unit-session-secret-for-tests",
             vault_master_key=VAULT_MASTER,
             token_exchange_secret=EXCHANGE_SECRET,
+            first_party_api_client_id=CLIENT_ID,
         ),
         academy=FakeAcademyClient(
             {

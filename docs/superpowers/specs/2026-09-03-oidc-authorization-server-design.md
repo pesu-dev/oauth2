@@ -297,6 +297,7 @@ Ask before adding anything beyond this set.
 | RSA private key / `TOKEN_SIGNING_KEY` | RS256                  |
 | `VAULT_MASTER_KEY`                    | Wrap vault DEKs        |
 | `TOKEN_EXCHANGE_SECRET`               | Internal exchange auth |
+| `FIRST_PARTY_API_CLIENT_ID`           | Only this client's access JWTs may be exchanged |
 | `SESSION_SECRET`                      | Browser session cookie |
 | SMTP app password (optional)          | Gmail backend          |
 | `MONGO_X509_CERT_PATH`                | Atlas client PEM       |

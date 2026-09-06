@@ -127,6 +127,7 @@ async def _seed_and_app(mongo_db: AsyncDatabase, rsa_pem: str) -> FastAPI:
         session_secret="integration-session-secret",
         vault_master_key=VAULT_MASTER,
         token_exchange_secret=EXCHANGE_SECRET,
+        first_party_api_client_id=DELEGATED_CLIENT,
     )
     return create_app(
         config,
