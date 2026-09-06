@@ -23,7 +23,7 @@ class JwtKeySet:
         """Load an RSA private key from PEM and bind it to ``kid``."""
         key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
         if not isinstance(key, RSAPrivateKey):
-            msg = "TOKEN_SIGNING_KEY must be an RSA private key PEM"
+            msg = "TOKEN_SIGNING_KEY_PATH must point to an RSA private key PEM"
             raise TypeError(msg)
         return cls(private_key=key, kid=kid, alg="RS256")
 

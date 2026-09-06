@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 DB_NAME = "oauth2"
 
@@ -14,6 +15,7 @@ AUTHORIZATION_CODE_TTL_SECONDS = 10 * 60
 SESSION_COOKIE_TTL_SECONDS = 30 * 60
 
 DEFAULT_MONGO_X509_CERT_PATH = "scratch/mongo-dev.pem"
+DEFAULT_TOKEN_SIGNING_KEY_PATH = "scratch/token-signing.pem"
 
 # Only access JWTs for this client_id may be used at /oauth/token-exchange.
 FIRST_PARTY_API_CLIENT_ID = "cli_pesu_api"
@@ -47,6 +49,7 @@ class AppConfig:
     refresh_token_ttl_seconds: int
     authorization_code_ttl_seconds: int
     session_cookie_ttl_seconds: int
+    token_signing_key_path: str
     token_signing_key_pem: str | None
     vault_master_key: str | None
     token_exchange_secret: str | None
@@ -64,6 +67,16 @@ def _optional_env(name: str) -> str | None:
     return value
 
 
+def _read_file_if_present(path: str) -> str | None:
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.strip():
+        return None
+    return text
+
+
 def load_config() -> AppConfig:
     """Load config for the current process. Secrets may be omitted only in local."""
     app_env = os.environ.get("APP_ENV", "local")
@@ -73,7 +86,11 @@ def load_config() -> AppConfig:
         raise ValueError(msg)
 
     env = ENVIRONMENTS[app_env]
-    token_signing_key_pem = _optional_env("TOKEN_SIGNING_KEY")
+    token_signing_key_path = os.environ.get(
+        "TOKEN_SIGNING_KEY_PATH",
+        DEFAULT_TOKEN_SIGNING_KEY_PATH,
+    )
+    token_signing_key_pem = _read_file_if_present(token_signing_key_path)
     vault_master_key = _optional_env("VAULT_MASTER_KEY")
     token_exchange_secret = _optional_env("TOKEN_EXCHANGE_SECRET")
     session_secret = _optional_env("SESSION_SECRET")
@@ -82,7 +99,7 @@ def load_config() -> AppConfig:
         missing = [
             name
             for name, value in (
-                ("TOKEN_SIGNING_KEY", token_signing_key_pem),
+                ("TOKEN_SIGNING_KEY_PATH", token_signing_key_pem),
                 ("VAULT_MASTER_KEY", vault_master_key),
                 ("TOKEN_EXCHANGE_SECRET", token_exchange_secret),
                 ("SESSION_SECRET", session_secret),
@@ -103,6 +120,7 @@ def load_config() -> AppConfig:
         refresh_token_ttl_seconds=REFRESH_TOKEN_TTL_SECONDS,
         authorization_code_ttl_seconds=AUTHORIZATION_CODE_TTL_SECONDS,
         session_cookie_ttl_seconds=SESSION_COOKIE_TTL_SECONDS,
+        token_signing_key_path=token_signing_key_path,
         token_signing_key_pem=token_signing_key_pem,
         vault_master_key=vault_master_key,
         token_exchange_secret=token_exchange_secret,

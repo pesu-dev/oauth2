@@ -24,7 +24,7 @@ This project is **not affiliated with PESU University or PESU Academy**. Use at 
 
 ```bash
 cd oauth2
-cp .env.example .env   # fill TOKEN_SIGNING_KEY, SESSION_SECRET, etc.
+cp .env.example .env   # fill SESSION_SECRET, etc.
 uv sync --extra dev
 uv run -m src --reload
 curl http://localhost:8080/health

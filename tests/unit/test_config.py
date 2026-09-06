@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from src.config import ENVIRONMENTS, FIRST_PARTY_API_CLIENT_ID, load_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.unit
@@ -20,10 +25,11 @@ def test_default_app_env_is_local(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.unit
-def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("APP_ENV", "local")
+    missing_key = tmp_path / "missing-token-signing.pem"
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(missing_key))
     for name in (
-        "TOKEN_SIGNING_KEY",
         "VAULT_MASTER_KEY",
         "TOKEN_EXCHANGE_SECRET",
         "SESSION_SECRET",
@@ -32,6 +38,7 @@ def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
         "MONGO_X509_CERT_PATH",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("TOKEN_SIGNING_KEY", raising=False)
 
     cfg = load_config()
     assert cfg.mongo_uri == ENVIRONMENTS["local"]["mongo_uri"]
@@ -39,6 +46,7 @@ def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.authorization_code_ttl_seconds == 600
     assert cfg.session_cookie_ttl_seconds == 1800
     assert cfg.token_signing_key_pem is None
+    assert cfg.token_signing_key_path == str(missing_key)
     assert cfg.vault_master_key is None
     assert cfg.token_exchange_secret is None
     assert cfg.first_party_api_client_id == FIRST_PARTY_API_CLIENT_ID
@@ -49,9 +57,26 @@ def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.unit
-def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_token_signing_key_loaded_from_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pem_path = tmp_path / "token-signing.pem"
+    pem_path.write_text("-----BEGIN PRIVATE KEY-----\npem-data\n-----END PRIVATE KEY-----\n")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(pem_path))
+
+    cfg = load_config()
+    assert cfg.token_signing_key_path == str(pem_path)
+    assert cfg.token_signing_key_pem == pem_path.read_text()
+
+
+@pytest.mark.unit
+def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    pem_path = tmp_path / "staging.pem"
+    pem_path.write_text("pem-data\n")
     monkeypatch.setenv("APP_ENV", "staging")
-    monkeypatch.setenv("TOKEN_SIGNING_KEY", "pem-data")
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(pem_path))
     monkeypatch.setenv("VAULT_MASTER_KEY", "vault-key")
     monkeypatch.setenv("TOKEN_EXCHANGE_SECRET", "exchange-secret")
     monkeypatch.setenv("SESSION_SECRET", "session-secret")
@@ -63,7 +88,8 @@ def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch) -> No
     assert cfg.app_env == "staging"
     assert cfg.mongo_uri == ENVIRONMENTS["staging"]["mongo_uri"]
     assert cfg.issuer_url == ENVIRONMENTS["staging"]["issuer_url"]
-    assert cfg.token_signing_key_pem == "pem-data"
+    assert cfg.token_signing_key_pem == "pem-data\n"
+    assert cfg.token_signing_key_path == str(pem_path)
     assert cfg.vault_master_key == "vault-key"
     assert cfg.token_exchange_secret == "exchange-secret"
     assert cfg.first_party_api_client_id == FIRST_PARTY_API_CLIENT_ID
@@ -74,9 +100,11 @@ def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.mark.unit
-def test_prod_environment_uris(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_prod_environment_uris(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    pem_path = tmp_path / "prod.pem"
+    pem_path.write_text("pem\n")
     monkeypatch.setenv("APP_ENV", "prod")
-    monkeypatch.setenv("TOKEN_SIGNING_KEY", "pem")
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(pem_path))
     monkeypatch.setenv("VAULT_MASTER_KEY", "vault")
     monkeypatch.setenv("TOKEN_EXCHANGE_SECRET", "exchange")
     monkeypatch.setenv("SESSION_SECRET", "session")
@@ -95,10 +123,10 @@ def test_unknown_app_env_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.unit
-def test_staging_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_staging_requires_secrets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(tmp_path / "missing.pem"))
     for name in (
-        "TOKEN_SIGNING_KEY",
         "VAULT_MASTER_KEY",
         "TOKEN_EXCHANGE_SECRET",
         "SESSION_SECRET",
@@ -110,8 +138,13 @@ def test_staging_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.unit
-def test_empty_secret_treated_as_missing_in_local(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_token_signing_key_path_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.setenv("APP_ENV", "local")
-    monkeypatch.setenv("TOKEN_SIGNING_KEY", "")
+    monkeypatch.delenv("TOKEN_SIGNING_KEY_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)
     cfg = load_config()
+    assert cfg.token_signing_key_path == "scratch/token-signing.pem"
     assert cfg.token_signing_key_pem is None

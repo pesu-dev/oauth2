@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from fastapi.testclient import TestClient
 
 from src.app import create_app
 from src.config import load_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.unit
@@ -26,7 +31,11 @@ def test_jwks_returns_rsa_public_key(client: TestClient) -> None:
 
 
 @pytest.mark.unit
-def test_jwks_unavailable_without_signing_key() -> None:
+def test_jwks_unavailable_without_signing_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(tmp_path / "missing.pem"))
     with TestClient(create_app(load_config())) as test_client:
         r = test_client.get("/jwks.json")
         assert r.status_code == 503
