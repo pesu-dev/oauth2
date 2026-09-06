@@ -155,7 +155,7 @@ Database name: `oauth2`. Cluster selected by `APP_ENV` (see technical plan). Run
 
 1. Authenticate caller with `TOKEN_EXCHANGE_SECRET` (header); not available to third-party clients
 2. Validate user access JWT
-3. Require active **delegated** consent for the relevant client (first-party API client id configurable)
+3. Require active **delegated** consent for the hardcoded first-party API `client_id` (`FIRST_PARTY_API_CLIENT_ID` in `src/config.py`)
 4. If vault session valid → return short-lived Academy session material to caller only
 5. Else decrypt password → mobile re-login → re-wrap vault → return session
 6. Never return PESU password
@@ -297,7 +297,6 @@ Ask before adding anything beyond this set.
 | RSA private key / `TOKEN_SIGNING_KEY` | RS256                  |
 | `VAULT_MASTER_KEY`                    | Wrap vault DEKs        |
 | `TOKEN_EXCHANGE_SECRET`               | Internal exchange auth |
-| `FIRST_PARTY_API_CLIENT_ID`           | Only this client's access JWTs may be exchanged |
 | `SESSION_SECRET`                      | Browser session cookie |
 | SMTP app password (optional)          | Gmail backend          |
 | `MONGO_X509_CERT_PATH`                | Atlas client PEM       |

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import ENVIRONMENTS, load_config
+from src.config import ENVIRONMENTS, FIRST_PARTY_API_CLIENT_ID, load_config
 
 
 @pytest.mark.unit
@@ -16,6 +16,7 @@ def test_default_app_env_is_local(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.db_name == "oauth2"
     assert cfg.access_token_ttl_seconds == 3600
     assert cfg.refresh_token_ttl_seconds == 14 * 24 * 3600
+    assert cfg.first_party_api_client_id == FIRST_PARTY_API_CLIENT_ID
 
 
 @pytest.mark.unit
@@ -25,7 +26,6 @@ def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
         "TOKEN_SIGNING_KEY",
         "VAULT_MASTER_KEY",
         "TOKEN_EXCHANGE_SECRET",
-        "FIRST_PARTY_API_CLIENT_ID",
         "SESSION_SECRET",
         "GMAIL_SMTP_USER",
         "GMAIL_SMTP_APP_PASSWORD",
@@ -41,7 +41,7 @@ def test_local_allows_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.token_signing_key_pem is None
     assert cfg.vault_master_key is None
     assert cfg.token_exchange_secret is None
-    assert cfg.first_party_api_client_id is None
+    assert cfg.first_party_api_client_id == FIRST_PARTY_API_CLIENT_ID
     assert cfg.session_secret is None
     assert cfg.gmail_smtp_user is None
     assert cfg.gmail_smtp_app_password is None
@@ -54,7 +54,6 @@ def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("TOKEN_SIGNING_KEY", "pem-data")
     monkeypatch.setenv("VAULT_MASTER_KEY", "vault-key")
     monkeypatch.setenv("TOKEN_EXCHANGE_SECRET", "exchange-secret")
-    monkeypatch.setenv("FIRST_PARTY_API_CLIENT_ID", "cli_first_party")
     monkeypatch.setenv("SESSION_SECRET", "session-secret")
     monkeypatch.setenv("MONGO_X509_CERT_PATH", "/run/secrets/mongo.pem")
     monkeypatch.setenv("GMAIL_SMTP_USER", "noreply@gmail.com")
@@ -67,7 +66,7 @@ def test_staging_loads_secrets_and_issuer(monkeypatch: pytest.MonkeyPatch) -> No
     assert cfg.token_signing_key_pem == "pem-data"
     assert cfg.vault_master_key == "vault-key"
     assert cfg.token_exchange_secret == "exchange-secret"
-    assert cfg.first_party_api_client_id == "cli_first_party"
+    assert cfg.first_party_api_client_id == FIRST_PARTY_API_CLIENT_ID
     assert cfg.session_secret == "session-secret"
     assert cfg.mongo_x509_cert_path == "/run/secrets/mongo.pem"
     assert cfg.gmail_smtp_user == "noreply@gmail.com"
@@ -80,7 +79,6 @@ def test_prod_environment_uris(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TOKEN_SIGNING_KEY", "pem")
     monkeypatch.setenv("VAULT_MASTER_KEY", "vault")
     monkeypatch.setenv("TOKEN_EXCHANGE_SECRET", "exchange")
-    monkeypatch.setenv("FIRST_PARTY_API_CLIENT_ID", "cli_prod_api")
     monkeypatch.setenv("SESSION_SECRET", "session")
 
     cfg = load_config()
@@ -103,7 +101,6 @@ def test_staging_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
         "TOKEN_SIGNING_KEY",
         "VAULT_MASTER_KEY",
         "TOKEN_EXCHANGE_SECRET",
-        "FIRST_PARTY_API_CLIENT_ID",
         "SESSION_SECRET",
     ):
         monkeypatch.delenv(name, raising=False)

@@ -15,6 +15,9 @@ SESSION_COOKIE_TTL_SECONDS = 30 * 60
 
 DEFAULT_MONGO_X509_CERT_PATH = "scratch/mongo-dev.pem"
 
+# Only access JWTs for this client_id may be used at /oauth/token-exchange.
+FIRST_PARTY_API_CLIENT_ID = "cli_pesu_api"
+
 ENVIRONMENTS: dict[str, dict[str, str]] = {
     "prod": {
         "mongo_uri": "mongodb+srv://pesudev.nkzgere.mongodb.net/",
@@ -47,7 +50,7 @@ class AppConfig:
     token_signing_key_pem: str | None
     vault_master_key: str | None
     token_exchange_secret: str | None
-    first_party_api_client_id: str | None
+    first_party_api_client_id: str
     session_secret: str | None
     mongo_x509_cert_path: str
     gmail_smtp_user: str | None
@@ -73,7 +76,6 @@ def load_config() -> AppConfig:
     token_signing_key_pem = _optional_env("TOKEN_SIGNING_KEY")
     vault_master_key = _optional_env("VAULT_MASTER_KEY")
     token_exchange_secret = _optional_env("TOKEN_EXCHANGE_SECRET")
-    first_party_api_client_id = _optional_env("FIRST_PARTY_API_CLIENT_ID")
     session_secret = _optional_env("SESSION_SECRET")
 
     if app_env != "local":
@@ -83,7 +85,6 @@ def load_config() -> AppConfig:
                 ("TOKEN_SIGNING_KEY", token_signing_key_pem),
                 ("VAULT_MASTER_KEY", vault_master_key),
                 ("TOKEN_EXCHANGE_SECRET", token_exchange_secret),
-                ("FIRST_PARTY_API_CLIENT_ID", first_party_api_client_id),
                 ("SESSION_SECRET", session_secret),
             )
             if value is None
@@ -105,7 +106,7 @@ def load_config() -> AppConfig:
         token_signing_key_pem=token_signing_key_pem,
         vault_master_key=vault_master_key,
         token_exchange_secret=token_exchange_secret,
-        first_party_api_client_id=first_party_api_client_id,
+        first_party_api_client_id=FIRST_PARTY_API_CLIENT_ID,
         session_secret=session_secret,
         mongo_x509_cert_path=os.environ.get("MONGO_X509_CERT_PATH", DEFAULT_MONGO_X509_CERT_PATH),
         gmail_smtp_user=_optional_env("GMAIL_SMTP_USER"),

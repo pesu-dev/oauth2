@@ -80,16 +80,8 @@ def _open_vault_plaintext(master_key: bytes, entry: VaultEntry) -> VaultPlaintex
         return _forbidden("Vault credentials unreadable")
 
 
-def _require_first_party_client(config_client_id: str | None, token_client_id: str) -> JSONResponse | None:
+def _require_first_party_client(config_client_id: str, token_client_id: str) -> JSONResponse | None:
     """Return an error response when the JWT client is not the configured first-party API."""
-    if config_client_id is None or config_client_id == "":
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "misconfigured",
-                "error_description": "FIRST_PARTY_API_CLIENT_ID is not configured",
-            },
-        )
     try:
         if not hmac.compare_digest(token_client_id, config_client_id):
             return _forbidden("Token client is not the first-party API client")
@@ -120,7 +112,6 @@ def _subject_and_allowed_client(
     allow_err = _require_first_party_client(allowed, client_id)
     if allow_err is not None:
         return allow_err
-    assert allowed is not None
     return sub, allowed
 
 
