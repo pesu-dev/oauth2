@@ -6,11 +6,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.academy.client import HttpxAcademyClient
 from src.admin.router import router as admin_router
 from src.config import load_config
 from src.crypto.jwt_keys import JwtKeySet
@@ -61,6 +63,7 @@ if TYPE_CHECKING:
 
 DEFAULT_SIGNING_KEY_ID = "default"
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
+_ACADEMY_HTTP_TIMEOUT = 30.0
 
 
 def _wire_mongo_repos(application: FastAPI) -> None:
@@ -93,25 +96,36 @@ def _wire_session_stores(
     portal_session_store: PortalSessionStore | None,
     settings_session_store: SettingsSessionStore | None = None,
 ) -> None:
-    """Attach OIDC, portal, and settings session stores (shared secret, distinct salts)."""
-    application.state.session_store = session_store
-    if application.state.session_store is None and config.session_secret:
-        application.state.session_store = SessionStore(
-            config.session_secret,
-            max_age=config.session_cookie_ttl_seconds,
-        )
-    application.state.portal_session_store = portal_session_store
-    if application.state.portal_session_store is None and config.session_secret:
-        application.state.portal_session_store = PortalSessionStore(
-            config.session_secret,
-            max_age=config.session_cookie_ttl_seconds,
-        )
-    application.state.settings_session_store = settings_session_store
-    if application.state.settings_session_store is None and config.session_secret:
-        application.state.settings_session_store = SettingsSessionStore(
-            config.session_secret,
-            max_age=config.session_cookie_ttl_seconds,
-        )
+    """Attach OIDC, portal, settings, and CSRF stores (shared secret, distinct salts)."""
+    secret = config.session_secret
+    if secret is None:
+        msg = "SESSION_SECRET is required"
+        raise ValueError(msg)
+    ttl = config.session_cookie_ttl_seconds
+    application.state.session_store = session_store or SessionStore(secret, max_age=ttl)
+    application.state.portal_session_store = portal_session_store or PortalSessionStore(
+        secret,
+        max_age=ttl,
+    )
+    application.state.settings_session_store = settings_session_store or SettingsSessionStore(
+        secret,
+        max_age=ttl,
+    )
+    application.state.csrf_store = CsrfStore(secret, max_age=ttl)
+
+
+def _default_academy() -> HttpxAcademyClient:
+    return HttpxAcademyClient(httpx.AsyncClient(timeout=_ACADEMY_HTTP_TIMEOUT))
+
+
+async def _shutdown_runtime(application: FastAPI) -> None:
+    db = application.state.db
+    if db is not None:
+        await db.client.close()
+        application.state.db = None
+    academy_client = application.state.academy
+    if isinstance(academy_client, HttpxAcademyClient):
+        await academy_client.aclose()
 
 
 def create_app(
@@ -162,10 +176,7 @@ def create_app(
         try:
             yield
         finally:
-            db = getattr(application.state, "db", None)
-            if db is not None:
-                await db.client.close()
-                application.state.db = None
+            await _shutdown_runtime(application)
 
     application = FastAPI(
         title="PESU OAuth2",
@@ -182,7 +193,7 @@ def create_app(
         if config.token_signing_key_pem is not None
         else None
     )
-    application.state.academy = academy
+    application.state.academy = academy if academy is not None else _default_academy()
     application.state.users = users
     application.state.clients = clients
     application.state.testers = testers
@@ -203,11 +214,6 @@ def create_app(
     application.state.login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
     application.state.token_limiter = SlidingWindowRateLimiter(limit=60, window_seconds=60)
     application.state.exchange_limiter = SlidingWindowRateLimiter(limit=30, window_seconds=60)
-    if config.session_secret:
-        application.state.csrf_store = CsrfStore(
-            config.session_secret,
-            max_age=config.session_cookie_ttl_seconds,
-        )
     application.state.pending_credentials = PendingCredentialStore(
         ttl_seconds=float(config.session_cookie_ttl_seconds),
     )
@@ -250,4 +256,6 @@ def create_app(
     return application
 
 
-app = create_app(connect_mongo=True)
+def build_app() -> FastAPI:
+    """ASGI factory for uvicorn / Cloud Run (``src.app:build_app``)."""
+    return create_app(connect_mongo=True)

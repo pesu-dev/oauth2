@@ -319,27 +319,14 @@ def test_userinfo_invalid_token(rsa_pem: str) -> None:
 
 
 @pytest.mark.unit
-def test_deps_raise_when_unwired() -> None:
+def test_deps_jwt_keys_requires_signing_key() -> None:
     application = FastAPI()
-    application.state.config = load_config()
     application.state.jwt_keys = None
-    application.state.session_store = None
-    application.state.academy = None
-    application.state.users = None
-
     request = MagicMock()
     request.app = application
-
     with pytest.raises(HTTPException) as keys_exc:
         deps.jwt_keys(request)
     assert keys_exc.value.status_code == 503
-
-    with pytest.raises(HTTPException):
-        deps.session_store(request)
-    with pytest.raises(HTTPException):
-        deps.academy(request)
-    with pytest.raises(HTTPException):
-        deps.users(request)
 
 
 @pytest.mark.unit
@@ -463,27 +450,6 @@ def test_refresh_wrong_client(rsa_pem: str) -> None:
             },
         )
         assert resp.status_code == 400
-
-
-@pytest.mark.unit
-def test_deps_portal_settings_mailer_pending_503() -> None:
-    application = FastAPI()
-    application.state.config = load_config()
-    application.state.portal_session_store = None
-    application.state.settings_session_store = None
-    application.state.mailer = None
-    application.state.pending_credentials = None
-    request = MagicMock()
-    request.app = application
-    for fn in (
-        deps.portal_session_store,
-        deps.settings_session_store,
-        deps.mailer,
-        deps.pending_credentials,
-    ):
-        with pytest.raises(HTTPException) as exc:
-            fn(request)
-        assert exc.value.status_code == 503
 
 
 @pytest.mark.unit

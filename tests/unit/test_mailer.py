@@ -225,15 +225,18 @@ async def test_smtp_mailer_sends_via_smtplib() -> None:
 
 @pytest.mark.unit
 def test_create_app_wires_default_log_mailer() -> None:
-    cfg = replace(load_config(), gmail_smtp_user=None, gmail_smtp_app_password=None)
+    from tests.conftest import config_for_tests
+
+    cfg = config_for_tests(gmail_smtp_user=None, gmail_smtp_app_password=None)
     app = create_app(cfg)
     assert isinstance(app.state.mailer, LogMailer)
 
 
 @pytest.mark.unit
 def test_create_app_wires_smtp_mailer_when_configured() -> None:
-    cfg = replace(
-        load_config(),
+    from tests.conftest import config_for_tests
+
+    cfg = config_for_tests(
         gmail_smtp_user="noreply@gmail.com",
         gmail_smtp_app_password="app-pass",
     )
@@ -243,8 +246,10 @@ def test_create_app_wires_smtp_mailer_when_configured() -> None:
 
 @pytest.mark.unit
 def test_create_app_accepts_injected_mailer() -> None:
+    from tests.conftest import config_for_tests
+
     injected = LogMailer()
-    app = create_app(load_config(), mailer=injected)
+    app = create_app(config_for_tests(), mailer=injected)
     assert app.state.mailer is injected
 
 

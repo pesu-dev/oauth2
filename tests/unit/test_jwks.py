@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.app import create_app
-from src.config import load_config
+from tests.conftest import config_for_tests
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -36,6 +36,6 @@ def test_jwks_unavailable_without_signing_key(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(tmp_path / "missing.pem"))
-    with TestClient(create_app(load_config())) as test_client:
+    with TestClient(create_app(config_for_tests(token_signing_key_pem=None))) as test_client:
         r = test_client.get("/jwks.json")
         assert r.status_code == 503

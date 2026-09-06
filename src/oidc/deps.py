@@ -1,8 +1,8 @@
-"""Request-scoped accessors for OIDC dependencies wired on ``app.state``."""
+"""Request-scoped accessors for dependencies wired on ``app.state``."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, cast
 
 from fastapi import HTTPException, Request
 
@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from src.repos.vault import VaultRepo
     from src.session_cookie import PortalSessionStore, SessionStore, SettingsSessionStore
 
-T = TypeVar("T")
-
 
 def config(request: Request) -> AppConfig:
     return cast("AppConfig", request.app.state.config)
@@ -35,86 +33,68 @@ def config(request: Request) -> AppConfig:
 def jwt_keys(request: Request) -> JwtKeySet:
     keys = request.app.state.jwt_keys
     if keys is None:
-        raise HTTPException(status_code=503, detail="Signing keys unavailable")
+        raise HTTPException(status_code=503, detail="Signing key not configured")
     return cast("JwtKeySet", keys)
 
 
 def session_store(request: Request) -> SessionStore:
-    store = getattr(request.app.state, "session_store", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="Session store unavailable")
-    return cast("SessionStore", store)
+    return cast("SessionStore", request.app.state.session_store)
 
 
 def portal_session_store(request: Request) -> PortalSessionStore:
-    store = getattr(request.app.state, "portal_session_store", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="Portal session store unavailable")
-    return cast("PortalSessionStore", store)
+    return cast("PortalSessionStore", request.app.state.portal_session_store)
 
 
 def settings_session_store(request: Request) -> SettingsSessionStore:
-    store = getattr(request.app.state, "settings_session_store", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="Settings session store unavailable")
-    return cast("SettingsSessionStore", store)
+    return cast("SettingsSessionStore", request.app.state.settings_session_store)
 
 
 def academy(request: Request) -> AcademyClient:
-    client = getattr(request.app.state, "academy", None)
-    if client is None:
-        raise HTTPException(status_code=503, detail="Academy client unavailable")
-    return cast("AcademyClient", client)
+    return cast("AcademyClient", request.app.state.academy)
 
 
 def users(request: Request) -> UserRepo:
-    return _require_repo(request, "users")
+    return cast("UserRepo", request.app.state.users)
 
 
 def clients(request: Request) -> ClientRepo:
-    return _require_repo(request, "clients")
+    return cast("ClientRepo", request.app.state.clients)
 
 
 def testers(request: Request) -> TesterRepo:
-    return _require_repo(request, "testers")
+    return cast("TesterRepo", request.app.state.testers)
 
 
 def auth_codes(request: Request) -> AuthCodeRepo:
-    return _require_repo(request, "auth_codes")
+    return cast("AuthCodeRepo", request.app.state.auth_codes)
 
 
 def refresh_tokens(request: Request) -> RefreshTokenRepo:
-    return _require_repo(request, "refresh_tokens")
+    return cast("RefreshTokenRepo", request.app.state.refresh_tokens)
 
 
 def consents(request: Request) -> ConsentRepo:
-    return _require_repo(request, "consents")
+    return cast("ConsentRepo", request.app.state.consents)
 
 
 def admins(request: Request) -> AdminRepo:
-    return _require_repo(request, "admins")
+    return cast("AdminRepo", request.app.state.admins)
 
 
 def production_requests(request: Request) -> ProductionRequestRepo:
-    return _require_repo(request, "production_requests")
+    return cast("ProductionRequestRepo", request.app.state.production_requests)
 
 
 def vault(request: Request) -> VaultRepo:
-    return _require_repo(request, "vault")
+    return cast("VaultRepo", request.app.state.vault)
 
 
 def mailer(request: Request) -> Mailer:
-    mail = getattr(request.app.state, "mailer", None)
-    if mail is None:
-        raise HTTPException(status_code=503, detail="Mailer unavailable")
-    return cast("Mailer", mail)
+    return cast("Mailer", request.app.state.mailer)
 
 
 def pending_credentials(request: Request) -> PendingCredentialStore:
-    store = getattr(request.app.state, "pending_credentials", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="Pending credential store unavailable")
-    return cast("PendingCredentialStore", store)
+    return cast("PendingCredentialStore", request.app.state.pending_credentials)
 
 
 def login_limiter(request: Request) -> SlidingWindowRateLimiter:
@@ -130,14 +110,4 @@ def exchange_limiter(request: Request) -> SlidingWindowRateLimiter:
 
 
 def csrf_store(request: Request) -> CsrfStore:
-    store = getattr(request.app.state, "csrf_store", None)
-    if store is None:
-        raise HTTPException(status_code=503, detail="CSRF store unavailable")
-    return cast("CsrfStore", store)
-
-
-def _require_repo(request: Request, name: str) -> T:
-    repo = getattr(request.app.state, name, None)
-    if repo is None:
-        raise HTTPException(status_code=503, detail=f"{name} repository unavailable")
-    return cast("T", repo)
+    return cast("CsrfStore", request.app.state.csrf_store)

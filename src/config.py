@@ -77,8 +77,24 @@ def _read_file_if_present(path: str) -> str | None:
     return text
 
 
+def _load_dotenv() -> None:
+    """Load repo-root ``.env`` when python-dotenv is installed (local/dev).
+
+    Skipped when ``PESU_OAUTH2_SKIP_DOTENV=1`` (pytest) or when the package is
+    absent (production image built with ``uv sync --no-dev``).
+    """
+    if os.environ.get("PESU_OAUTH2_SKIP_DOTENV") == "1":
+        return
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv()
+
+
 def load_config() -> AppConfig:
     """Load config for the current process. Secrets may be omitted only in local."""
+    _load_dotenv()
     app_env = os.environ.get("APP_ENV", "local")
     if app_env not in ENVIRONMENTS:
         known = ", ".join(sorted(ENVIRONMENTS))

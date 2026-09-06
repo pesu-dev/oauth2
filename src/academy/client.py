@@ -175,6 +175,10 @@ class HttpxAcademyClient:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self._http = http
 
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._http.aclose()
+
     async def login(self, username: str, password: str) -> AcademyAuthResult:
         """Authenticate and map profile fields. Raises AcademyAuthError on failure."""
         files = {

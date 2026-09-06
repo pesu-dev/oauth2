@@ -15,20 +15,23 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.unit
-def test_create_app_exposes_config() -> None:
+def test_create_app_defaults_to_httpx_academy() -> None:
+    from src.academy.client import HttpxAcademyClient
     from src.app import create_app
-    from src.config import load_config
+    from tests.conftest import config_for_tests
 
-    application = create_app(load_config())
-    assert application.state.config.issuer_url == "http://localhost:8080"
+    application = create_app(config_for_tests())
+    assert isinstance(application.state.academy, HttpxAcademyClient)
+    with TestClient(application):
+        assert isinstance(application.state.academy, HttpxAcademyClient)
 
 
 @pytest.mark.unit
 def test_create_app_leaves_db_none_without_mongo() -> None:
     from src.app import create_app
-    from src.config import load_config
+    from tests.conftest import config_for_tests
 
-    application = create_app(load_config())
+    application = create_app(config_for_tests())
     with TestClient(application) as client:
         assert application.state.db is None
         response = client.get("/health")
@@ -41,7 +44,7 @@ def test_lifespan_connects_when_mongo_uri_override_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.app import create_app
-    from src.config import load_config
+    from tests.conftest import config_for_tests
 
     fake_db = MagicMock()
     fake_db.client = MagicMock()
@@ -53,7 +56,7 @@ def test_lifespan_connects_when_mongo_uri_override_set(
     monkeypatch.setattr("src.app.ensure_indexes", ensure_indexes)
 
     application = create_app(
-        load_config(),
+        config_for_tests(),
         mongo_uri_override="mongodb://localhost:27017",
     )
     with TestClient(application):
@@ -69,7 +72,7 @@ def test_lifespan_connects_when_connect_mongo_true(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.app import create_app
-    from src.config import load_config
+    from tests.conftest import config_for_tests
 
     fake_db = MagicMock()
     fake_db.client = MagicMock()
@@ -86,7 +89,7 @@ def test_lifespan_connects_when_connect_mongo_true(
     monkeypatch.setattr("src.app.get_database", fake_get_database)
     monkeypatch.setattr("src.app.ensure_indexes", ensure_indexes)
 
-    application = create_app(load_config(), connect_mongo=True)
+    application = create_app(config_for_tests(), connect_mongo=True)
     with TestClient(application):
         assert application.state.db is fake_db
         ensure_indexes.assert_awaited_once_with(fake_db)
@@ -96,7 +99,6 @@ def test_lifespan_connects_when_connect_mongo_true(
 def test_wire_mongo_repos_skips_when_already_set() -> None:
     """Both branches: None→Mongo* assignment and already-set skip."""
     from src.app import _wire_mongo_repos, create_app
-    from src.config import load_config
     from src.repos.fakes import (
         FakeAdminRepo,
         FakeAuthCodeRepo,
@@ -108,6 +110,7 @@ def test_wire_mongo_repos_skips_when_already_set() -> None:
         FakeUserRepo,
         FakeVaultRepo,
     )
+    from tests.conftest import config_for_tests
 
     users = FakeUserRepo()
     clients = FakeClientRepo()
@@ -120,7 +123,7 @@ def test_wire_mongo_repos_skips_when_already_set() -> None:
     vault = FakeVaultRepo()
 
     application = create_app(
-        load_config(),
+        config_for_tests(),
         users=users,
         clients=clients,
         testers=testers,
@@ -147,7 +150,6 @@ def test_wire_mongo_repos_skips_when_already_set() -> None:
 @pytest.mark.unit
 def test_wire_mongo_repos_assigns_when_none() -> None:
     from src.app import _wire_mongo_repos, create_app
-    from src.config import load_config
     from src.repos.admins import MongoAdminRepo
     from src.repos.auth_codes import MongoAuthCodeRepo
     from src.repos.clients import MongoClientRepo
@@ -157,8 +159,9 @@ def test_wire_mongo_repos_assigns_when_none() -> None:
     from src.repos.testers import MongoTesterRepo
     from src.repos.users import MongoUserRepo
     from src.repos.vault import MongoVaultRepo
+    from tests.conftest import config_for_tests
 
-    application = create_app(load_config())
+    application = create_app(config_for_tests())
     fake_db = MagicMock()
     application.state.db = fake_db
     assert application.state.users is None
