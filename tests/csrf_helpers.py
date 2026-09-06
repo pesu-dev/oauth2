@@ -1,16 +1,31 @@
-"""Helpers for CSRF-protected HTML form posts in unit tests."""
+"""Helpers for CSRF-protected HTML form posts in unit and integration tests."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol
 
 from src.csrf import CSRF_COOKIE, CSRF_FIELD, CsrfStore
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from fastapi.testclient import TestClient
 
 
-def form_with_csrf(client: TestClient, session_secret: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+class _CookieJar(Protocol):
+    def get(self, name: str) -> str | None: ...
+
+
+class _CookieClient(Protocol):
+    @property
+    def cookies(self) -> _CookieJar: ...
+
+
+def form_with_csrf(
+    client: _CookieClient,
+    session_secret: str,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Merge ``data`` with the CSRF token from the client's signed cookie."""
     raw = client.cookies.get(CSRF_COOKIE)
     if raw is None:

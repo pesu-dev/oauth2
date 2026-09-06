@@ -175,3 +175,40 @@ def test_wire_mongo_repos_assigns_when_none() -> None:
     assert isinstance(application.state.admins, MongoAdminRepo)
     assert isinstance(application.state.production_requests, MongoProductionRequestRepo)
     assert isinstance(application.state.vault, MongoVaultRepo)
+
+
+@pytest.mark.unit
+def test_create_app_requires_session_secret(rsa_pem: str) -> None:
+    from dataclasses import replace
+
+    from src.app import create_app
+    from src.config import load_config
+
+    with pytest.raises(ValueError, match="SESSION_SECRET is required"):
+        create_app(replace(load_config(), token_signing_key_pem=rsa_pem, session_secret=None))
+
+
+@pytest.mark.unit
+def test_create_app_loads_config_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.app import create_app
+    from tests.conftest import config_for_tests
+
+    cfg = config_for_tests()
+    monkeypatch.setattr("src.app.load_config", lambda: cfg)
+    application = create_app(None)
+    assert application.state.config is cfg
+
+
+@pytest.mark.unit
+def test_build_app_requests_mongo(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src import app as app_mod
+
+    calls: list[bool] = []
+
+    def fake_create_app(*_a: object, connect_mongo: bool = False, **_kw: object) -> object:
+        calls.append(connect_mongo)
+        return MagicMock()
+
+    monkeypatch.setattr(app_mod, "create_app", fake_create_app)
+    app_mod.build_app()
+    assert calls == [True]

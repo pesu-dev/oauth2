@@ -40,6 +40,7 @@ OWNER_PRN = "PES2202520001"
 ADMIN_SUB = "usr_gate_admin"
 ADMIN_PRN = "PES2202520002"
 STRANGER_PRN = "PES2202520999"
+SESSION_SECRET = "integration-portal-session"
 
 
 def _s256_challenge(verifier: str) -> str:
@@ -139,7 +140,7 @@ async def _build_app(mongo_db: AsyncDatabase, rsa_pem: str) -> FastAPI:
     config = replace(
         load_config(),
         token_signing_key_pem=rsa_pem,
-        session_secret="integration-portal-session",
+        session_secret=SESSION_SECRET,
     )
     return create_app(
         config,
@@ -164,15 +165,27 @@ async def gate_client(mongo_db: AsyncDatabase, rsa_pem: str) -> AsyncIterator[As
 
 
 async def _portal_login(client: AsyncClient, *, username: str, password: str = "good-pass") -> None:
+    from tests.csrf_helpers import form_with_csrf
+
     page = await client.get("/portal/login")
     assert page.status_code == 200
     resp = await client.post(
         "/portal/login",
-        data={"username": username, "password": password},
+        data=form_with_csrf(
+            client,
+            SESSION_SECRET,
+            {"username": username, "password": password},
+        ),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
     assert PORTAL_COOKIE in resp.cookies or PORTAL_COOKIE in client.cookies
+
+
+def _csrf(client: AsyncClient, data: dict[str, object] | None = None) -> dict[str, object]:
+    from tests.csrf_helpers import form_with_csrf
+
+    return form_with_csrf(client, SESSION_SECRET, data)  # type: ignore[return-value]
 
 
 async def _authorize_as_stranger(client: AsyncClient, client_id: str) -> object:
@@ -205,7 +218,7 @@ async def test_admin_approve_unlocks_non_tester_authorize(
     await _portal_login(gate_client, username="owner")
     create = await gate_client.post(
         "/portal/clients",
-        data={"name": "Gate Club", "redirect_uri": REDIRECT_URI},
+        data=_csrf(gate_client, {"name": "Gate Club", "redirect_uri": REDIRECT_URI}),
         follow_redirects=False,
     )
     assert create.status_code in {302, 303}
@@ -227,6 +240,7 @@ async def test_admin_approve_unlocks_non_tester_authorize(
     await _portal_login(gate_client, username="owner")
     req = await gate_client.post(
         f"/portal/clients/{client_id}/request-production",
+        data=_csrf(gate_client),
         follow_redirects=False,
     )
     assert req.status_code in {302, 303}
@@ -248,7 +262,7 @@ async def test_admin_approve_unlocks_non_tester_authorize(
     await _portal_login(gate_client, username="admin")
     approve = await gate_client.post(
         f"/admin/requests/{request_id}/approve",
-        data={"delegated_allowed": "false"},
+        data=_csrf(gate_client, {"delegated_allowed": "false"}),
         follow_redirects=False,
     )
     assert approve.status_code in {302, 303}

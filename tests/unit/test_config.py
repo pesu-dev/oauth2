@@ -148,3 +148,53 @@ def test_default_token_signing_key_path_when_unset(
     cfg = load_config()
     assert cfg.token_signing_key_path == "scratch/token-signing.pem"
     assert cfg.token_signing_key_pem is None
+
+
+@pytest.mark.unit
+def test_empty_token_signing_file_treated_as_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    empty = tmp_path / "empty.pem"
+    empty.write_text("  \n")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("TOKEN_SIGNING_KEY_PATH", str(empty))
+    cfg = load_config()
+    assert cfg.token_signing_key_pem is None
+
+
+@pytest.mark.unit
+def test_load_dotenv_runs_when_not_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    import src.config as config_mod
+
+    monkeypatch.delenv("PESU_OAUTH2_SKIP_DOTENV", raising=False)
+    calls: list[int] = []
+
+    class _FakeDotenv:
+        @staticmethod
+        def load_dotenv() -> None:
+            calls.append(1)
+
+    monkeypatch.setitem(sys.modules, "dotenv", _FakeDotenv)  # type: ignore[arg-type]
+    config_mod._load_dotenv()
+    assert calls == [1]
+
+
+@pytest.mark.unit
+def test_load_dotenv_tolerates_missing_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    import builtins
+
+    import src.config as config_mod
+
+    monkeypatch.delenv("PESU_OAUTH2_SKIP_DOTENV", raising=False)
+    real_import = builtins.__import__
+
+    def _import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "dotenv":
+            raise ImportError("simulated")
+        return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(builtins, "__import__", _import)
+    config_mod._load_dotenv()

@@ -562,6 +562,51 @@ def test_portal_logout_clears_session(portal_client: TestClient) -> None:
 
 
 @pytest.mark.unit
+def test_portal_form_posts_reject_blank_csrf(portal_client: TestClient) -> None:
+    """Blank csrf_token skips auto-inject and must 403 (covers reject branches)."""
+    _portal_login(portal_client)
+    blank = {"csrf_token": ""}
+    assert portal_client.post("/portal/logout", data=blank).status_code == 403
+    assert (
+        portal_client.post(
+            "/portal/clients",
+            data={**blank, "name": "x", "redirect_uri": "https://a.example/cb"},
+        ).status_code
+        == 403
+    )
+    client_id = _create_client(portal_client)
+    assert (
+        portal_client.post(
+            f"/portal/clients/{client_id}/redirect-uris",
+            data={**blank, "redirect_uris": "https://a.example/cb"},
+        ).status_code
+        == 403
+    )
+    assert (
+        portal_client.post(
+            f"/portal/clients/{client_id}/testers",
+            data={**blank, "sub": "usr_t"},
+        ).status_code
+        == 403
+    )
+    assert (
+        portal_client.post(
+            f"/portal/clients/{client_id}/request-production",
+            data=blank,
+        ).status_code
+        == 403
+    )
+    assert (
+        portal_client.post(
+            "/admin/requests/req_x/approve",
+            data={**blank, "delegated_allowed": "false"},
+        ).status_code
+        == 403
+    )
+    assert portal_client.post("/admin/requests/req_x/reject", data=blank).status_code == 403
+
+
+@pytest.mark.unit
 def test_admin_approve_unknown_request(portal_client: TestClient) -> None:
     _portal_login(portal_client, username="admin")
     resp = portal_client.post(

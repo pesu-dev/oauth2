@@ -314,6 +314,42 @@ def test_settings_logout_clears_cookie(settings_client: TestClient) -> None:
 
 
 @pytest.mark.unit
+def test_settings_form_posts_reject_blank_csrf(settings_client: TestClient) -> None:
+    blank = {"csrf_token": ""}
+    assert (
+        settings_client.post(
+            "/settings/login",
+            data={**blank, "username": "student", "password": PASSWORD},
+        ).status_code
+        == 403
+    )
+    _login(settings_client)
+    assert settings_client.post("/settings/logout", data=blank).status_code == 403
+    assert (
+        settings_client.post(
+            f"/settings/apps/{CLIENT_ID}/revoke",
+            data=blank,
+        ).status_code
+        == 403
+    )
+    assert (
+        settings_client.post(
+            "/settings/credentials/update",
+            data={**blank, "username": "u", "password": "p"},
+        ).status_code
+        == 403
+    )
+    assert settings_client.post("/settings/credentials/delete", data=blank).status_code == 403
+    assert (
+        settings_client.post(
+            "/settings/account/delete",
+            data={**blank, "confirm": "DELETE"},
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.unit
 def test_settings_bad_password(settings_client: TestClient) -> None:
     resp = settings_client.post(
         "/settings/login",

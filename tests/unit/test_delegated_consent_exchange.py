@@ -429,6 +429,57 @@ def test_token_exchange_refreshes_expired_session(
 
 
 @pytest.mark.unit
+def test_token_exchange_reuses_valid_vault_session(
+    deleg_client: TestClient,
+    deleg_deps: dict[str, object],
+) -> None:
+    """When vault session expiry is in the future, exchange returns it without Academy re-login."""
+    verifier = "v" * 43
+    code = _authorize_login_consent(deleg_client, verifier=verifier)
+    access = deleg_client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": CLIENT_ID,
+            "code_verifier": verifier,
+        },
+    ).json()["access_token"]
+
+    vault: FakeVaultRepo = deleg_deps["vault"]  # type: ignore[assignment]
+    master = master_key_from_secret(VAULT_MASTER)
+    future = datetime.now(UTC) + timedelta(hours=2)
+    valid = VaultPlaintext(
+        username="owner",
+        password=PASSWORD,
+        session=AcademySession(
+            token="cached-tok",
+            access_token="cached-at",
+            user_id="uid-cached",
+            expires_at=future,
+        ),
+    )
+    blob = seal(master, pack_vault_plaintext(valid), key_version=CURRENT_VAULT_KEY_VERSION)
+    vault._by_sub[OWNER_SUB] = VaultEntry(
+        sub=OWNER_SUB,
+        blob=blob,
+        session_expires_at=future,
+    )
+
+    exchange = deleg_client.post(
+        "/oauth/token-exchange",
+        headers={"X-Token-Exchange-Secret": EXCHANGE_SECRET},
+        data={"access_token": access},
+    )
+    assert exchange.status_code == 200
+    body = exchange.json()
+    assert body["token"] == "cached-tok"
+    assert body["access_token"] == "cached-at"
+    assert body["user_id"] == "uid-cached"
+
+
+@pytest.mark.unit
 def test_token_exchange_missing_access_token(deleg_client: TestClient) -> None:
     resp = deleg_client.post(
         "/oauth/token-exchange",

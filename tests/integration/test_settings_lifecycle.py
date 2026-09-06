@@ -45,6 +45,7 @@ OWNER_SUB = "usr_settings_owner"
 OWNER_PRN = "PES2202588888"
 PASSWORD = "good-pass"
 VAULT_MASTER = "integration-vault-master-key-32b!"
+SESSION_SECRET = "integration-session-secret"
 
 
 def _s256_challenge(verifier: str) -> str:
@@ -110,7 +111,7 @@ async def _seed_and_app(mongo_db: AsyncDatabase, rsa_pem: str) -> FastAPI:
     config = replace(
         load_config(),
         token_signing_key_pem=rsa_pem,
-        session_secret="integration-session-secret",
+        session_secret=SESSION_SECRET,
         vault_master_key=VAULT_MASTER,
     )
     return create_app(
@@ -174,12 +175,18 @@ async def _issue_refresh(client: AsyncClient) -> str:
     return str(token.json()["refresh_token"])
 
 
+def _csrf(client: AsyncClient, data: dict[str, object] | None = None) -> dict[str, object]:
+    from tests.csrf_helpers import form_with_csrf
+
+    return form_with_csrf(client, SESSION_SECRET, data)  # type: ignore[return-value]
+
+
 async def _settings_login(client: AsyncClient) -> None:
     page = await client.get("/settings/login")
     assert page.status_code == 200
     login = await client.post(
         "/settings/login",
-        data={"username": "owner", "password": PASSWORD},
+        data=_csrf(client, {"username": "owner", "password": PASSWORD}),
         follow_redirects=False,
     )
     assert login.status_code in {302, 303}
@@ -241,6 +248,7 @@ async def test_delete_credentials_drops_vault_identity_consents_remain(
     await _settings_login(settings_client)
     resp = await settings_client.post(
         "/settings/credentials/delete",
+        data=_csrf(settings_client),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
@@ -291,7 +299,7 @@ async def test_delete_account_tombstones_sub_and_rejects_reuse(
     await _settings_login(settings_client)
     resp = await settings_client.post(
         "/settings/account/delete",
-        data={"confirm": "DELETE"},
+        data=_csrf(settings_client, {"confirm": "DELETE"}),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
@@ -325,9 +333,11 @@ async def test_delete_account_tombstones_sub_and_rejects_reuse(
     )
     assert reauth.sub != OWNER_SUB
 
+    page = await settings_client.get("/settings/login")
+    assert page.status_code == 200
     login = await settings_client.post(
         "/settings/login",
-        data={"username": "owner", "password": PASSWORD},
+        data=_csrf(settings_client, {"username": "owner", "password": PASSWORD}),
         follow_redirects=False,
     )
     assert login.status_code in {302, 303}
