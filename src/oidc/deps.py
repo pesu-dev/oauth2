@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from src.academy.port import AcademyClient
     from src.config import AppConfig
     from src.crypto.jwt_keys import JwtKeySet
+    from src.mailer.port import Mailer
     from src.oidc.pending_credentials import PendingCredentialStore
     from src.oidc.rate_limit import SlidingWindowRateLimiter
     from src.repos.admins import AdminRepo
@@ -99,6 +100,13 @@ def production_requests(request: Request) -> ProductionRequestRepo:
 
 def vault(request: Request) -> VaultRepo:
     return _require_repo(request, "vault")
+
+
+def mailer(request: Request) -> Mailer:
+    mail = getattr(request.app.state, "mailer", None)
+    if mail is None:
+        raise HTTPException(status_code=503, detail="Mailer unavailable")
+    return cast("Mailer", mail)
 
 
 def pending_credentials(request: Request) -> PendingCredentialStore:

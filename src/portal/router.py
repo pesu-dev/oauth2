@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from src.academy.models import AcademyAuthError
 from src.crypto.hashing import sha256_hex
 from src.crypto.ids import new_client_id, new_request_id
+from src.mailer.port import notify_sub_quietly
 from src.models.client import Client, PublishingStatus
 from src.models.production_request import ProductionRequest, ProductionRequestStatus
 from src.oidc import deps
@@ -423,6 +424,16 @@ async def portal_request_production(request: Request, client_id: str) -> Respons
             message="Could not submit Production request. Please try again.",
             status_code=500,
         )
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=session.sub,
+        subject=f"Production review requested for {client.name}",
+        body=(
+            f"Your client {client.name} ({client.client_id}) was submitted for "
+            "Production review. An admin will approve or reject the request."
+        ),
+    )
     return RedirectResponse(url=f"/portal/clients/{client_id}", status_code=302)
 
 

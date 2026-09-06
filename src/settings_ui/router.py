@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from src.academy.models import AcademyAuthError
+from src.mailer.port import notify_sub_quietly
 from src.models.consent import ConsentMode
 from src.oidc import deps
 from src.session_cookie import SettingsSession
@@ -17,6 +19,8 @@ from src.session_cookie import SettingsSession
 if TYPE_CHECKING:
     from src.config import AppConfig
     from src.session_cookie import SettingsSessionStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -190,6 +194,27 @@ async def settings_revoke_app(request: Request, client_id: str) -> Response:
     await deps.consents(request).delete_consent(session.sub, client_id)
     await deps.refresh_tokens(request).revoke_for_subject_client(session.sub, client_id)
     await _maybe_drop_vault_if_no_delegated(request, session.sub)
+    # Name lookup is mail-only — never block revoke mutations.
+    try:
+        try:
+            client = await deps.clients(request).get_client(client_id)
+            app_name = client.name if client is not None else client_id
+        except Exception:
+            logger.exception("settings revoke mail: get_client failed client_id=%s", client_id)
+            app_name = client_id
+        await notify_sub_quietly(
+            deps.mailer(request),
+            deps.users(request),
+            sub=session.sub,
+            subject=f"Access revoked for {app_name}",
+            body=(f"You revoked access for {app_name} ({client_id}). Refresh tokens for this app are no longer valid."),
+        )
+    except Exception:
+        logger.exception(
+            "settings revoke mail: notify failed sub=%s client_id=%s",
+            session.sub,
+            client_id,
+        )
     return RedirectResponse(url="/settings", status_code=302)
 
 
@@ -201,6 +226,16 @@ async def settings_delete_credentials(request: Request) -> Response:
         return session
 
     await deps.vault(request).delete_vault(session.sub)
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=session.sub,
+        subject="Stored credentials deleted",
+        body=(
+            "Your stored PESU Academy credentials were deleted from the vault. "
+            "Identity consents (if any) remain until you revoke them."
+        ),
+    )
     return RedirectResponse(url="/settings", status_code=302)
 
 
@@ -231,6 +266,17 @@ async def settings_delete_account(
         )
 
     sub = session.sub
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=sub,
+        subject="Account deleted",
+        body=(
+            "Your PESU OAuth2 account was deleted. "
+            "Consents, refresh tokens, and stored credentials were removed. "
+            "Your subject id will not be reused."
+        ),
+    )
     await deps.refresh_tokens(request).revoke_all_for_subject(sub)
     await deps.consents(request).delete_all_for_sub(sub)
     await deps.vault(request).delete_vault(sub)

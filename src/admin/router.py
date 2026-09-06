@@ -9,6 +9,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from src.mailer.port import notify_sub_quietly
 from src.models.client import Client, PublishingStatus
 from src.models.production_request import ProductionRequestStatus
 from src.oidc import deps
@@ -117,6 +118,16 @@ async def admin_approve(
         resolved_at=now,
     )
     # Concurrent resolve returning None is OK — client is already Production.
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=client.owner_sub,
+        subject=f"{client.name} approved for Production",
+        body=(
+            f"Your client {client.name} ({client.client_id}) was approved for Production."
+            + (" Delegated mode is allowed." if allow_delegated else "")
+        ),
+    )
     return RedirectResponse(url="/admin", status_code=302)
 
 
@@ -166,4 +177,14 @@ async def admin_reject(request: Request, request_id: str) -> Response:
         resolved_at=now,
     )
     # Concurrent resolve returning None is OK — client is already Testing.
+    await notify_sub_quietly(
+        deps.mailer(request),
+        deps.users(request),
+        sub=client.owner_sub,
+        subject=f"{client.name} returned to Testing",
+        body=(
+            f"Your Production request for {client.name} ({client.client_id}) "
+            "was rejected. The client remains in Testing."
+        ),
+    )
     return RedirectResponse(url="/admin", status_code=302)

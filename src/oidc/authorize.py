@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from src.academy.models import AcademyAuthError
 from src.crypto.hashing import sha256_hex
 from src.crypto.vault_crypto import master_key_from_secret, seal
 from src.crypto.vault_payload import CURRENT_VAULT_KEY_VERSION, VaultPlaintext, pack_vault_plaintext
+from src.mailer.port import notify_sub_quietly
 from src.models.authorization_code import AuthorizationCode
 from src.models.client import PublishingStatus
 from src.models.consent import Consent, ConsentMode
@@ -34,6 +36,8 @@ if TYPE_CHECKING:
     from src.repos.testers import TesterRepo
     from src.repos.vault import VaultRepo
     from src.session_cookie import SessionStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["oidc"])
 
@@ -545,6 +549,33 @@ async def consent_post(
         )
     )
     # Identity Allow: credentials were never retained; vault stays empty.
+    # Mail composition (including client name lookup) must never block code issuance.
+    try:
+        try:
+            client = await deps.clients(request).get_client(pending.client_id)
+            app_name = client.name if client is not None else pending.client_id
+        except Exception:
+            logger.exception(
+                "consent mail: get_client failed client_id=%s",
+                pending.client_id,
+            )
+            app_name = pending.client_id
+        await notify_sub_quietly(
+            deps.mailer(request),
+            deps.users(request),
+            sub=pending.authenticated_sub,
+            subject=f"Access granted to {app_name}",
+            body=(
+                f"You granted {pending.mode.value} access to {app_name} "
+                f"({pending.client_id}). You can revoke this anytime in Settings."
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "consent mail: notify failed sub=%s client_id=%s",
+            pending.authenticated_sub,
+            pending.client_id,
+        )
 
     return await _issue_code_redirect(
         pending=pending,

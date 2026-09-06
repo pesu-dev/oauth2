@@ -18,6 +18,7 @@ from src.db.client import get_database
 from src.db.indexes import ensure_indexes
 from src.docs_site.router import router as docs_router
 from src.exchange.router import router as exchange_router
+from src.mailer.port import build_mailer
 from src.oidc.authorize import router as authorize_router
 from src.oidc.discovery import router as discovery_router
 from src.oidc.jwks import router as jwks_router
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
 
     from src.academy.port import AcademyClient
     from src.config import AppConfig
+    from src.mailer.port import Mailer
     from src.repos.admins import AdminRepo
     from src.repos.auth_codes import AuthCodeRepo
     from src.repos.clients import ClientRepo
@@ -129,6 +131,7 @@ def create_app(
     session_store: SessionStore | None = None,
     portal_session_store: PortalSessionStore | None = None,
     settings_session_store: SettingsSessionStore | None = None,
+    mailer: Mailer | None = None,
 ) -> FastAPI:
     """Build the ASGI app.
 
@@ -188,6 +191,7 @@ def create_app(
     application.state.admins = admins
     application.state.production_requests = production_requests
     application.state.vault = vault
+    application.state.mailer = mailer if mailer is not None else build_mailer(config)
     _wire_session_stores(
         application,
         config,
