@@ -28,7 +28,7 @@ Without a working Docker daemon, `pytest -m integration` will fail when the Mong
 ```bash
 uv sync --extra dev
 
-# Fast local loop (also what pre-commit runs)
+# Fast local loop (CI still enforces unit + coverage)
 uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95
 
 # ASGI + Testcontainers Mongo (needs Docker)

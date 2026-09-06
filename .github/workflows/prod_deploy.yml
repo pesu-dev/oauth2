@@ -118,15 +118,51 @@ jobs:
       - name: Production promotion approved
         run: echo "Approved ${{ needs.prepare.outputs.tag }} at ${{ needs.prepare.outputs.target_sha }}"
 
-  promote:
-    name: Deploy, release, and retag
+  deploy_prod:
+    name: Deploy promoted SHA to prod
     needs: [prepare, await_approval]
     if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/deploy_cloudrun.yml
+    with:
+      environment: prod
+      service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
+      image: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.target_sha }}
+      app_env: prod
+    permissions:
+      contents: read
+      id-token: write
+
+  rollback_prod:
+    name: Rollback prod to last stable prod image
+    needs: [prepare, deploy_prod]
+    if: failure() && needs.deploy_prod.result == 'failure'
+    uses: ./.github/workflows/deploy_cloudrun.yml
+    with:
+      environment: prod
+      service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
+      image: ghcr.io/${{ github.repository }}:prod
+      app_env: prod
+    permissions:
+      contents: read
+      id-token: write
+
+  fail_after_rollback:
+    name: Mark deployment as failed after rollback
+    needs: [deploy_prod, rollback_prod]
+    if: always() && needs.deploy_prod.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail the workflow
+        run: exit 1
+
+  release:
+    name: Create release and retag
+    needs: [prepare, deploy_prod]
+    if: needs.prepare.outputs.has_changes == 'true' && needs.deploy_prod.result == 'success'
     runs-on: ubuntu-latest
     environment: prod
     env:
       TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
-      PROD_SHA: ${{ needs.prepare.outputs.prod_sha }}
       TAG: ${{ needs.prepare.outputs.tag }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -145,54 +181,7 @@ jobs:
             exit 1
           fi
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-
-      - name: Deploy promoted SHA to prod
-        id: deploy_prod
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
-          region: ${{ vars.GCP_REGION }}
-          image: ${{ env.IMAGE }}:${{ env.TARGET_SHA }}
-          timeout: 60s
-          env_vars: APP_ENV=prod,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
-          env_vars_update_strategy: merge
-          flags: >-
-            --port=8080
-            --allow-unauthenticated
-            --max-instances=1
-            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
-
-      - name: Rollback prod to last stable prod image
-        if: failure() && steps.deploy_prod.outcome == 'failure'
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
-          region: ${{ vars.GCP_REGION }}
-          image: ${{ env.IMAGE }}:prod
-          timeout: 60s
-          env_vars: APP_ENV=prod,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
-          env_vars_update_strategy: merge
-          flags: >-
-            --port=8080
-            --allow-unauthenticated
-            --max-instances=1
-            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
-
-      - name: Mark deployment as failed after rollback
-        if: steps.deploy_prod.outcome == 'failure'
-        run: exit 1
-
-      - name: Show deployed URL
-        if: steps.deploy_prod.outcome == 'success'
-        run: echo "Production URL ${{ steps.deploy_prod.outputs.url }}"
-
       - name: Create git tag and GitHub Release if needed
-        if: steps.deploy_prod.outcome == 'success'
         run: |
           set -euo pipefail
           git fetch --tags --force
@@ -210,7 +199,6 @@ jobs:
           gh release create "${TAG}" --generate-notes --target "${TARGET_SHA}" --title "${TAG}"
 
       - name: GHCR login
-        if: steps.deploy_prod.outcome == 'success'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -218,7 +206,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Retag as version then prod
-        if: steps.deploy_prod.outcome == 'success'
         run: |
           set -euo pipefail
           docker pull "${IMAGE}:${TARGET_SHA}"

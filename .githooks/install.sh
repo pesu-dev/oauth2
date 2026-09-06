@@ -75,7 +75,7 @@ done
 
 echo
 print_info "🎯 Hook capabilities:"
-echo "  • pre-commit: Ruff lint, unit tests"
+echo "  • pre-commit: Ruff lint"
 echo "  • pre-push: Branch name convention check (warning)"
 echo "  • post-merge: Auto-install dependencies if pyproject.toml changed"
 echo "  • post-checkout: Auto-install dependencies when switching branches"

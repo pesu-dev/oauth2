@@ -1,0 +1,62 @@
+name: Deploy Cloud Run
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Actions environment name (staging / prod)
+        required: true
+        type: string
+      service:
+        description: Cloud Run service name
+        required: true
+        type: string
+      image:
+        description: Fully qualified image reference (registry/repo:tag)
+        required: true
+        type: string
+      app_env:
+        description: APP_ENV value for the revision (staging / prod)
+        required: true
+        type: string
+    outputs:
+      url:
+        description: Deployed Cloud Run service URL
+        value: ${{ jobs.deploy.outputs.url }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run (${{ inputs.app_env }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ inputs.service }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ inputs.image }}
+          timeout: 60s
+          env_vars: APP_ENV=${{ inputs.app_env }},MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
+          env_vars_update_strategy: merge
+          flags: >-
+            --port=8080
+            --allow-unauthenticated
+            --max-instances=1
+            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
+
+      - name: Show deployed URL
+        run: echo "URL ${{ steps.deploy.outputs.url }}"

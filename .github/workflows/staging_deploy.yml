@@ -40,38 +40,15 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Checkout deployed commit
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ env.SHA_TAG }}
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-
-      - name: Deploy to Cloud Run
-        id: deploy
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
-          region: ${{ vars.GCP_REGION }}
-          image: ${{ env.IMAGE }}:${{ env.SHA_TAG }}
-          timeout: 60s
-          env_vars: APP_ENV=staging,MONGO_X509_CERT_PATH=/run/secrets/mongo.pem
-          env_vars_update_strategy: merge
-          flags: >-
-            --port=8080
-            --allow-unauthenticated
-            --max-instances=1
-            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SA }}
-
-      - name: Show deployed URL
-        run: echo "Staging URL ${{ steps.deploy.outputs.url }}"
+    uses: ./.github/workflows/deploy_cloudrun.yml
+    with:
+      environment: staging
+      service: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      image: ghcr.io/${{ github.repository }}:${{ github.event.workflow_run.head_sha }}
+      app_env: staging
+    permissions:
+      contents: read
+      id-token: write
 
   tag_staging:
     name: Tag deployed image as staging
