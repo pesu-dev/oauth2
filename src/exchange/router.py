@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 
 from src.academy.models import AcademyAuthError
+from src.client_ip import client_ip
 from src.crypto.tokens import verify_access_token
 from src.crypto.vault_crypto import VaultCryptoError, master_key_from_secret, seal
 from src.crypto.vault_crypto import open as open_blob
@@ -160,6 +161,16 @@ async def token_exchange(
     access_token: str | None = Form(None),
 ) -> JSONResponse | dict[str, Any]:
     """Return Academy session material for a delegated subject (never the password)."""
+    ip = client_ip(request)
+    if not deps.exchange_limiter(request).allow(f"exchange:{ip}"):
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "temporarily_unavailable",
+                "error_description": "Too many requests",
+            },
+        )
+
     config = deps.config(request)
     if not _exchange_secret_ok(request, config.token_exchange_secret):
         return _unauthorized("Valid token exchange secret required")

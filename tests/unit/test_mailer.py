@@ -37,6 +37,7 @@ from src.repos.fakes import (
     FakeUserRepo,
     FakeVaultRepo,
 )
+from tests.csrf_helpers import install_auto_csrf
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -310,10 +311,16 @@ def mailer_settings_client(mailer_settings_env: dict[str, object]) -> Iterator[T
         mailer=mailer_settings_env["mailer"],  # type: ignore[arg-type]
     )
     with TestClient(app) as client:
-        yield client
+        yield install_auto_csrf(
+            client,
+            SESSION_SECRET,
+            login_path="/settings/login",
+            home_path="/settings",
+        )
 
 
 def _settings_login(client: TestClient) -> None:
+    client.get("/settings/login")
     resp = client.post(
         "/settings/login",
         data={"username": "student", "password": PASSWORD},
@@ -377,6 +384,12 @@ def test_revoke_app_succeeds_when_mailer_raises(
         mailer=RaisingMailer(),
     )
     with TestClient(app) as client:
+        install_auto_csrf(
+            client,
+            SESSION_SECRET,
+            login_path="/settings/login",
+            home_path="/settings",
+        )
         _settings_login(client)
         resp = client.post(f"/settings/apps/{CLIENT_ID}/revoke", follow_redirects=False)
         assert resp.status_code in {302, 303}
@@ -417,6 +430,12 @@ def test_revoke_app_succeeds_when_get_client_raises(
         mailer=LogMailer(),
     )
     with TestClient(app) as client:
+        install_auto_csrf(
+            client,
+            SESSION_SECRET,
+            login_path="/settings/login",
+            home_path="/settings",
+        )
         _settings_login(client)
         resp = client.post(f"/settings/apps/{CLIENT_ID}/revoke", follow_redirects=False)
         assert resp.status_code in {302, 303}
@@ -460,6 +479,12 @@ def test_delete_account_sends_mail_and_fail_open(
         mailer=RaisingMailer(),
     )
     with TestClient(app) as client:
+        install_auto_csrf(
+            client,
+            SESSION_SECRET,
+            login_path="/settings/login",
+            home_path="/settings",
+        )
         _settings_login(client)
         resp = client.post(
             "/settings/account/delete",
@@ -523,6 +548,12 @@ def test_production_request_and_decision_notify_owner(
         mailer=mailer,
     )
     with TestClient(app) as client:
+        install_auto_csrf(
+            client,
+            SESSION_SECRET,
+            login_path="/portal/login",
+            home_path="/portal",
+        )
         login = client.post(
             "/portal/login",
             data={"username": "dev", "password": PASSWORD},

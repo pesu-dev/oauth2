@@ -30,3 +30,15 @@ def test_sha256_hex_is_deterministic() -> None:
     assert digest == sha256_hex("refresh-token-value")
     assert len(digest) == 64
     assert digest != sha256_hex("other-value")
+
+
+@pytest.mark.unit
+def test_hash_client_secret_argon2_round_trip() -> None:
+    from src.crypto.hashing import hash_client_secret, verify_client_secret
+
+    secret = "top-secret-client-value"
+    digest = hash_client_secret(secret)
+    assert digest.startswith("$argon2")
+    assert verify_client_secret(secret, digest) is True
+    assert verify_client_secret("wrong", digest) is False
+    assert verify_client_secret(secret, "not-an-argon2-hash") is False

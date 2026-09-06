@@ -25,6 +25,7 @@
   <section class="portal-section" aria-labelledby="redirects-heading">
     <h2 id="redirects-heading">Redirect URIs</h2>
     <form method="post" action="/portal/clients/{{ client.client_id }}/redirect-uris" class="auth-form">
+      {% include "_csrf.html" %}
       <label>
         <span>One URI per line</span>
         <textarea name="redirect_uris" rows="4" required>{% for uri in client.redirect_uris %}{{ uri }}
@@ -46,6 +47,7 @@
     <p class="lede">No testers yet. While Testing, only you (owner) and listed testers can sign in.</p>
     {% endif %}
     <form method="post" action="/portal/clients/{{ client.client_id }}/testers" class="auth-form">
+      {% include "_csrf.html" %}
       <label>
         <span>Add tester sub</span>
         <input type="text" name="sub" required placeholder="usr_…" pattern="usr_.+" autocomplete="off">
@@ -59,6 +61,7 @@
     {% if client.publishing_status.value == "testing" %}
     <p class="lede">Request admin review to let any PESU Academy user sign in (not just testers).</p>
     <form method="post" action="/portal/clients/{{ client.client_id }}/request-production">
+      {% include "_csrf.html" %}
       <button type="submit" class="btn primary">Request Production</button>
     </form>
     {% elif client.publishing_status.value == "pending_production" %}

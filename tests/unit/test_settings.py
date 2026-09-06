@@ -29,6 +29,7 @@ from src.repos.fakes import (
     FakeUserRepo,
     FakeVaultRepo,
 )
+from tests.csrf_helpers import form_with_csrf, install_auto_csrf
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -39,6 +40,20 @@ SUB = "usr_settings_unit"
 PRN = "PES2202507777"
 PASSWORD = "correct-password"
 VAULT_MASTER = "unit-vault-master-key-32bytes!!"
+SETTINGS_SESSION_SECRET = "unit-settings-session"
+
+
+def _csrf(client: TestClient, data: dict[str, object] | None = None) -> dict[str, object]:
+    return form_with_csrf(client, SETTINGS_SESSION_SECRET, data)  # type: ignore[return-value]
+
+
+def _install_auto_csrf(client: TestClient) -> TestClient:
+    return install_auto_csrf(
+        client,
+        SETTINGS_SESSION_SECRET,
+        login_path="/settings/login",
+        home_path="/settings",
+    )
 
 
 def _profile(**overrides: object) -> AcademyProfile:
@@ -118,7 +133,7 @@ def settings_env(rsa_pem: str) -> dict[str, object]:
         "config": replace(
             load_config(),
             token_signing_key_pem=rsa_pem,
-            session_secret="unit-settings-session",
+            session_secret=SETTINGS_SESSION_SECRET,
             vault_master_key=VAULT_MASTER,
         ),
     }
@@ -138,13 +153,14 @@ def settings_client(settings_env: dict[str, object]) -> Iterator[TestClient]:
         vault=settings_env["vault"],  # type: ignore[arg-type]
     )
     with TestClient(app) as client:
-        yield client
+        yield _install_auto_csrf(client)
 
 
 def _login(client: TestClient) -> None:
+    client.get("/settings/login")
     resp = client.post(
         "/settings/login",
-        data={"username": "student", "password": PASSWORD},
+        data=_csrf(client, {"username": "student", "password": PASSWORD}),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
@@ -660,6 +676,7 @@ def test_update_credentials_without_vault_master_key(
         vault=vault,
     )
     with TestClient(app) as client:
+        _install_auto_csrf(client)
         # settings session was created with original secret — reuse same secret
         login = client.post(
             "/settings/login",

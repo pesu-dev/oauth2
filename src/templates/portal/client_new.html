@@ -9,6 +9,7 @@
   <p class="error" role="alert">{{ error }}</p>
   {% endif %}
   <form method="post" action="/portal/clients" class="auth-form">
+    {% include "_csrf.html" %}
     <label>
       <span>App name</span>
       <input type="text" name="name" required maxlength="120" autocomplete="organization">

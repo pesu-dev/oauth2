@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from src.academy.port import AcademyClient
     from src.config import AppConfig
     from src.crypto.jwt_keys import JwtKeySet
+    from src.csrf import CsrfStore
     from src.mailer.port import Mailer
     from src.oidc.pending_credentials import PendingCredentialStore
     from src.oidc.rate_limit import SlidingWindowRateLimiter
@@ -118,6 +119,21 @@ def pending_credentials(request: Request) -> PendingCredentialStore:
 
 def login_limiter(request: Request) -> SlidingWindowRateLimiter:
     return cast("SlidingWindowRateLimiter", request.app.state.login_limiter)
+
+
+def token_limiter(request: Request) -> SlidingWindowRateLimiter:
+    return cast("SlidingWindowRateLimiter", request.app.state.token_limiter)
+
+
+def exchange_limiter(request: Request) -> SlidingWindowRateLimiter:
+    return cast("SlidingWindowRateLimiter", request.app.state.exchange_limiter)
+
+
+def csrf_store(request: Request) -> CsrfStore:
+    store = getattr(request.app.state, "csrf_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="CSRF store unavailable")
+    return cast("CsrfStore", store)
 
 
 def _require_repo(request: Request, name: str) -> T:

@@ -14,8 +14,10 @@ from fastapi.templating import Jinja2Templates
 
 from src.academy.models import AcademyAuthError
 from src.client_ip import client_ip
-from src.crypto.hashing import sha256_hex
+from src.crypto.hashing import hash_client_secret
 from src.crypto.ids import new_client_id, new_request_id
+from src.csrf import clear_csrf_cookie, verify_csrf
+from src.html_csrf import render_with_csrf
 from src.mailer.port import notify_sub_quietly
 from src.models.client import Client, PublishingStatus
 from src.models.production_request import ProductionRequest, ProductionRequestStatus
@@ -106,6 +108,21 @@ def _error_page(request: Request, *, title: str, message: str, status_code: int 
     )
 
 
+def _csrf_reject(request: Request) -> HTMLResponse:
+    return _error_page(
+        request,
+        title="Invalid request",
+        message="Security token missing or expired. Reload the page and try again.",
+        status_code=403,
+    )
+
+
+def _check_csrf(request: Request, csrf_token: str | None) -> HTMLResponse | None:
+    if verify_csrf(request, deps.csrf_store(request), csrf_token):
+        return None
+    return _csrf_reject(request)
+
+
 def _valid_https_redirect(uri: str) -> bool:
     parsed = urlparse(uri.strip())
     if parsed.scheme == "https" and parsed.netloc:
@@ -140,7 +157,8 @@ async def portal_home(request: Request) -> Response:
     if isinstance(session, RedirectResponse):
         return session
     clients = await deps.clients(request).list_clients_by_owner(session.sub)
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "portal/dashboard.html",
         {
@@ -156,7 +174,8 @@ async def portal_login_get(request: Request) -> Response:
     """PESU Academy login for the developer portal (distinct cookie from OIDC)."""
     if _load_portal_session(request) is not None:
         return RedirectResponse(url="/portal", status_code=302)
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "portal/login.html",
         {"title": "Portal sign in — PESU OAuth2", "error": None},
@@ -168,8 +187,13 @@ async def portal_login_post(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Authenticate via Academy and set the portal session cookie."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
+
     config = deps.config(request)
     limiter = deps.login_limiter(request)
     ip = client_ip(request)
@@ -184,7 +208,8 @@ async def portal_login_post(
     try:
         result = await deps.academy(request).login(username.strip(), password)
     except AcademyAuthError:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "portal/login.html",
             {
@@ -202,12 +227,16 @@ async def portal_login_post(
 
 
 @router.post("/logout")
-async def portal_logout(request: Request) -> Response:
+async def portal_logout(request: Request, csrf_token: str = Form("")) -> Response:
     """Clear the portal session cookie."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     config = deps.config(request)
     response = RedirectResponse(url="/portal/login", status_code=302)
     _clear_portal_cookie(response, config)
     _clear_flash_cookie(response, config)
+    clear_csrf_cookie(response, config)
     return response
 
 
@@ -217,7 +246,8 @@ async def portal_new_client_get(request: Request) -> Response:
     session = _require_portal_session(request)
     if isinstance(session, RedirectResponse):
         return session
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "portal/client_new.html",
         {"title": "New client — PESU OAuth2", "error": None},
@@ -229,22 +259,28 @@ async def portal_create_client(
     request: Request,
     name: str = Form(...),
     redirect_uri: str = Form(...),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Create a Testing client; flash the plaintext secret once."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_portal_session(request)
     if isinstance(session, RedirectResponse):
         return session
     config = deps.config(request)
     cleaned_name = name.strip()
     if not cleaned_name:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "portal/client_new.html",
             {"title": "New client — PESU OAuth2", "error": "Name is required."},
             status_code=400,
         )
     if not _valid_https_redirect(redirect_uri):
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "portal/client_new.html",
             {
@@ -258,7 +294,7 @@ async def portal_create_client(
     now = datetime.now(UTC)
     client = Client(
         client_id=new_client_id(),
-        client_secret_hash=sha256_hex(raw_secret),
+        client_secret_hash=hash_client_secret(raw_secret),
         name=cleaned_name,
         owner_sub=session.sub,
         redirect_uris=(redirect_uri.strip(),),
@@ -299,7 +335,8 @@ async def portal_client_detail(request: Request, client_id: str) -> Response:
             plaintext_secret = flash.client_secret
 
     testers = await deps.testers(request).list_testers(client_id)
-    response = templates.TemplateResponse(
+    response = render_with_csrf(
+        templates,
         request,
         "portal/client_detail.html",
         {
@@ -320,8 +357,12 @@ async def portal_update_redirect_uris(
     request: Request,
     client_id: str,
     redirect_uris: str = Form(...),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Replace the client's redirect URI list."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_portal_session(request)
     if isinstance(session, RedirectResponse):
         return session
@@ -356,8 +397,12 @@ async def portal_add_tester(
     request: Request,
     client_id: str,
     sub: str = Form(...),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Add a tester ``sub`` to the Testing allowlist."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_portal_session(request)
     if isinstance(session, RedirectResponse):
         return session
@@ -372,8 +417,15 @@ async def portal_add_tester(
 
 
 @router.post("/clients/{client_id}/request-production")
-async def portal_request_production(request: Request, client_id: str) -> Response:
+async def portal_request_production(
+    request: Request,
+    client_id: str,
+    csrf_token: str = Form(""),
+) -> Response:
     """Move client to pending_production and enqueue an admin review row."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_portal_session(request)
     if isinstance(session, RedirectResponse):
         return session

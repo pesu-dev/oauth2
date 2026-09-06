@@ -73,10 +73,9 @@ Thumbs.db
 
 # Misc
 scratch/
+.superpowers/
 
 # MongoDB X.509 client material
 *.pem
 *.key
 *.csr
-# SDD / agent scratch (not source of truth)
-.superpowers/

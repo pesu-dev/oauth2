@@ -60,9 +60,13 @@ def unpack_vault_plaintext(raw: bytes) -> VaultPlaintext:
 
 
 def session_is_valid(session: AcademySession, *, now: datetime | None = None) -> bool:
-    """Return True when the stored Academy session has not expired."""
+    """Return True when the stored Academy session has a future expiry.
+
+    Missing ``expires_at`` fails closed so exchange always re-authenticates
+    rather than treating an unknown lifetime as valid forever.
+    """
     if session.expires_at is None:
-        return True
+        return False
     clock = now if now is not None else datetime.now(UTC)
     expires = session.expires_at
     if expires.tzinfo is None:

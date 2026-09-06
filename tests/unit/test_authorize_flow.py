@@ -557,12 +557,12 @@ def test_token_rejects_bad_verifier_and_unsupported_grant(flow_client: TestClien
 
 @pytest.mark.unit
 def test_confidential_client_requires_secret(flow_deps: dict[str, object], rsa_pem: str) -> None:
-    from src.crypto.hashing import sha256_hex
+    from src.crypto.hashing import hash_client_secret
 
     clients = flow_deps["clients"]
     assert isinstance(clients, FakeClientRepo)
     clients._by_id[CLIENT_ID] = _public_client(
-        client_secret_hash=sha256_hex("top-secret"),
+        client_secret_hash=hash_client_secret("top-secret"),
         token_endpoint_auth_method="client_secret_post",
     )
     application = create_app(

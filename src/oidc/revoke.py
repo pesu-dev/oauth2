@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import hmac
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import JSONResponse
 
-from src.crypto.hashing import sha256_hex
+from src.crypto.hashing import sha256_hex, verify_client_secret
 from src.oidc import deps
 
 if TYPE_CHECKING:
@@ -42,9 +41,7 @@ async def _authenticate_client(
         return _token_error("invalid_client", "Client is not configured for secret auth", status_code=401)
     if not client_secret:
         return _token_error("invalid_client", "Invalid client credentials", status_code=401)
-    presented = sha256_hex(client_secret)
-    expected = client.client_secret_hash
-    if len(presented) != len(expected) or not hmac.compare_digest(presented, expected):
+    if not verify_client_secret(client_secret, client.client_secret_hash):
         return _token_error("invalid_client", "Invalid client credentials", status_code=401)
     return client
 

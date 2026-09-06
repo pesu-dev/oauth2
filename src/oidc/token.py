@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hmac
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -11,7 +10,8 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 
-from src.crypto.hashing import sha256_hex
+from src.client_ip import client_ip
+from src.crypto.hashing import sha256_hex, verify_client_secret
 from src.crypto.tokens import sign_access_token, sign_id_token
 from src.models.refresh_token import RefreshToken
 from src.oidc import deps
@@ -57,9 +57,7 @@ async def _authenticate_client(
         return _token_error("invalid_client", "Client is not configured for secret auth", status_code=401)
     if not client_secret:
         return _token_error("invalid_client", "Invalid client credentials", status_code=401)
-    presented = sha256_hex(client_secret)
-    expected = client.client_secret_hash
-    if len(presented) != len(expected) or not hmac.compare_digest(presented, expected):
+    if not verify_client_secret(client_secret, client.client_secret_hash):
         return _token_error("invalid_client", "Invalid client credentials", status_code=401)
     return client
 
@@ -76,6 +74,10 @@ async def token(
     refresh_token: str | None = Form(None),
 ) -> JSONResponse | dict[str, Any]:
     """Exchange an authorization code or rotate a refresh token."""
+    ip = client_ip(request)
+    if not deps.token_limiter(request).allow(f"token:{ip}"):
+        return _token_error("temporarily_unavailable", "Too many requests", status_code=429)
+
     client_or_err = await _authenticate_client(request, client_id, client_secret)
     if isinstance(client_or_err, JSONResponse):
         return client_or_err

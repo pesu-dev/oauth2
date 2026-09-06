@@ -14,7 +14,7 @@ from src.academy.fake import FakeAcademyClient
 from src.academy.models import AcademyAuthResult, AcademyProfile, AcademySession
 from src.app import create_app
 from src.config import load_config
-from src.crypto.hashing import sha256_hex
+from src.crypto.hashing import hash_client_secret, sha256_hex
 from src.models.client import Client, PublishingStatus
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
@@ -718,7 +718,7 @@ def test_token_confidential_secret_hash_none_and_bad_secret(rsa_pem: str) -> Non
 
     clients._by_id[CLIENT_ID] = Client(
         client_id=CLIENT_ID,
-        client_secret_hash=sha256_hex("right-secret"),
+        client_secret_hash=hash_client_secret("right-secret"),
         name="Edge App",
         owner_sub=OWNER_SUB,
         redirect_uris=(REDIRECT,),

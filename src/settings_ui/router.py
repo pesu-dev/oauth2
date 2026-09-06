@@ -14,6 +14,8 @@ from src.academy.models import AcademyAuthError
 from src.client_ip import client_ip
 from src.crypto.vault_crypto import master_key_from_secret, seal
 from src.crypto.vault_payload import CURRENT_VAULT_KEY_VERSION, VaultPlaintext, pack_vault_plaintext
+from src.csrf import clear_csrf_cookie, verify_csrf
+from src.html_csrf import render_with_csrf
 from src.mailer.port import notify_sub_quietly
 from src.models.consent import ConsentMode
 from src.models.vault import VaultEntry
@@ -73,6 +75,24 @@ def _require_settings_session(request: Request) -> SettingsSession | RedirectRes
     return session
 
 
+def _csrf_reject(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "error.html",
+        {
+            "title": "Invalid request",
+            "message": "Security token missing or expired. Reload the page and try again.",
+        },
+        status_code=403,
+    )
+
+
+def _check_csrf(request: Request, csrf_token: str | None) -> HTMLResponse | None:
+    if verify_csrf(request, deps.csrf_store(request), csrf_token):
+        return None
+    return _csrf_reject(request)
+
+
 async def _maybe_drop_vault_if_no_delegated(request: Request, sub: str) -> None:
     """Delete vault when no delegated consents remain for ``sub``."""
     remaining = await deps.consents(request).list_consents_for_sub(sub)
@@ -121,7 +141,8 @@ async def settings_login_get(request: Request) -> Response:
     """PESU Academy login for student settings (dedicated cookie)."""
     if _load_settings_session(request) is not None:
         return RedirectResponse(url="/settings", status_code=302)
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "settings/login.html",
         {"title": "Settings sign in — PESU OAuth2"},
@@ -133,13 +154,19 @@ async def settings_login_post(
     request: Request,
     username: str = Form(""),
     password: str = Form(""),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Authenticate via Academy and set the settings session cookie."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
+
     config = deps.config(request)
     limiter = deps.login_limiter(request)
     ip = client_ip(request)
     if not limiter.allow(f"settings:{ip}"):
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/login.html",
             {
@@ -152,7 +179,8 @@ async def settings_login_post(
     try:
         result = await deps.academy(request).login(username.strip(), password)
     except AcademyAuthError:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/login.html",
             {
@@ -170,11 +198,15 @@ async def settings_login_post(
 
 
 @router.post("/logout", response_model=None)
-async def settings_logout(request: Request) -> Response:
+async def settings_logout(request: Request, csrf_token: str = Form("")) -> Response:
     """Clear the settings session cookie."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     config = deps.config(request)
     response = RedirectResponse(url="/settings/login", status_code=302)
     _clear_settings_cookie(response, config)
+    clear_csrf_cookie(response, config)
     return response
 
 
@@ -193,7 +225,8 @@ async def settings_home(request: Request) -> Response:
         _clear_settings_cookie(response, config)
         return response
 
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "settings/home.html",
         await _home_context(request, sub=session.sub),
@@ -201,8 +234,15 @@ async def settings_home(request: Request) -> Response:
 
 
 @router.post("/apps/{client_id}/revoke", response_model=None)
-async def settings_revoke_app(request: Request, client_id: str) -> Response:
+async def settings_revoke_app(
+    request: Request,
+    client_id: str,
+    csrf_token: str = Form(""),
+) -> Response:
     """Revoke consent for one app and kill its refresh tokens."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_settings_session(request)
     if isinstance(session, RedirectResponse):
         return session
@@ -239,15 +279,20 @@ async def settings_update_credentials(
     request: Request,
     username: str = Form(""),
     password: str = Form(""),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Re-auth with PESU password and overwrite the vault (spec vault lifecycle §3)."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_settings_session(request)
     if isinstance(session, RedirectResponse):
         return session
 
     existing = await deps.vault(request).get_vault(session.sub)
     if existing is None:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/home.html",
             await _home_context(request, sub=session.sub, error="No saved credentials to update."),
@@ -256,7 +301,8 @@ async def settings_update_credentials(
 
     config = deps.config(request)
     if config.vault_master_key is None:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/home.html",
             await _home_context(
@@ -270,7 +316,8 @@ async def settings_update_credentials(
     try:
         result = await deps.academy(request).login(username.strip(), password)
     except AcademyAuthError:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/home.html",
             await _home_context(
@@ -283,7 +330,8 @@ async def settings_update_credentials(
 
     user = await deps.users(request).upsert_user_from_profile(result.profile)
     if user.sub != session.sub:
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/home.html",
             await _home_context(
@@ -317,8 +365,14 @@ async def settings_update_credentials(
 
 
 @router.post("/credentials/delete", response_model=None)
-async def settings_delete_credentials(request: Request) -> Response:
+async def settings_delete_credentials(
+    request: Request,
+    csrf_token: str = Form(""),
+) -> Response:
     """Delete vault only; identity consents may remain."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_settings_session(request)
     if isinstance(session, RedirectResponse):
         return session
@@ -341,14 +395,19 @@ async def settings_delete_credentials(request: Request) -> Response:
 async def settings_delete_account(
     request: Request,
     confirm: str = Form(""),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Tombstone user, revoke grants/tokens, delete vault; never reuse ``sub``."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = _require_settings_session(request)
     if isinstance(session, RedirectResponse):
         return session
 
     if confirm.strip() != "DELETE":
-        return templates.TemplateResponse(
+        return render_with_csrf(
+            templates,
             request,
             "settings/home.html",
             await _home_context(
@@ -379,4 +438,5 @@ async def settings_delete_account(
     config = deps.config(request)
     response = RedirectResponse(url="/settings/login", status_code=302)
     _clear_settings_cookie(response, config)
+    clear_csrf_cookie(response, config)
     return response

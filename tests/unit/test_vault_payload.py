@@ -46,7 +46,7 @@ def test_pack_unpack_without_expiry() -> None:
     )
     restored = unpack_vault_plaintext(pack_vault_plaintext(original))
     assert restored.session.expires_at is None
-    assert session_is_valid(restored.session) is True
+    assert session_is_valid(restored.session) is False
 
 
 @pytest.mark.unit
@@ -55,6 +55,11 @@ def test_session_is_valid_respects_expiry() -> None:
     future = AcademySession(token="t", expires_at=datetime.now(UTC) + timedelta(hours=1))
     assert session_is_valid(past) is False
     assert session_is_valid(future) is True
+
+
+@pytest.mark.unit
+def test_session_is_valid_none_expiry_fails_closed() -> None:
+    assert session_is_valid(AcademySession(token="t", expires_at=None)) is False
 
 
 @pytest.mark.unit

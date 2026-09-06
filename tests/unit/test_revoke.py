@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from src.app import create_app
 from src.config import load_config
-from src.crypto.hashing import sha256_hex
+from src.crypto.hashing import hash_client_secret, sha256_hex
 from src.models.client import Client, PublishingStatus
 from src.models.refresh_token import RefreshToken
 from src.repos.fakes import (
@@ -221,7 +221,7 @@ def test_revoke_with_client_secret_auth(rsa_pem: str) -> None:
     clients = FakeClientRepo()
     clients._by_id[CLIENT_ID] = Client(
         client_id=CLIENT_ID,
-        client_secret_hash=sha256_hex(secret),
+        client_secret_hash=hash_client_secret(secret),
         name="Secret Club",
         owner_sub=SUB,
         redirect_uris=("https://club.example/cb",),

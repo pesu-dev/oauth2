@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [{ name = "pesu-dev" }]
 dependencies = [
+    "argon2-cffi>=25.1.0",
     "cryptography>=50.0.1",
     "fastapi>=0.115.0",
     "httpx>=0.28.1",

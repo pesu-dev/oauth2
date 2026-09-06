@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.admin.router import router as admin_router
 from src.config import load_config
 from src.crypto.jwt_keys import JwtKeySet
+from src.csrf import CsrfStore
 from src.db.client import get_database
 from src.db.indexes import ensure_indexes
 from src.docs_site.router import router as docs_router
@@ -200,6 +201,13 @@ def create_app(
         settings_session_store,
     )
     application.state.login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
+    application.state.token_limiter = SlidingWindowRateLimiter(limit=60, window_seconds=60)
+    application.state.exchange_limiter = SlidingWindowRateLimiter(limit=30, window_seconds=60)
+    if config.session_secret:
+        application.state.csrf_store = CsrfStore(
+            config.session_secret,
+            max_age=config.session_cookie_ttl_seconds,
+        )
     application.state.pending_credentials = PendingCredentialStore(
         ttl_seconds=float(config.session_cookie_ttl_seconds),
     )

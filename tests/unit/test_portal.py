@@ -26,6 +26,7 @@ from src.repos.fakes import (
     FakeTesterRepo,
     FakeUserRepo,
 )
+from tests.csrf_helpers import form_with_csrf, install_auto_csrf
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -38,6 +39,20 @@ OWNER_PRN = "PES2202501001"
 ADMIN_SUB = "usr_portal_admin"
 ADMIN_PRN = "PES2202501002"
 STRANGER_PRN = "PES2202501999"
+PORTAL_SESSION_SECRET = "portal-unit-session-secret"
+
+
+def _csrf(client: TestClient, data: dict[str, object] | None = None) -> dict[str, object]:
+    return form_with_csrf(client, PORTAL_SESSION_SECRET, data)  # type: ignore[return-value]
+
+
+def _install_auto_csrf(client: TestClient) -> TestClient:
+    return install_auto_csrf(
+        client,
+        PORTAL_SESSION_SECRET,
+        login_path="/portal/login",
+        home_path="/portal",
+    )
 
 
 def _profile(**overrides: object) -> AcademyProfile:
@@ -115,7 +130,7 @@ def portal_deps(rsa_pem: str) -> dict[str, object]:
         "config": replace(
             load_config(),
             token_signing_key_pem=rsa_pem,
-            session_secret="portal-unit-session-secret",
+            session_secret=PORTAL_SESSION_SECRET,
         ),
     }
 
@@ -135,7 +150,7 @@ def portal_client(portal_deps: dict[str, object]) -> Iterator[TestClient]:
         production_requests=portal_deps["production_requests"],  # type: ignore[arg-type]
     )
     with TestClient(application) as client:
-        yield client
+        yield _install_auto_csrf(client)
 
 
 def _portal_login(client: TestClient, *, username: str = "owner", password: str = "correct-password") -> None:
@@ -144,7 +159,7 @@ def _portal_login(client: TestClient, *, username: str = "owner", password: str 
     assert "Sign in" in page.text or "Portal" in page.text
     resp = client.post(
         "/portal/login",
-        data={"username": username, "password": password},
+        data=_csrf(client, {"username": username, "password": password}),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
@@ -158,9 +173,10 @@ def _create_client(
     name: str = "Club App",
     redirect_uri: str = REDIRECT_URI,
 ) -> tuple[str, str]:
+    client.get("/portal/clients/new")
     resp = client.post(
         "/portal/clients",
-        data={"name": name, "redirect_uri": redirect_uri},
+        data=_csrf(client, {"name": name, "redirect_uri": redirect_uri}),
         follow_redirects=False,
     )
     assert resp.status_code in {302, 303}
@@ -202,6 +218,7 @@ def test_create_client_testing_and_secret_once(
     assert REDIRECT_URI in stored.redirect_uris
     assert stored.client_secret_hash is not None
     assert stored.client_secret_hash != secret
+    assert stored.client_secret_hash.startswith("$argon2")
 
     again = portal_client.get(f"/portal/clients/{client_id}")
     assert again.status_code == 200
@@ -611,7 +628,7 @@ def _portal_client_with_deps(deps: dict[str, object]) -> TestClient:
         admins=deps["admins"],  # type: ignore[arg-type]
         production_requests=deps["production_requests"],  # type: ignore[arg-type]
     )
-    return TestClient(application)
+    return _install_auto_csrf(TestClient(application))
 
 
 @pytest.mark.unit

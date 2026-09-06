@@ -9,11 +9,12 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from src.html_csrf import render_with_csrf
 from src.mailer.port import notify_sub_quietly
 from src.models.client import Client, PublishingStatus
 from src.models.production_request import ProductionRequestStatus
 from src.oidc import deps
-from src.portal.router import PORTAL_COOKIE, _error_page
+from src.portal.router import PORTAL_COOKIE, _check_csrf, _error_page
 from src.session_cookie import PortalSession
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -56,7 +57,8 @@ async def admin_queue(request: Request) -> Response:
     for req in pending:
         client = await clients.get_client(req.client_id)
         rows.append({"request": req, "client": client})
-    return templates.TemplateResponse(
+    return render_with_csrf(
+        templates,
         request,
         "admin/queue.html",
         {
@@ -72,8 +74,12 @@ async def admin_approve(
     request: Request,
     request_id: str,
     delegated_allowed: str = Form("false"),
+    csrf_token: str = Form(""),
 ) -> Response:
     """Approve Production; optionally enable delegated_allowed."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = await _require_admin(request)
     if not isinstance(session, PortalSession):
         return session
@@ -132,8 +138,15 @@ async def admin_approve(
 
 
 @router.post("/requests/{request_id}/reject")
-async def admin_reject(request: Request, request_id: str) -> Response:
+async def admin_reject(
+    request: Request,
+    request_id: str,
+    csrf_token: str = Form(""),
+) -> Response:
     """Reject Production; return client to Testing."""
+    rejected = _check_csrf(request, csrf_token)
+    if rejected is not None:
+        return rejected
     session = await _require_admin(request)
     if not isinstance(session, PortalSession):
         return session

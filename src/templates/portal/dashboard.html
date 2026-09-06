@@ -11,6 +11,7 @@
     <div class="portal-actions">
       <a class="btn secondary" href="/portal/clients/new">New client</a>
       <form method="post" action="/portal/logout">
+        {% include "_csrf.html" %}
         <button type="submit" class="btn secondary">Sign out</button>
       </form>
     </div>
