@@ -19,9 +19,10 @@
 
 ## Testing
 
-- [ ] Unit tests (`pytest -m unit`)
-- [ ] Integration tests (`pytest -m integration`)
-- [ ] Manual local run (`uv run -m src`)
+- [ ] Unit tests (`pnpm test`)
+- [ ] TypeScript typecheck (`pnpm typecheck`)
+- [ ] Production build (`pnpm build`)
+- [ ] Manual local run (`pnpm dev`)
 - [ ] CI green
 - [ ] Docker build (PR workflow)
 
@@ -33,7 +34,7 @@
 - [ ] Follows [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - [ ] No secrets or credentials committed
 - [ ] Docs updated if behavior or setup changed
-- [ ] Ruff lint/format clean
+- [ ] ESLint clean (`pnpm lint`)
 
 ---
 
