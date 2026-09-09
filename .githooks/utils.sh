@@ -50,43 +50,71 @@ check_branch_name() {
 run_quality_checks() {
     print_action "Running quality checks..."
 
-    print_info "Running Ruff lint..."
-    local staged_files
-    staged_files=$(git diff --name-only --cached --diff-filter=ACMR)
-
-    if ! uv run ruff check . --fix; then
-        print_error "Ruff check failed"
-        return 1
-    fi
-    print_success "Ruff check passed"
-
-    if [ -n "$staged_files" ]; then
-        local ruff_changed_files=""
-        while IFS= read -r file; do
-            if [ -n "$(git diff "$file")" ]; then
-                ruff_changed_files="$ruff_changed_files $file"
+    if [ -f "$REPO_ROOT/package.json" ]; then
+        if grep -q '"lint"' "$REPO_ROOT/package.json"; then
+            print_info "Running pnpm lint..."
+            if ! pnpm lint; then
+                print_error "pnpm lint failed"
+                return 1
             fi
-        done <<< "$staged_files"
-
-        if [ -n "$ruff_changed_files" ] && [ "$ruff_changed_files" != " " ]; then
-            print_info "Auto-staging Ruff fixes for:$ruff_changed_files"
-            echo "$ruff_changed_files" | xargs git add
+            print_success "pnpm lint passed"
         fi
-    fi
+        return 0
+    elif [ -f "$REPO_ROOT/pyproject.toml" ]; then
+        print_info "Running Ruff lint..."
+        local staged_files
+        staged_files=$(git diff --name-only --cached --diff-filter=ACMR)
 
-    return 0
+        if ! uv run ruff check . --fix; then
+            print_error "Ruff check failed"
+            return 1
+        fi
+        print_success "Ruff check passed"
+
+        if [ -n "$staged_files" ]; then
+            local ruff_changed_files=""
+            while IFS= read -r file; do
+                if [ -n "$(git diff "$file")" ]; then
+                    ruff_changed_files="$ruff_changed_files $file"
+                fi
+            done <<< "$staged_files"
+
+            if [ -n "$ruff_changed_files" ] && [ "$ruff_changed_files" != " " ]; then
+                print_info "Auto-staging Ruff fixes for:$ruff_changed_files"
+                echo "$ruff_changed_files" | xargs git add
+            fi
+        fi
+        return 0
+    else
+        print_info "No package.json or pyproject.toml in root; skipping lint."
+        return 0
+    fi
 }
 
 run_unit_tests() {
     print_action "Running unit tests..."
 
-    if ! uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95; then
-        print_error "Unit tests failed"
-        return 1
+    if [ -f "$REPO_ROOT/package.json" ]; then
+        if grep -q '"test"' "$REPO_ROOT/package.json"; then
+            print_info "Running pnpm test..."
+            if ! pnpm test; then
+                print_error "pnpm test failed"
+                return 1
+            fi
+            print_success "pnpm test passed"
+        fi
+        return 0
+    elif [ -f "$REPO_ROOT/pyproject.toml" ]; then
+        if ! uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95; then
+            print_error "Unit tests failed"
+            return 1
+        fi
+        print_success "Unit tests passed"
+        return 0
+    else
+        print_info "No test runner configured in root."
+        return 0
     fi
-
-    print_success "Unit tests passed"
-    return 0
 }
 
 # Install dependencies from pyproject.toml (includes dev extra for pytest/ruff/etc.)
