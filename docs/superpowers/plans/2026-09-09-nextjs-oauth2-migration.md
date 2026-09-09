@@ -128,35 +128,35 @@ Based on modern 2025/2026 Next.js architecture and edge runtime research:
 ## 4. Phase-by-Phase Implementation Checklist
 
 ### Phase 0: Legacy Codebase Archival
-- [ ] Create `legacy/` directory in the repo.
-- [ ] Move all Python-specific files and directories into `legacy/`:
+- [x] Create `legacy/` directory in the repo.
+- [x] Move all Python-specific files and directories into `legacy/`:
   - `src/` -> `legacy/src/`
   - `tests/` -> `legacy/tests/`
   - `scripts/` -> `legacy/scripts/`
   - `pyproject.toml`, `uv.lock`, `Dockerfile` -> `legacy/`
-- [ ] Clean up local Python cache artifacts (`.pytest_cache`, `.ruff_cache`, `.coverage`, `.venv`).
-- [ ] Verify that repo root is cleanly vacated for Next.js (`src/` and `tests/` are clear for `pnpm create next-app`).
+- [x] Clean up local Python cache artifacts (`.pytest_cache`, `.ruff_cache`, `.coverage`, `.venv`).
+- [x] Verify that repo root is cleanly vacated for Next.js (`src/` and `tests/` are clear for `pnpm create next-app`).
 
 ### Phase 1: Project Scaffolding & Tooling
-- [ ] Initialize Next.js 15+ App Router using `pnpm create next-app` at repo root.
-- [ ] Configure `package.json` dependencies:
+- [x] Initialize Next.js 15+ App Router using `pnpm create next-app` at repo root.
+- [x] Configure `package.json` dependencies:
   - Runtime: `mongoose`, `nanoid`, `jose`, `axios`, `axios-cookiejar-support`, `tough-cookie`, `motion`, `vaul`, `next-themes`, `zod`, `lucide-react`.
   - Dev: `vitest`, `@testing-library/react`, `@types/node`, `@types/tough-cookie`, `@testcontainers/mongodb`.
-- [ ] Configure Tailwind CSS:
+- [x] Configure Tailwind CSS:
   - Add Apple design tokens: typography tracking, translucent background colors, specular highlights, spring transition utilities.
   - Setup dark mode (`class` strategy).
-- [ ] Set up `vitest.config.ts` and test script in `package.json`.
+- [x] Set up `vitest.config.ts` and test script in `package.json`.
 
 ### Phase 2: Core Utilities & Data Layer (Mongoose + Crypto + IDs)
-- [ ] **Config & Environment (`src/lib/config.ts`):** Zod-validated environment variables (`APP_ENV`, `VAULT_MASTER_KEY`, `MONGODB_URI`, `ISSUER_URL`, etc.).
-- [ ] **Nanoid Generator (`src/lib/id/nanoid.ts`):** Typed ID generator with standard prefixes (`usr_`, `cli_`, `sec_`, `code_`, `rt_`, `fam_`, `req_`).
-- [ ] **Envelope Encryption (`src/lib/crypto/envelope.ts`):**
+- [x] **Config & Environment (`src/lib/config.ts`):** Zod-validated environment variables (`APP_ENV`, `VAULT_MASTER_KEY`, `MONGODB_URI`, `ISSUER_URL`, etc.).
+- [x] **Nanoid Generator (`src/lib/id/nanoid.ts`):** Typed ID generator with standard prefixes (`usr_`, `cli_`, `sec_`, `code_`, `rt_`, `fam_`, `req_`).
+- [x] **Envelope Encryption (`src/lib/crypto/envelope.ts`):**
   - Per-row DEK generation (256-bit).
   - AES-256-GCM encryption of payload.
   - Master key wrapping of DEK with `key_version`.
-- [ ] **PKCE & Hashing (`src/lib/crypto/`):** SHA-256 hashing and PKCE `code_verifier` S256 validation.
-- [ ] **Mongoose Connection Singleton (`src/lib/db/connection.ts`):** Cached connection avoiding HMR exhaustion.
-- [ ] **Mongoose Models (`src/lib/db/models/`):**
+- [x] **PKCE & Hashing (`src/lib/crypto/`):** SHA-256 hashing and PKCE `code_verifier` S256 validation.
+- [x] **Mongoose Connection Singleton (`src/lib/db/connection.ts`):** Cached connection avoiding HMR exhaustion.
+- [x] **Mongoose Models (`src/lib/db/models/`):**
   - `User`: `sub` unique, profile fields, login timestamps, tombstone `deleted_at`.
   - `Client`: `client_id`, `client_secret_hash`, `owner_sub`, `redirect_uris`, `publishing_status`, `delegated_allowed`.
   - `ClientTester`: `client_id`, `sub`.
@@ -166,74 +166,73 @@ Based on modern 2025/2026 Next.js architecture and edge runtime research:
   - `RefreshToken`: `token_hash` unique, `family_id`, `client_id`, `sub`, `scopes`, `revoked_at`, `created_at`.
   - `ProductionRequest`: `client_id`, `status`, `justification`, timestamps.
   - `Admin`: `sub` unique.
-- [ ] **Unit Tests:** Verify envelope encryption round-trip, Mongoose schema validation, and Nanoid formats.
+- [x] **Unit Tests:** Verify envelope encryption round-trip, Mongoose schema validation, and Nanoid formats.
 
 ### Phase 3: PESU Academy Client (Axios + Cookie Jar)
-- [ ] Implement `PesuAcademyClient` in `src/lib/academy/client.ts`:
+- [x] Implement `PesuAcademyClient` in `src/lib/academy/client.ts`:
   - Axios instance initialized with `axios-cookiejar-support` and `tough-cookie`.
   - Methods: `authenticate(username, password)`, `fetchProfile()`, `validateSession()`.
   - Error mapping for bad credentials, captcha blocks, and network timeouts.
-- [ ] **Unit Tests:** Mock Axios adapter verifying Academy login flow, profile extraction, and cookie retention.
+- [x] **Unit Tests:** Mock Axios adapter verifying Academy login flow, profile extraction, and cookie retention.
 
 ### Phase 4: OIDC Protocol Engine (`jose`) & Route Handlers
-- [ ] **Key Management & JWKS (`src/lib/oidc/`):**
+- [x] **Key Management & JWKS (`src/lib/oidc/`):**
   - RS256 keypair loading/generation with `kid`.
   - `GET /.well-known/openid-configuration`: OpenID Connect Discovery document.
   - `GET /jwks.json`: Public JWK set.
-- [ ] **Token Issuance (`src/lib/oidc/jwt.ts`):**
+- [x] **Token Issuance (`src/lib/oidc/jwt.ts`):**
   - Access JWT issuance (1-hour TTL, claims: `iss`, `sub`, `aud`, `client_id`, `scope`).
   - ID Token issuance (1-hour TTL, user profile claims, `at_hash`).
-- [ ] **Protocol Route Handlers (`src/app/`):**
+- [x] **Protocol Route Handlers (`src/app/`):**
   - `POST /token`: Handles `authorization_code` (with PKCE check) and `refresh_token` (with rotation & reuse detection revoking family).
   - `GET /userinfo` & `POST /userinfo`: Bearer token validation and claims return.
   - `POST /revoke`: Revoking refresh tokens and token families.
   - `POST /oauth/token-exchange`: Internal token exchange for delegated vault session material.
-- [ ] **Integration Tests:** Full protocol flow (discovery, auth code exchange, token refresh, revocation).
+- [x] **Integration Tests:** Full protocol flow (discovery, auth code exchange, token refresh, revocation).
 
 ### Phase 5: Reusable Apple-Design System & Theme
-- [ ] **Theme Provider (`src/components/ui/theme-provider.tsx`):** `next-themes` integration supporting Light, Dark, and System preference.
-- [ ] **Core Primitives (`src/components/ui/`):**
+- [x] **Theme Provider (`src/components/ui/theme-provider.tsx`):** `next-themes` integration supporting Light, Dark, and System preference.
+- [x] **Core Primitives (`src/components/ui/`):**
   - `Button`: Pointer-down instant feedback (`active:scale-[0.98]`), spring transitions, variants (primary, secondary, destructive, ghost).
   - `Card`: Translucent material (`backdrop-blur-xl`, `bg-white/70 dark:bg-zinc-900/70`), specular border highlight (`border-t border-white/20`).
   - `Input`: High-contrast borders, focus rings, inline helper & error text.
   - `Badge`: Status tags for `testing`, `pending_production`, `production`.
   - `Drawer` / `BottomSheet`: Apple-style sheet using `vaul` with momentum projection and rubber-band edge resistance.
   - `ThemeToggle`: Fluid, spring-animated light/dark switch.
-- [ ] **Accessibility Audit:** Ensure `@media (prefers-reduced-motion)` and `@media (prefers-reduced-transparency)` override spring and blur effects gracefully.
+- [x] **Accessibility Audit:** Ensure `@media (prefers-reduced-motion)` and `@media (prefers-reduced-transparency)` override spring and blur effects gracefully.
 
 ### Phase 6: Hosted Web Surfaces (Pages & Server Actions)
-- [ ] **Next.js Middleware (`src/middleware.ts`):**
+- [x] **Next.js Proxy (`src/proxy.ts`):**
   - Set security headers (HSTS, CSP, X-Frame-Options: DENY, Referrer-Policy).
-  - IP sanitization.
   - Session cookie verification on `/portal`, `/admin`, `/settings`.
-- [ ] **Login & Authorize Flow:**
+- [x] **Login & Authorize Flow:**
   - `GET /authorize`: Validate client, PKCE, scopes, redirect URI. Check existing consent or active session.
   - `/login`: Academy credentials form with instant inline feedback and error states.
   - `/authorize`: Apple-style consent screen clearly displaying App Name, Publishing Status (Testing vs. Prod), Scopes, and explicit Mode description (Identity vs. Delegated Vault).
-- [ ] **Developer Portal (`/portal`):**
+- [x] **Developer Portal (`/portal`):**
   - Apps list with publishing status badge.
   - Create App modal/drawer (returns `client_id` and raw `client_secret` once).
   - App detail page: Manage redirect URIs, testers list, and Request Production button.
-- [ ] **Admin Dashboard (`/admin`):**
+- [x] **Admin Dashboard (`/admin`):**
   - Production requests queue with Approve and Reject actions.
-- [ ] **User Settings (`/settings`):**
+- [x] **User Settings (`/settings`):**
   - Vault management: Re-authenticate to update stored PESU credentials, or delete delegated vault document.
   - Consent revocation: List consented third-party apps and revoke permissions.
-- [ ] **Public Pages:**
+- [x] **Public Pages:**
   - `/`: Modern, sleek landing & open-source trust page.
   - `/faq`: Common questions regarding PESU authentication, security, and privacy.
   - `/privacy`: Data handling and credential storage policy.
   - `/docs`: Guide for third-party developers on integrating with Sign in with PESU.
 
 ### Phase 7: Deployment, Cleanup & Verification
-- [ ] Configure `output: 'standalone'` in `next.config.ts`.
-- [ ] Create updated root `Dockerfile` to build and run the standalone Next.js server on Google Cloud Run.
-- [ ] Run full verification:
+- [x] Configure `output: 'standalone'` in `next.config.ts`.
+- [x] Create updated root `Dockerfile` to build and run the standalone Next.js server on Google Cloud Run.
+- [x] Run full verification:
   - Typecheck: `pnpm tsc --noEmit`
   - Linter: `pnpm eslint .`
   - Unit & Integration Tests: `pnpm test`
   - Production Build: `pnpm build`
-- [ ] Review and clean up the `legacy/` directory once migration parity is achieved.
+- [x] Review and clean up the `legacy/` directory once migration parity is achieved.
 
 ---
 

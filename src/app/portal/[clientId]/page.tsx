@@ -1,0 +1,329 @@
+'use client';
+
+import * as React from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Drawer,
+  DrawerTrigger,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from '@/components/ui/drawer';
+import { ArrowLeft, Plus, Trash2, Rocket, Check, Copy } from 'lucide-react';
+
+interface ClientData {
+  client_id: string;
+  name: string;
+  publishing_status: 'testing' | 'pending_production' | 'production';
+  redirect_uris: string[];
+  delegated_allowed: boolean;
+}
+
+interface TesterData {
+  client_id: string;
+  sub: string;
+  added_at: string;
+}
+
+export default function ClientDetailPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+
+  const [client, setClient] = React.useState<ClientData | null>(null);
+  const [testers, setTesters] = React.useState<TesterData[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  // Edit redirect URIs state
+  const [redirectUris, setRedirectUris] = React.useState('');
+  const [savingUris, setSavingUris] = React.useState(false);
+  const [uriSuccess, setUriSuccess] = React.useState(false);
+
+  // Tester input state
+  const [testerInput, setTesterInput] = React.useState('');
+  const [addingTester, setAddingTester] = React.useState(false);
+
+  // Production request state
+  const [isProdDrawerOpen, setIsProdDrawerOpen] = React.useState(false);
+  const [justification, setJustification] = React.useState('');
+  const [prodLoading, setProdLoading] = React.useState(false);
+
+  const [copiedId, setCopiedId] = React.useState(false);
+
+  const fetchData = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/portal/clients/${clientId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setClient(data.client);
+        setTesters(data.testers || []);
+        setRedirectUris((data.client.redirect_uris || []).join('\n'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleSaveUris = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingUris(true);
+    setUriSuccess(false);
+
+    const uris = redirectUris
+      .split('\n')
+      .map((u) => u.trim())
+      .filter(Boolean);
+
+    try {
+      const res = await fetch(`/api/portal/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirectUris: uris }),
+      });
+      if (res.ok) {
+        setUriSuccess(true);
+        setTimeout(() => setUriSuccess(false), 2500);
+      }
+    } finally {
+      setSavingUris(false);
+    }
+  };
+
+  const handleAddTester = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testerInput.trim()) return;
+    setAddingTester(true);
+
+    try {
+      const res = await fetch(`/api/portal/clients/${clientId}/testers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: testerInput.trim() }),
+      });
+      if (res.ok) {
+        setTesterInput('');
+        fetchData();
+      }
+    } finally {
+      setAddingTester(false);
+    }
+  };
+
+  const handleRemoveTester = async (sub: string) => {
+    await fetch(`/api/portal/clients/${clientId}/testers?sub=${encodeURIComponent(sub)}`, {
+      method: 'DELETE',
+    });
+    fetchData();
+  };
+
+  const handleRequestProduction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProdLoading(true);
+
+    try {
+      const res = await fetch(`/api/portal/clients/${clientId}/request-production`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ justification }),
+      });
+      if (res.ok) {
+        setIsProdDrawerOpen(false);
+        fetchData();
+      }
+    } finally {
+      setProdLoading(false);
+    }
+  };
+
+  const copyClientId = () => {
+    navigator.clipboard.writeText(clientId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  if (loading) {
+    return <div className="py-16 text-center text-sm text-zinc-400">Loading details...</div>;
+  }
+
+  if (!client) {
+    return (
+      <div className="py-16 text-center text-sm text-zinc-400">
+        Application not found. <Link href="/portal" className="underline">Back to Portal</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 py-4 max-w-4xl mx-auto">
+      <div>
+        <Link
+          href="/portal"
+          className="inline-flex items-center text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors mb-4"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to applications
+        </Link>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                {client.name}
+              </h1>
+              <Badge
+                variant={
+                  client.publishing_status === 'production'
+                    ? 'production'
+                    : client.publishing_status === 'pending_production'
+                    ? 'pending'
+                    : 'testing'
+                }
+              >
+                {client.publishing_status.replace('_', ' ')}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 font-mono text-xs text-zinc-500 mt-2">
+              <span>Client ID: {client.client_id}</span>
+              <button
+                type="button"
+                onClick={copyClientId}
+                className="hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {client.publishing_status === 'testing' ? (
+            <Drawer open={isProdDrawerOpen} onOpenChange={setIsProdDrawerOpen}>
+              <DrawerTrigger asChild>
+                <Button variant="primary">
+                  <Rocket className="w-4 h-4 mr-1.5" /> Request Production
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-w-xl mx-auto">
+                <DrawerHeader>
+                  <DrawerTitle>Request Production Publishing</DrawerTitle>
+                  <DrawerDescription>
+                    Production approval removes tester restrictions so any authenticated student can sign in.
+                  </DrawerDescription>
+                </DrawerHeader>
+
+                <form onSubmit={handleRequestProduction} className="space-y-4 px-4 pb-6">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      Justification & Club / Project Context
+                    </label>
+                    <textarea
+                      className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={4}
+                      placeholder="Explain your app's purpose, target audience, and why production access is needed..."
+                      value={justification}
+                      onChange={(e) => setJustification(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="pt-2 flex gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={() => setIsProdDrawerOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="flex-1" loading={prodLoading}>
+                      Submit for Review
+                    </Button>
+                  </div>
+                </form>
+              </DrawerContent>
+            </Drawer>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Redirect URIs Card */}
+        <Card>
+          <CardTitle className="text-lg">Redirect URIs</CardTitle>
+          <CardDescription className="mt-1">
+            Registered OAuth2 callback endpoints for this client.
+          </CardDescription>
+
+          <form onSubmit={handleSaveUris} className="space-y-4 mt-4">
+            <textarea
+              className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              value={redirectUris}
+              onChange={(e) => setRedirectUris(e.target.value)}
+              required
+            />
+            <div className="flex items-center justify-between">
+              <Button type="submit" size="sm" loading={savingUris}>
+                Save Changes
+              </Button>
+              {uriSuccess ? (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" /> Saved!
+                </span>
+              ) : null}
+            </div>
+          </form>
+        </Card>
+
+        {/* Testers Management Card */}
+        <Card>
+          <CardTitle className="text-lg">Authorized Testers</CardTitle>
+          <CardDescription className="mt-1">
+            In testing mode, only designated PRNs or SRNs can authorize this application.
+          </CardDescription>
+
+          <form onSubmit={handleAddTester} className="flex gap-2 mt-4">
+            <Input
+              placeholder="PRN or SRN (e.g. PES1UG20CS001)"
+              value={testerInput}
+              onChange={(e) => setTesterInput(e.target.value)}
+              className="text-xs"
+            />
+            <Button type="submit" size="sm" loading={addingTester}>
+              <Plus className="w-4 h-4" /> Add
+            </Button>
+          </form>
+
+          <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+            {testers.length === 0 ? (
+              <p className="text-xs text-zinc-400 py-3 text-center">
+                No external testers added yet (owner is always authorized).
+              </p>
+            ) : (
+              testers.map((t) => (
+                <div
+                  key={t.sub}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 text-xs font-mono"
+                >
+                  <span>{t.sub}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTester(t.sub)}
+                    className="text-red-500 hover:text-red-600 p-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
