@@ -42,7 +42,7 @@ export async function POST(
   const tester = await ClientTester.findOneAndUpdate(
     { client_id: clientId, sub: targetSub },
     { client_id: clientId, sub: targetSub, added_at: new Date() },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   return NextResponse.json({ tester });

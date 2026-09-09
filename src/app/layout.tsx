@@ -3,6 +3,7 @@ import Link from 'next/link';
 import './globals.css';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Navbar } from '@/components/navbar';
 
 export const metadata: Metadata = {
   title: 'PESU OAuth2 — Sign in with PESU',
@@ -30,32 +31,7 @@ export default function RootLayout({
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
                   PESU OAuth2
                 </Link>
-                <nav className="hidden sm:flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  <Link
-                    href="/portal"
-                    className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  >
-                    Portal
-                  </Link>
-                  <Link
-                    href="/settings"
-                    className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  >
-                    Settings
-                  </Link>
-                  <Link
-                    href="/docs"
-                    className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  >
-                    Documentation
-                  </Link>
-                  <Link
-                    href="/faq"
-                    className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                  >
-                    FAQ
-                  </Link>
-                </nav>
+                <Navbar />
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggle />

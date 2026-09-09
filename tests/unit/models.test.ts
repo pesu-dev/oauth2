@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import {
   User,
   Client,
+  ClientTester,
   AuthCode,
   Consent,
   Vault,
@@ -95,5 +96,17 @@ describe('Mongoose Models Schema Validation', () => {
 
     const admin = new Admin({ sub: 'usr_admin' });
     await expect(admin.validate()).resolves.toBeUndefined();
+  });
+
+  it('binds to the exact MongoDB collection names matching the Python version', () => {
+    expect(User.collection.name).toBe('users');
+    expect(Client.collection.name).toBe('clients');
+    expect(ClientTester.collection.name).toBe('client_testers');
+    expect(Consent.collection.name).toBe('consents');
+    expect(Vault.collection.name).toBe('vault');
+    expect(AuthCode.collection.name).toBe('authorization_codes');
+    expect(RefreshToken.collection.name).toBe('refresh_tokens');
+    expect(ProductionRequest.collection.name).toBe('production_requests');
+    expect(Admin.collection.name).toBe('admins');
   });
 });

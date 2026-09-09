@@ -49,7 +49,7 @@ export async function PATCH(
   const client = await Client.findOneAndUpdate(
     { client_id: clientId, owner_sub: session.sub },
     { redirect_uris: redirectUris, updated_at: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!client) {

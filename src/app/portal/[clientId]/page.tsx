@@ -15,7 +15,18 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from '@/components/ui/drawer';
-import { ArrowLeft, Plus, Trash2, Rocket, Check, Copy } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Rocket,
+  Check,
+  Copy,
+  RefreshCw,
+  KeyRound,
+  AlertTriangle,
+  CheckCircle2,
+} from 'lucide-react';
 
 interface ClientData {
   client_id: string;
@@ -40,9 +51,17 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = React.useState(true);
 
   // Edit redirect URIs state
-  const [redirectUris, setRedirectUris] = React.useState('');
+  const [redirectUris, setRedirectUris] = React.useState<string[]>([]);
+  const [newUriInput, setNewUriInput] = React.useState('');
   const [savingUris, setSavingUris] = React.useState(false);
   const [uriSuccess, setUriSuccess] = React.useState(false);
+
+  // Secret rotation state
+  const [isRotateSecretOpen, setIsRotateSecretOpen] = React.useState(false);
+  const [rotatingSecret, setRotatingSecret] = React.useState(false);
+  const [rotatedSecret, setRotatedSecret] = React.useState<string | null>(null);
+  const [copiedRotatedSecret, setCopiedRotatedSecret] = React.useState(false);
+  const [rotateError, setRotateError] = React.useState<string | null>(null);
 
   // Tester input state
   const [testerInput, setTesterInput] = React.useState('');
@@ -62,7 +81,7 @@ export default function ClientDetailPage() {
       if (res.ok) {
         setClient(data.client);
         setTesters(data.testers || []);
-        setRedirectUris((data.client.redirect_uris || []).join('\n'));
+        setRedirectUris(data.client.redirect_uris || []);
       }
     } finally {
       setLoading(false);
@@ -73,13 +92,43 @@ export default function ClientDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleSaveUris = async (e: React.FormEvent) => {
+  const handleUriChange = (index: number, value: string) => {
+    setRedirectUris((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
+
+  const handleRemoveUri = (index: number) => {
+    setRedirectUris((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleAddUriRow = () => {
+    setRedirectUris((prev) => [...prev, '']);
+  };
+
+  const handleQuickAddUri = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmed = newUriInput.trim();
+    if (!trimmed) return;
+    if (!redirectUris.includes(trimmed)) {
+      setRedirectUris((prev) => [...prev, trimmed]);
+    }
+    setNewUriInput('');
+  };
+
+  const handleSaveUris = async () => {
     setSavingUris(true);
     setUriSuccess(false);
 
-    const uris = redirectUris
-      .split('\n')
+    const allUris = [...redirectUris];
+    if (newUriInput.trim() && !allUris.includes(newUriInput.trim())) {
+      allUris.push(newUriInput.trim());
+      setNewUriInput('');
+    }
+
+    const cleanedUris = allUris
       .map((u) => u.trim())
       .filter(Boolean);
 
@@ -87,14 +136,35 @@ export default function ClientDetailPage() {
       const res = await fetch(`/api/portal/clients/${clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirectUris: uris }),
+        body: JSON.stringify({ redirectUris: cleanedUris }),
       });
       if (res.ok) {
+        setRedirectUris(cleanedUris);
         setUriSuccess(true);
         setTimeout(() => setUriSuccess(false), 2500);
       }
     } finally {
       setSavingUris(false);
+    }
+  };
+
+  const handleRotateSecret = async () => {
+    setRotatingSecret(true);
+    setRotateError(null);
+    try {
+      const res = await fetch(`/api/portal/clients/${clientId}/rotate-secret`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to rotate client secret');
+      }
+      setRotatedSecret(data.clientSecret);
+      setIsRotateSecretOpen(false);
+    } catch (err: unknown) {
+      setRotateError(err instanceof Error ? err.message : 'Error rotating secret');
+    } finally {
+      setRotatingSecret(false);
     }
   };
 
@@ -157,7 +227,10 @@ export default function ClientDetailPage() {
   if (!client) {
     return (
       <div className="py-16 text-center text-sm text-zinc-400">
-        Application not found. <Link href="/portal" className="underline">Back to Portal</Link>
+        Application not found.{' '}
+        <Link href="/portal" className="underline">
+          Back to Portal
+        </Link>
       </div>
     );
   }
@@ -194,7 +267,8 @@ export default function ClientDetailPage() {
               <button
                 type="button"
                 onClick={copyClientId}
-                className="hover:text-zinc-900 dark:hover:text-zinc-100"
+                className="hover:text-zinc-900 dark:hover:text-zinc-100 p-0.5"
+                title="Copy Client ID"
               >
                 {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -251,33 +325,242 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
+      {/* Rotated Secret Banner */}
+      {rotatedSecret && (
+        <Card className="p-4 bg-emerald-500/10 border border-emerald-500/30 dark:border-emerald-500/20 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold text-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>New Client Secret Generated</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRotatedSecret(null)}
+              className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80">
+            Please copy your new secret now. For security reasons, it will not be displayed again.
+          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-black/40 border border-emerald-500/20 font-mono text-xs">
+            <span className="select-all break-all text-zinc-900 dark:text-zinc-100 font-semibold">{rotatedSecret}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard.writeText(rotatedSecret);
+                setCopiedRotatedSecret(true);
+                setTimeout(() => setCopiedRotatedSecret(false), 2000);
+              }}
+              className="shrink-0 text-xs flex items-center gap-1.5 self-end sm:self-center"
+            >
+              {copiedRotatedSecret ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" /> Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" /> Copy Secret
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Client Credentials Card */}
+      <Card>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-blue-500" />
+          <span>Client Credentials</span>
+        </CardTitle>
+        <CardDescription className="mt-1">
+          OAuth2 authentication credentials for code exchange and server-to-server calls.
+        </CardDescription>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Client ID
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/10 font-mono text-xs select-all text-zinc-900 dark:text-zinc-100 truncate">
+                {client.client_id}
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={copyClientId}
+                className="shrink-0"
+              >
+                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="ml-1 text-xs">{copiedId ? 'Copied' : 'Copy'}</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Client Secret
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/10 font-mono text-xs text-zinc-400 dark:text-zinc-500 tracking-wider select-none">
+                ••••••••••••••••••••••••••••••••
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsRotateSecretOpen(true)}
+                className="shrink-0 text-xs flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                <span>Rotate Secret</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Secret Rotation Confirmation Drawer */}
+      <Drawer open={isRotateSecretOpen} onOpenChange={setIsRotateSecretOpen}>
+        <DrawerContent className="max-w-xl mx-auto">
+          <DrawerHeader>
+            <DrawerTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
+              <span>Rotate Client Secret</span>
+            </DrawerTitle>
+            <DrawerDescription>
+              Rotating your client secret will immediately invalidate the active secret. Any backend server using the existing secret will fail to exchange codes or refresh tokens until updated.
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="space-y-4 px-4 pb-6">
+            {rotateError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-400">
+                {rotateError}
+              </div>
+            )}
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200">
+              Are you sure you want to regenerate the client secret for <strong>{client.name}</strong>?
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setIsRotateSecretOpen(false)}
+                disabled={rotatingSecret}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleRotateSecret}
+                loading={rotatingSecret}
+              >
+                Yes, Rotate Secret
+              </Button>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Redirect URIs Card */}
         <Card>
-          <CardTitle className="text-lg">Redirect URIs</CardTitle>
-          <CardDescription className="mt-1">
-            Registered OAuth2 callback endpoints for this client.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Redirect URIs</CardTitle>
+              <CardDescription className="mt-1">
+                Registered OAuth2 callback endpoints for this client.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleAddUriRow}
+              className="text-xs flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add URL</span>
+            </Button>
+          </div>
 
-          <form onSubmit={handleSaveUris} className="space-y-4 mt-4">
-            <textarea
-              className="w-full px-3.5 py-2.5 rounded-xl text-xs font-mono bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={4}
-              value={redirectUris}
-              onChange={(e) => setRedirectUris(e.target.value)}
-              required
-            />
-            <div className="flex items-center justify-between">
-              <Button type="submit" size="sm" loading={savingUris}>
+          <div className="space-y-3 mt-4">
+            {/* List of itemized URIs */}
+            {redirectUris.length === 0 ? (
+              <p className="text-xs text-zinc-400 py-4 text-center border border-dashed border-black/10 dark:border-white/10 rounded-xl">
+                No redirect URIs configured. Click &ldquo;Add URL&rdquo; to add a callback endpoint.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {redirectUris.map((uri, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={uri}
+                      onChange={(e) => handleUriChange(index, e.target.value)}
+                      placeholder="https://my-app.com/api/auth/callback/pesu"
+                      className="text-xs font-mono flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveUri(index)}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-500/10 p-2 shrink-0 h-9 w-9"
+                      title="Remove URL"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick add new URL input line */}
+            <form onSubmit={handleQuickAddUri} className="flex items-center gap-2 pt-1">
+              <Input
+                value={newUriInput}
+                onChange={(e) => setNewUriInput(e.target.value)}
+                placeholder="Enter new URI (e.g. https://...)"
+                className="text-xs font-mono flex-1"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                disabled={!newUriInput.trim()}
+                className="text-xs shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add
+              </Button>
+            </form>
+
+            <div className="flex items-center justify-between pt-3 border-t border-black/5 dark:border-white/5">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveUris}
+                loading={savingUris}
+              >
                 Save Changes
               </Button>
               {uriSuccess ? (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
                   <Check className="w-3.5 h-3.5" /> Saved!
                 </span>
               ) : null}
             </div>
-          </form>
+          </div>
         </Card>
 
         {/* Testers Management Card */}
@@ -299,7 +582,7 @@ export default function ClientDetailPage() {
             </Button>
           </form>
 
-          <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
             {testers.length === 0 ? (
               <p className="text-xs text-zinc-400 py-3 text-center">
                 No external testers added yet (owner is always authorized).
