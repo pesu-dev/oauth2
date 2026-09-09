@@ -12,3 +12,11 @@ python3 scripts/next_semver.py --bump patch
 python3 scripts/next_semver.py --bump minor --merged HEAD
 python3 scripts/next_semver.py --bump major
 ```
+
+## `seed_admin.mjs`
+
+Inserts a `sub` (e.g. `usr_...`) into the MongoDB `admins` collection idempotently.
+
+```bash
+node scripts/seed_admin.mjs --sub usr_...
+```

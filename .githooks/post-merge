@@ -7,7 +7,7 @@ source "$REPO_ROOT/.githooks/utils.sh"
 print_info "🔄 Running post-merge checks..."
 echo
 
-if git diff --cached --name-only | grep -q "pyproject.toml\|uv.lock"; then
+if git diff --cached --name-only | grep -q "package.json\|pnpm-lock.yaml"; then
     print_action "Detected changes in dependencies. Installing packages"
     if ! maybe_install_packages; then
         print_warning "Failed to install dependencies after merge"

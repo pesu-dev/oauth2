@@ -60,33 +60,8 @@ run_quality_checks() {
             print_success "pnpm lint passed"
         fi
         return 0
-    elif [ -f "$REPO_ROOT/pyproject.toml" ]; then
-        print_info "Running Ruff lint..."
-        local staged_files
-        staged_files=$(git diff --name-only --cached --diff-filter=ACMR)
-
-        if ! uv run ruff check . --fix; then
-            print_error "Ruff check failed"
-            return 1
-        fi
-        print_success "Ruff check passed"
-
-        if [ -n "$staged_files" ]; then
-            local ruff_changed_files=""
-            while IFS= read -r file; do
-                if [ -n "$(git diff "$file")" ]; then
-                    ruff_changed_files="$ruff_changed_files $file"
-                fi
-            done <<< "$staged_files"
-
-            if [ -n "$ruff_changed_files" ] && [ "$ruff_changed_files" != " " ]; then
-                print_info "Auto-staging Ruff fixes for:$ruff_changed_files"
-                echo "$ruff_changed_files" | xargs git add
-            fi
-        fi
-        return 0
     else
-        print_info "No package.json or pyproject.toml in root; skipping lint."
+        print_info "No package.json in root; skipping lint."
         return 0
     fi
 }
@@ -104,26 +79,19 @@ run_unit_tests() {
             print_success "pnpm test passed"
         fi
         return 0
-    elif [ -f "$REPO_ROOT/pyproject.toml" ]; then
-        if ! uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95; then
-            print_error "Unit tests failed"
-            return 1
-        fi
-        print_success "Unit tests passed"
-        return 0
     else
-        print_info "No test runner configured in root."
+        print_info "No package.json in root; skipping tests."
         return 0
     fi
 }
 
-# Install dependencies from pyproject.toml (includes dev extra for pytest/ruff/etc.)
+# Install dependencies using pnpm
 maybe_install_packages() {
-    if uv sync --extra dev; then
+    if pnpm install --frozen-lockfile; then
         print_success "Dependencies installed successfully"
     else
         print_error "Failed to install dependencies"
-        print_info "Try: uv sync --extra dev"
+        print_info "Try: pnpm install"
         return 1
     fi
     return 0
