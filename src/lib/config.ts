@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 
 const ENVIRONMENT_DEFAULTS = {
@@ -10,7 +12,7 @@ const ENVIRONMENT_DEFAULTS = {
     issuerUrl: 'https://oauth2-staging-66snrlj46a-uc.a.run.app',
   },
   local: {
-    mongoUri: 'mongodb://localhost:27017/oauth2',
+    mongoUri: 'mongodb+srv://pesudev.andmjbp.mongodb.net/',
     issuerUrl: 'http://localhost:3000',
   },
 } as const;
@@ -20,6 +22,7 @@ export const ConfigSchema = z.object({
   mongoUri: z.string(),
   issuerUrl: z.string(),
   dbName: z.string().default('oauth2'),
+  mongoX509CertPath: z.string().optional(),
   accessTokenTtlSeconds: z.number().default(3600),
   idTokenTtlSeconds: z.number().default(3600),
   refreshTokenTtlSeconds: z.number().default(14 * 24 * 3600),
@@ -42,11 +45,17 @@ export function getConfig(): AppConfig {
   const mongoUri = process.env.MONGODB_URI || defaultForEnv.mongoUri;
   const issuerUrl = process.env.ISSUER_URL || defaultForEnv.issuerUrl;
 
+  const defaultCertPath = fs.existsSync(path.resolve(process.cwd(), 'scratch/mongo-dev.pem'))
+    ? path.resolve(process.cwd(), 'scratch/mongo-dev.pem')
+    : undefined;
+  const mongoX509CertPath = process.env.MONGO_X509_CERT_PATH || defaultCertPath;
+
   return ConfigSchema.parse({
     appEnv,
     mongoUri,
     issuerUrl,
     dbName: process.env.DB_NAME || 'oauth2',
+    mongoX509CertPath,
     vaultMasterKey: process.env.VAULT_MASTER_KEY,
     tokenExchangeSecret: process.env.TOKEN_EXCHANGE_SECRET,
     sessionSecret: process.env.SESSION_SECRET || 'pesu-oauth2-session-secret-at-least-32-chars!',

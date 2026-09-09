@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import mongoose from 'mongoose';
 import { getConfig } from '@/lib/config';
 
@@ -23,9 +25,18 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
 
   if (!cached.promise) {
     const config = getConfig();
+    const hasCert = config.mongoX509CertPath && fs.existsSync(config.mongoX509CertPath);
     const opts: mongoose.ConnectOptions = {
       dbName: config.dbName,
       bufferCommands: false,
+      ...(hasCert
+        ? {
+            tls: true,
+            tlsCertificateKeyFile: path.resolve(config.mongoX509CertPath!),
+            authMechanism: 'MONGODB-X509',
+            authSource: '$external',
+          }
+        : {}),
     };
 
     cached.promise = mongoose.connect(config.mongoUri, opts).then((m) => {
