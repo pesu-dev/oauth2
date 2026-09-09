@@ -1,0 +1,299 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db/connection';
+import {
+  AuthCode,
+  Client,
+  RefreshToken,
+  User,
+} from '@/lib/db/models';
+import { sha256Hex } from '@/lib/crypto/hash';
+import { verifyPkce } from '@/lib/crypto/pkce';
+import { mintAccessToken, mintIdToken } from '@/lib/oidc/jwt';
+import { getConfig } from '@/lib/config';
+import { newFamilyId, newRefreshToken } from '@/lib/id/nanoid';
+
+async function parseParams(request: Request): Promise<Record<string, string>> {
+  const contentType = request.headers.get('content-type') || '';
+  const params: Record<string, string> = {};
+
+  if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    formData.forEach((value, key) => {
+      if (typeof value === 'string') {
+        params[key] = value;
+      }
+    });
+  } else if (contentType.includes('application/json')) {
+    const json = await request.json();
+    for (const [key, value] of Object.entries(json)) {
+      params[key] = String(value);
+    }
+  } else {
+    // Attempt form data fallback
+    try {
+      const text = await request.text();
+      const searchParams = new URLSearchParams(text);
+      searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  // Also check HTTP Basic auth for client credentials if present
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Basic ')) {
+    const credentials = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
+    const [clientId, clientSecret] = credentials.split(':');
+    if (clientId && !params.client_id) params.client_id = clientId;
+    if (clientSecret && !params.client_secret) params.client_secret = clientSecret;
+  }
+
+  return params;
+}
+
+export async function POST(request: NextRequest | Request) {
+  await connectToDatabase();
+  const config = getConfig();
+  const params = await parseParams(request);
+
+  const grantType = params.grant_type;
+  const clientId = params.client_id;
+  const clientSecret = params.client_secret;
+
+  if (!grantType || !clientId) {
+    return NextResponse.json(
+      { error: 'invalid_request', error_description: 'Missing grant_type or client_id' },
+      { status: 400 }
+    );
+  }
+
+  const client = await Client.findOne({ client_id: clientId });
+  if (!client) {
+    return NextResponse.json(
+      { error: 'invalid_client', error_description: 'Client not found' },
+      { status: 401 }
+    );
+  }
+
+  // If client is confidential, verify client secret
+  if (client.token_endpoint_auth_method !== 'none') {
+    if (!clientSecret || sha256Hex(clientSecret) !== client.client_secret_hash) {
+      return NextResponse.json(
+        { error: 'invalid_client', error_description: 'Invalid client credentials' },
+        { status: 401 }
+      );
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 1. authorization_code
+  // -------------------------------------------------------------
+  if (grantType === 'authorization_code') {
+    const code = params.code;
+    const redirectUri = params.redirect_uri;
+    const codeVerifier = params.code_verifier;
+
+    if (!code || !redirectUri || !codeVerifier) {
+      return NextResponse.json(
+        { error: 'invalid_request', error_description: 'Missing code, redirect_uri, or code_verifier' },
+        { status: 400 }
+      );
+    }
+
+    const codeHash = sha256Hex(code);
+    const authCode = await AuthCode.findOne({ code_hash: codeHash });
+
+    if (!authCode) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Authorization code is invalid or expired' },
+        { status: 400 }
+      );
+    }
+
+    if (authCode.client_id !== clientId) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Code was issued to a different client' },
+        { status: 400 }
+      );
+    }
+
+    if (authCode.redirect_uri !== redirectUri) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'redirect_uri mismatch' },
+        { status: 400 }
+      );
+    }
+
+    const pkceValid = verifyPkce(
+      codeVerifier,
+      authCode.code_challenge,
+      authCode.code_challenge_method || 'S256'
+    );
+
+    if (!pkceValid) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'PKCE verification failed' },
+        { status: 400 }
+      );
+    }
+
+    // One-time use: consume code immediately
+    await AuthCode.deleteOne({ code_hash: codeHash });
+
+    const user = await User.findOne({ sub: authCode.sub, deleted_at: null });
+    if (!user) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'User not found or deleted' },
+        { status: 400 }
+      );
+    }
+
+    const scopes = authCode.scopes || [];
+
+    const accessToken = await mintAccessToken({
+      issuer: config.issuerUrl,
+      sub: user.sub,
+      clientId,
+      scopes,
+      ttlSeconds: config.accessTokenTtlSeconds,
+    });
+
+    let idToken: string | undefined;
+    if (scopes.includes('openid')) {
+      idToken = await mintIdToken({
+        issuer: config.issuerUrl,
+        sub: user.sub,
+        clientId,
+        user,
+        scopes,
+        accessToken,
+        ttlSeconds: config.idTokenTtlSeconds,
+      });
+    }
+
+    let refreshToken: string | undefined;
+    if (scopes.includes('offline_access')) {
+      const rawRt = newRefreshToken();
+      const familyId = newFamilyId();
+      await RefreshToken.create({
+        token_hash: sha256Hex(rawRt),
+        family_id: familyId,
+        client_id: clientId,
+        sub: user.sub,
+        scopes,
+      });
+      refreshToken = rawRt;
+    }
+
+    return NextResponse.json({
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: config.accessTokenTtlSeconds,
+      id_token: idToken,
+      refresh_token: refreshToken,
+      scope: scopes.join(' '),
+    });
+  }
+
+  // -------------------------------------------------------------
+  // 2. refresh_token
+  // -------------------------------------------------------------
+  if (grantType === 'refresh_token') {
+    const rawRt = params.refresh_token;
+    if (!rawRt) {
+      return NextResponse.json(
+        { error: 'invalid_request', error_description: 'Missing refresh_token' },
+        { status: 400 }
+      );
+    }
+
+    const tokenHash = sha256Hex(rawRt);
+    const existingToken = await RefreshToken.findOne({ token_hash: tokenHash });
+
+    if (!existingToken) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Invalid refresh token' },
+        { status: 400 }
+      );
+    }
+
+    if (existingToken.client_id !== clientId) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
+        { status: 400 }
+      );
+    }
+
+    // Reuse detection! If revoked_at is set, revoke all tokens in this family
+    if (existingToken.revoked_at) {
+      await RefreshToken.updateMany(
+        { family_id: existingToken.family_id },
+        { revoked_at: new Date() }
+      );
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+        { status: 400 }
+      );
+    }
+
+    // Revoke current token
+    existingToken.revoked_at = new Date();
+    await existingToken.save();
+
+    const user = await User.findOne({ sub: existingToken.sub, deleted_at: null });
+    if (!user) {
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'User not found or deleted' },
+        { status: 400 }
+      );
+    }
+
+    const scopes = existingToken.scopes || [];
+
+    const newRt = newRefreshToken();
+    await RefreshToken.create({
+      token_hash: sha256Hex(newRt),
+      family_id: existingToken.family_id,
+      client_id: clientId,
+      sub: user.sub,
+      scopes,
+    });
+
+    const accessToken = await mintAccessToken({
+      issuer: config.issuerUrl,
+      sub: user.sub,
+      clientId,
+      scopes,
+      ttlSeconds: config.accessTokenTtlSeconds,
+    });
+
+    let idToken: string | undefined;
+    if (scopes.includes('openid')) {
+      idToken = await mintIdToken({
+        issuer: config.issuerUrl,
+        sub: user.sub,
+        clientId,
+        user,
+        scopes,
+        accessToken,
+        ttlSeconds: config.idTokenTtlSeconds,
+      });
+    }
+
+    return NextResponse.json({
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: config.accessTokenTtlSeconds,
+      id_token: idToken,
+      refresh_token: newRt,
+      scope: scopes.join(' '),
+    });
+  }
+
+  return NextResponse.json(
+    { error: 'unsupported_grant_type', error_description: `Unsupported grant_type: ${grantType}` },
+    { status: 400 }
+  );
+}
