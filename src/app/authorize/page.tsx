@@ -14,6 +14,7 @@ interface AuthorizePageProps {
     response_type?: string;
     scope?: string;
     state?: string;
+    nonce?: string;
     code_challenge?: string;
     code_challenge_method?: string;
     mode?: string;
@@ -28,6 +29,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     response_type: responseType,
     scope = 'openid',
     state,
+    nonce,
     code_challenge: codeChallenge,
     code_challenge_method: codeChallengeMethod = 'S256',
     mode = 'identity',
@@ -69,8 +71,8 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
   }
 
-  // Check Publishing Gate
-  if (client.publishing_status === 'testing') {
+  // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
+  if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
     const isOwner = client.owner_sub === session.sub;
     const isTester = await ClientTester.findOne({ client_id: clientId, sub: session.sub });
     if (!isOwner && !isTester) {
@@ -112,6 +114,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,
+      nonce,
     });
 
     const targetUrl = new URL(redirectUri);
@@ -133,6 +136,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       mode={mode as 'identity' | 'delegated'}
       redirectUri={redirectUri}
       state={state}
+      nonce={nonce}
       codeChallenge={codeChallenge}
       codeChallengeMethod={codeChallengeMethod}
     />

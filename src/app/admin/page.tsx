@@ -12,6 +12,7 @@ interface RequestItem {
   client_name: string;
   owner_sub: string;
   status: string;
+  delegated_requested: boolean;
   justification: string;
   created_at: string;
 }
@@ -20,13 +21,22 @@ export default function AdminPage() {
   const [requests, setRequests] = React.useState<RequestItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [delegatedToggles, setDelegatedToggles] = React.useState<Record<string, boolean>>({});
 
   const fetchRequests = async () => {
     try {
       const res = await fetch('/api/admin/requests');
       const data = await res.json();
       if (res.ok) {
-        setRequests(data.requests || []);
+        const reqs: RequestItem[] = data.requests || [];
+        setRequests(reqs);
+
+        // Initialize toggles from requested status
+        const initialToggles: Record<string, boolean> = {};
+        for (const r of reqs) {
+          initialToggles[r.request_id] = Boolean(r.delegated_requested);
+        }
+        setDelegatedToggles(initialToggles);
       } else {
         setError(data.error || 'Access restricted to administrators');
       }
@@ -41,10 +51,11 @@ export default function AdminPage() {
 
   const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
     try {
+      const allowDelegated = delegatedToggles[requestId] ?? false;
       const res = await fetch('/api/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, action }),
+        body: JSON.stringify({ requestId, action, allowDelegated }),
       });
       if (res.ok) {
         fetchRequests();
@@ -96,27 +107,47 @@ export default function AdminPage() {
                   <div className="flex items-center gap-3">
                     <CardTitle className="text-lg">{r.client_name}</CardTitle>
                     <Badge variant="pending">Pending Review</Badge>
+                    <Badge variant={r.delegated_requested ? 'delegated' : 'identity'}>
+                      {r.delegated_requested ? 'Delegated Requested' : 'Identity Only'}
+                    </Badge>
                   </div>
                   <div className="font-mono text-xs text-zinc-400">
                     Client: {r.client_id} • Owner: {r.owner_sub}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleAction(r.request_id, 'reject')}
-                  >
-                    <XCircle className="w-4 h-4 mr-1" /> Reject
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => handleAction(r.request_id, 'approve')}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                  </Button>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(delegatedToggles[r.request_id])}
+                      onChange={(e) =>
+                        setDelegatedToggles((prev) => ({
+                          ...prev,
+                          [r.request_id]: e.target.checked,
+                        }))
+                      }
+                      className="rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Allow Delegated</span>
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleAction(r.request_id, 'reject')}
+                    >
+                      <XCircle className="w-4 h-4 mr-1" /> Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => handleAction(r.request_id, 'approve')}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -124,7 +155,7 @@ export default function AdminPage() {
                 <span className="font-semibold block mb-1 text-zinc-900 dark:text-zinc-100">
                   Justification:
                 </span>
-                {r.justification}
+                {r.justification || 'None provided'}
               </div>
             </Card>
           ))}

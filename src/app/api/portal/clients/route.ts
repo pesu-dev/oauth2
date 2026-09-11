@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, redirectUris, delegatedAllowed = false } = body;
+    const { name, redirectUris } = body;
 
     if (!name || !redirectUris || !Array.isArray(redirectUris) || redirectUris.length === 0) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       owner_sub: session.sub,
       redirect_uris: redirectUris,
       publishing_status: 'testing',
-      delegated_allowed: Boolean(delegatedAllowed),
+      delegated_allowed: false, // Security: only admins can grant delegated mode upon production review
       token_endpoint_auth_method: 'client_secret_post',
       created_at: new Date(),
       updated_at: new Date(),

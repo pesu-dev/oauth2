@@ -6,6 +6,8 @@ export interface IRefreshToken extends Document {
   client_id: string;
   sub: string;
   scopes: string[];
+  expires_at: Date;
+  successor_hash?: string | null;
   revoked_at?: Date | null;
   created_at: Date;
 }
@@ -17,6 +19,8 @@ export const RefreshTokenSchema = new Schema<IRefreshToken>(
     client_id: { type: String, required: true },
     sub: { type: String, required: true, index: true },
     scopes: { type: [String], default: [] },
+    expires_at: { type: Date, required: true },
+    successor_hash: { type: String, default: null },
     revoked_at: { type: Date, default: null },
     created_at: { type: Date, default: Date.now },
   },

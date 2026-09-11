@@ -4,11 +4,13 @@ import {
   SignJWT,
   jwtVerify,
   importPKCS8,
+  importSPKI,
   JWK,
 } from 'jose';
 import crypto from 'node:crypto';
 import { nanoid } from 'nanoid';
 import { IUser } from '@/lib/db/models';
+import { getConfig } from '@/lib/config';
 import { profileClaims } from './claims';
 
 interface KeyPairHolder {
@@ -19,16 +21,32 @@ interface KeyPairHolder {
 
 let keyHolderPromise: Promise<KeyPairHolder> | null = null;
 
+export function resetKeyHolder(): void {
+  keyHolderPromise = null;
+}
+
 export async function getKeyPair(): Promise<KeyPairHolder> {
   if (!keyHolderPromise) {
     keyHolderPromise = (async () => {
-      const pem = process.env.TOKEN_SIGNING_KEY_PEM;
+      let pem = process.env.TOKEN_SIGNING_KEY_PEM;
+      if (!pem) {
+        try {
+          const config = getConfig();
+          pem = config.tokenSigningKeyPem;
+        } catch {
+          // Ignore config loading issues during early startup or test teardown
+        }
+      }
+
       if (pem) {
         const privateKey = await importPKCS8(pem, 'RS256');
+        const pubKey = crypto.createPublicKey(pem);
+        const pubPem = pubKey.export({ type: 'spki', format: 'pem' }).toString();
+        const publicKey = await importSPKI(pubPem, 'RS256', { extractable: true });
         const kid = process.env.TOKEN_SIGNING_KEY_ID || 'pesu-key-1';
         return {
           privateKey,
-          publicKey: privateKey,
+          publicKey,
           kid,
         };
       }
@@ -102,6 +120,7 @@ export interface MintIdTokenParams {
   user: IUser;
   scopes: string[];
   accessToken?: string;
+  nonce?: string;
   ttlSeconds?: number;
 }
 
@@ -112,6 +131,7 @@ export async function mintIdToken({
   user,
   scopes,
   accessToken,
+  nonce,
   ttlSeconds = 3600,
 }: MintIdTokenParams): Promise<string> {
   const { privateKey, kid } = await getKeyPair();
@@ -120,6 +140,9 @@ export async function mintIdToken({
   const claims = profileClaims(user, scopes);
   if (accessToken) {
     claims.at_hash = calculateAtHash(accessToken);
+  }
+  if (nonce) {
+    claims.nonce = nonce;
   }
 
   return new SignJWT(claims)

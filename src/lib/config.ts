@@ -32,6 +32,10 @@ export const ConfigSchema = z.object({
   tokenExchangeSecret: z.string().optional(),
   sessionSecret: z.string().default('pesu-oauth2-session-secret-at-least-32-chars!'),
   firstPartyApiClientId: z.string().default('cli_pesu_api'),
+  tokenSigningKeyPath: z.string().optional(),
+  tokenSigningKeyPem: z.string().optional(),
+  gmailSmtpUser: z.string().optional(),
+  gmailSmtpAppPassword: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -50,6 +54,20 @@ export function getConfig(): AppConfig {
     : undefined;
   const mongoX509CertPath = process.env.MONGO_X509_CERT_PATH || defaultCertPath;
 
+  const defaultKeyPath = fs.existsSync(path.resolve(process.cwd(), 'scratch/token-signing.pem'))
+    ? path.resolve(process.cwd(), 'scratch/token-signing.pem')
+    : undefined;
+  const tokenSigningKeyPath = process.env.TOKEN_SIGNING_KEY_PATH || defaultKeyPath;
+
+  let tokenSigningKeyPem = process.env.TOKEN_SIGNING_KEY_PEM;
+  if (!tokenSigningKeyPem && tokenSigningKeyPath && fs.existsSync(tokenSigningKeyPath)) {
+    try {
+      tokenSigningKeyPem = fs.readFileSync(tokenSigningKeyPath, 'utf-8');
+    } catch {
+      // Ignore unreadable key file
+    }
+  }
+
   return ConfigSchema.parse({
     appEnv,
     mongoUri,
@@ -60,5 +78,9 @@ export function getConfig(): AppConfig {
     tokenExchangeSecret: process.env.TOKEN_EXCHANGE_SECRET,
     sessionSecret: process.env.SESSION_SECRET || 'pesu-oauth2-session-secret-at-least-32-chars!',
     firstPartyApiClientId: process.env.FIRST_PARTY_API_CLIENT_ID || 'cli_pesu_api',
+    tokenSigningKeyPath,
+    tokenSigningKeyPem,
+    gmailSmtpUser: process.env.GMAIL_SMTP_USER,
+    gmailSmtpAppPassword: process.env.GMAIL_SMTP_APP_PASSWORD,
   });
 }

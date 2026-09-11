@@ -83,12 +83,14 @@ describe('Mongoose Models Schema Validation', () => {
       family_id: 'fam_1',
       client_id: 'cli_1',
       sub: 'usr_1',
+      expires_at: new Date(Date.now() + 3600000),
     });
     await expect(rt.validate()).resolves.toBeUndefined();
 
     const pr = new ProductionRequest({
       request_id: 'req_1',
       client_id: 'cli_1',
+      requested_by_sub: 'usr_1',
       owner_sub: 'usr_1',
       justification: 'Production access needed',
     });

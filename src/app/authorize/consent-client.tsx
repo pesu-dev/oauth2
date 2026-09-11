@@ -18,6 +18,7 @@ interface ConsentClientProps {
   mode: 'identity' | 'delegated';
   redirectUri: string;
   state?: string;
+  nonce?: string;
   codeChallenge: string;
   codeChallengeMethod: string;
 }
@@ -29,6 +30,7 @@ export function ConsentClient({
   mode,
   redirectUri,
   state,
+  nonce,
   codeChallenge,
   codeChallengeMethod,
 }: ConsentClientProps) {
@@ -48,6 +50,7 @@ export function ConsentClient({
           redirectUri,
           scope: requestedScopes.join(' '),
           state,
+          nonce,
           codeChallenge,
           codeChallengeMethod,
           mode,

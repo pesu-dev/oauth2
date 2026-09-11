@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client, Consent, User, Vault } from '@/lib/db/models';
+import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
+import { notifySubQuietly } from '@/lib/mailer';
 
 export async function GET(request: NextRequest) {
   const sessionCookie = request.cookies.get('pesu_session')?.value;
@@ -15,7 +16,11 @@ export async function GET(request: NextRequest) {
   }
 
   await connectToDatabase();
-  const user = await User.findOne({ sub: session.sub });
+  const user = await User.findOne({ sub: session.sub, deleted_at: null });
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const vault = await Vault.findOne({ sub: session.sub });
   const consents = await Consent.find({ sub: session.sub });
 
@@ -48,19 +53,109 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action'); // 'vault' | 'consent'
+  const action = searchParams.get('action'); // 'vault' | 'consent' | 'account'
   const clientId = searchParams.get('client_id');
 
   await connectToDatabase();
 
   if (action === 'vault') {
     await Vault.deleteOne({ sub: session.sub });
+
+    notifySubQuietly({
+      sub: session.sub,
+      subject: 'Stored credentials deleted',
+      body: 'Your stored PESU Academy credentials were deleted from the vault. Identity consents (if any) remain until you revoke them.',
+    });
+
     return NextResponse.json({ success: true, message: 'Vault credentials deleted' });
   }
 
   if (action === 'consent' && clientId) {
     await Consent.deleteOne({ sub: session.sub, client_id: clientId });
+
+    // Revoke all live refresh tokens for this subject and client
+    await RefreshToken.updateMany(
+      { sub: session.sub, client_id: clientId, revoked_at: null },
+      { $set: { revoked_at: new Date() } }
+    );
+
+    // If no delegated consents remain, purge vault credentials
+    const remainingDelegated = await Consent.countDocuments({
+      sub: session.sub,
+      mode: 'delegated',
+    });
+    if (remainingDelegated === 0) {
+      await Vault.deleteOne({ sub: session.sub });
+    }
+
+    const client = await Client.findOne({ client_id: clientId });
+    const appName = client?.name || clientId;
+
+    notifySubQuietly({
+      sub: session.sub,
+      subject: `Access revoked for ${appName}`,
+      body: `You revoked access for ${appName} (${clientId}). Refresh tokens for this app are no longer valid.`,
+    });
+
     return NextResponse.json({ success: true, message: 'Consent revoked' });
+  }
+
+  if (action === 'account') {
+    let confirm = searchParams.get('confirm');
+    if (!confirm) {
+      try {
+        const body = await request.json();
+        confirm = body.confirm;
+      } catch {
+        // ignore
+      }
+    }
+
+    if (confirm?.trim() !== 'DELETE') {
+      return NextResponse.json(
+        { error: 'Type DELETE to confirm account deletion' },
+        { status: 400 }
+      );
+    }
+
+    // 1. Tombstone user record (never reuse sub)
+    await User.updateOne(
+      { sub: session.sub, deleted_at: null },
+      { $set: { deleted_at: new Date() } }
+    );
+
+    // 2. Revoke all live refresh tokens
+    await RefreshToken.updateMany(
+      { sub: session.sub, revoked_at: null },
+      { $set: { revoked_at: new Date() } }
+    );
+
+    // 3. Delete all consents
+    await Consent.deleteMany({ sub: session.sub });
+
+    // 4. Delete vault credentials
+    await Vault.deleteOne({ sub: session.sub });
+
+    notifySubQuietly({
+      sub: session.sub,
+      subject: 'Account deleted',
+      body: 'Your PESU OAuth2 account was deleted. Consents, refresh tokens, and stored credentials were removed. Your subject id will not be reused.',
+    });
+
+    // 5. Clear session cookie
+    const response = NextResponse.json({
+      success: true,
+      message: 'Account deleted successfully',
+    });
+    response.cookies.set('pesu_session', '', {
+      path: '/',
+      maxAge: 0,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return response;
   }
 
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -82,7 +177,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   await connectToDatabase();
-  const user = await User.findOne({ sub: session.sub });
+  const user = await User.findOne({ sub: session.sub, deleted_at: null });
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
@@ -122,11 +217,18 @@ export async function PATCH(request: NextRequest) {
       session_nonce: sessionBlob?.nonce.toString('base64'),
       session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
       session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
+      session_expires_at: authResult.session.expiresAt,
       key_version: 1,
       updated_at: new Date(),
     },
     { upsert: true }
   );
+
+  notifySubQuietly({
+    sub: session.sub,
+    subject: 'Saved credentials updated',
+    body: 'Your stored PESU Academy credentials were updated after a successful re-authentication.',
+  });
 
   return NextResponse.json({ success: true, message: 'Vault credentials updated successfully' });
 }

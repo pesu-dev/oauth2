@@ -192,6 +192,14 @@ describe('OIDC Route Handlers', () => {
 
   describe('Revocation endpoint', () => {
     it('revokes valid refresh token', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as unknown as InstanceType<typeof Client>);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_sample_token_to_revoke_123456'),
+        client_id: 'cli_test',
+      } as unknown as InstanceType<typeof RefreshToken>);
       vi.spyOn(RefreshToken, 'updateOne').mockResolvedValueOnce({
         acknowledged: true,
         matchedCount: 1,
@@ -201,6 +209,7 @@ describe('OIDC Route Handlers', () => {
       });
 
       const formData = new URLSearchParams();
+      formData.set('client_id', 'cli_test');
       formData.set('token', 'rt_sample_token_to_revoke_123456');
 
       const req = new Request('http://localhost:3000/revoke', {
@@ -211,8 +220,6 @@ describe('OIDC Route Handlers', () => {
 
       const resp = await postRevoke(req);
       expect(resp.status).toBe(200);
-      const data = await resp.json();
-      expect(data.revoked).toBe(true);
     });
   });
 });

@@ -11,6 +11,7 @@ import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
+import { notifySubQuietly } from '@/lib/mailer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
       redirectUri,
       scope,
       state,
+      nonce,
       codeChallenge,
       codeChallengeMethod,
       mode = 'identity',
@@ -106,10 +108,18 @@ export async function POST(request: NextRequest) {
       client_id: clientId,
       sub: session.sub,
       scopes,
-      mode: mode === 'delegated' ? 'delegated' : 'identity',
+      mode: mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity',
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod || 'S256',
+      nonce,
+    });
+
+    const effectiveMode = mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity';
+    notifySubQuietly({
+      sub: session.sub,
+      subject: `Access granted to ${client.name}`,
+      body: `You granted ${effectiveMode} access to ${client.name} (${client.client_id}). You can revoke this anytime in Settings.`,
     });
 
     const targetUrl = new URL(redirectUri);

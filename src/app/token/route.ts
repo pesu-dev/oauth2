@@ -169,6 +169,7 @@ export async function POST(request: NextRequest | Request) {
         user,
         scopes,
         accessToken,
+        nonce: authCode.nonce,
         ttlSeconds: config.idTokenTtlSeconds,
       });
     }
@@ -183,6 +184,7 @@ export async function POST(request: NextRequest | Request) {
         client_id: clientId,
         sub: user.sub,
         scopes,
+        expires_at: new Date(Date.now() + config.refreshTokenTtlSeconds * 1000),
       });
       refreshToken = rawRt;
     }
@@ -210,39 +212,69 @@ export async function POST(request: NextRequest | Request) {
     }
 
     const tokenHash = sha256Hex(rawRt);
-    const existingToken = await RefreshToken.findOne({ token_hash: tokenHash });
+    const now = new Date();
+    const newRt = newRefreshToken();
+    const newRtHash = sha256Hex(newRt);
 
-    if (!existingToken) {
+    // Atomic CAS to claim old token
+    const claimed = await RefreshToken.findOneAndUpdate(
+      {
+        token_hash: tokenHash,
+        revoked_at: null,
+        expires_at: { $gt: now },
+      },
+      {
+        $set: {
+          revoked_at: now,
+          successor_hash: newRtHash,
+        },
+      },
+      { returnDocument: 'before' }
+    );
+
+    if (!claimed) {
+      const existing = await RefreshToken.findOne({ token_hash: tokenHash });
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'invalid_grant', error_description: 'Invalid refresh token' },
+          { status: 400 }
+        );
+      }
+      if (existing.client_id !== clientId) {
+        return NextResponse.json(
+          { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
+          { status: 400 }
+        );
+      }
+      // Reused revoked or expired token: revoke family immediately
+      if (existing.revoked_at || existing.expires_at <= now) {
+        await RefreshToken.updateMany(
+          { family_id: existing.family_id, revoked_at: null },
+          { $set: { revoked_at: now } }
+        );
+        return NextResponse.json(
+          { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { error: 'invalid_grant', error_description: 'Invalid refresh token' },
+        { error: 'invalid_grant', error_description: 'Invalid or reused refresh token' },
         { status: 400 }
       );
     }
 
-    if (existingToken.client_id !== clientId) {
+    if (claimed.client_id !== clientId) {
+      await RefreshToken.updateMany(
+        { family_id: claimed.family_id, revoked_at: null },
+        { $set: { revoked_at: now } }
+      );
       return NextResponse.json(
         { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
         { status: 400 }
       );
     }
 
-    // Reuse detection! If revoked_at is set, revoke all tokens in this family
-    if (existingToken.revoked_at) {
-      await RefreshToken.updateMany(
-        { family_id: existingToken.family_id },
-        { revoked_at: new Date() }
-      );
-      return NextResponse.json(
-        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-        { status: 400 }
-      );
-    }
-
-    // Revoke current token
-    existingToken.revoked_at = new Date();
-    await existingToken.save();
-
-    const user = await User.findOne({ sub: existingToken.sub, deleted_at: null });
+    const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
     if (!user) {
       return NextResponse.json(
         { error: 'invalid_grant', error_description: 'User not found or deleted' },
@@ -250,16 +282,36 @@ export async function POST(request: NextRequest | Request) {
       );
     }
 
-    const scopes = existingToken.scopes || [];
+    const scopes = claimed.scopes || [];
 
-    const newRt = newRefreshToken();
+    // Create the rotated token preserving original family expiration
     await RefreshToken.create({
-      token_hash: sha256Hex(newRt),
-      family_id: existingToken.family_id,
+      token_hash: newRtHash,
+      family_id: claimed.family_id,
       client_id: clientId,
       sub: user.sub,
       scopes,
+      expires_at: claimed.expires_at,
+      created_at: now,
+      revoked_at: null,
     });
+
+    // Check race condition: family must only have 1 active live token
+    const liveCount = await RefreshToken.countDocuments({
+      family_id: claimed.family_id,
+      revoked_at: null,
+      expires_at: { $gt: now },
+    });
+    if (liveCount !== 1) {
+      await RefreshToken.updateMany(
+        { family_id: claimed.family_id, revoked_at: null },
+        { $set: { revoked_at: now } }
+      );
+      return NextResponse.json(
+        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+        { status: 400 }
+      );
+    }
 
     const accessToken = await mintAccessToken({
       issuer: config.issuerUrl,

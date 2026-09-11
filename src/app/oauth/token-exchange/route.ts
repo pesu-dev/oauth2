@@ -1,132 +1,231 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { connectToDatabase } from '@/lib/db/connection';
-import { User, Vault } from '@/lib/db/models';
+import { Consent, User, Vault } from '@/lib/db/models';
 import { getConfig } from '@/lib/config';
 import { verifyAccessToken } from '@/lib/oidc/jwt';
 import { masterKeyFromSecret, open, seal, SealedBlob } from '@/lib/crypto/envelope';
 import { AcademyClient } from '@/lib/academy/client';
 
-export async function POST(request: NextRequest | Request) {
-  const config = getConfig();
+function checkExchangeSecret(request: Request, configuredSecret?: string): boolean {
+  if (!configuredSecret) return false;
 
-  // Validate internal authentication
+  const headerSecret = request.headers.get('x-token-exchange-secret');
+  if (headerSecret) {
+    try {
+      if (
+        crypto.timingSafeEqual(
+          Buffer.from(headerSecret, 'utf-8'),
+          Buffer.from(configuredSecret, 'utf-8')
+        )
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
   const authHeader = request.headers.get('authorization');
-  const secretHeader = request.headers.get('x-token-exchange-secret');
+  if (authHeader?.startsWith('Bearer ')) {
+    const bearer = authHeader.slice(7).trim();
+    try {
+      if (
+        crypto.timingSafeEqual(
+          Buffer.from(bearer, 'utf-8'),
+          Buffer.from(configuredSecret, 'utf-8')
+        )
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
 
-  let targetSub: string | null = null;
+  return false;
+}
 
-  if (secretHeader && config.tokenExchangeSecret && secretHeader === config.tokenExchangeSecret) {
+async function extractAccessToken(request: Request): Promise<string | null> {
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+    try {
+      const formData = await request.formData();
+      return (formData.get('access_token') as string) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (contentType.includes('application/json')) {
     try {
       const body = await request.json();
-      targetSub = body.sub || null;
+      return (body.access_token as string) || null;
     } catch {
-      return NextResponse.json(
-        { error: 'invalid_request', error_description: 'Malformed JSON payload' },
-        { status: 400 }
-      );
+      return null;
     }
-  } else if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    try {
-      const payload = await verifyAccessToken(token, config.issuerUrl);
-      if (payload.client_id !== config.firstPartyApiClientId) {
-        return NextResponse.json(
-          { error: 'unauthorized_client', error_description: 'Client unauthorized for token exchange' },
-          { status: 403 }
-        );
-      }
-      targetSub = payload.sub;
-    } catch {
-      return NextResponse.json(
-        { error: 'invalid_token', error_description: 'Invalid bearer token' },
-        { status: 401 }
-      );
-    }
-  } else {
+  }
+
+  try {
+    const text = await request.text();
+    const params = new URLSearchParams(text);
+    return params.get('access_token');
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(request: NextRequest | Request) {
+  const config = getConfig();
+  if (!checkExchangeSecret(request, config.tokenExchangeSecret)) {
     return NextResponse.json(
-      { error: 'access_denied', error_description: 'Unauthorized access to token exchange' },
+      { error: 'unauthorized', error_description: 'Valid token exchange secret required' },
       { status: 401 }
     );
   }
 
-  if (!targetSub) {
+  const accessToken = await extractAccessToken(request);
+  if (!accessToken) {
     return NextResponse.json(
-      { error: 'invalid_request', error_description: 'Missing target subject sub' },
+      { error: 'invalid_request', error_description: 'access_token is required' },
       { status: 400 }
+    );
+  }
+
+  let tokenClaims: { sub: string; client_id: string };
+  try {
+    tokenClaims = await verifyAccessToken(accessToken, config.issuerUrl);
+  } catch {
+    return NextResponse.json(
+      { error: 'unauthorized', error_description: 'Invalid or expired access token' },
+      { status: 401 }
+    );
+  }
+
+  if (tokenClaims.client_id !== config.firstPartyApiClientId) {
+    return NextResponse.json(
+      { error: 'forbidden', error_description: 'Token client is not the first-party API client' },
+      { status: 403 }
+    );
+  }
+
+  await connectToDatabase();
+  const sub = tokenClaims.sub;
+
+  // Verify delegated consent exists for the first party client
+  const consent = await Consent.findOne({
+    sub,
+    client_id: config.firstPartyApiClientId,
+  });
+  if (!consent || consent.mode !== 'delegated') {
+    return NextResponse.json(
+      { error: 'forbidden', error_description: 'Delegated consent required' },
+      { status: 403 }
     );
   }
 
   if (!config.vaultMasterKey) {
     return NextResponse.json(
-      { error: 'server_error', error_description: 'Vault master key unconfigured' },
-      { status: 500 }
+      { error: 'misconfigured', error_description: 'Vault master key unavailable' },
+      { status: 503 }
     );
   }
 
-  await connectToDatabase();
-  const vaultDoc = await Vault.findOne({ sub: targetSub });
+  const vaultDoc = await Vault.findOne({ sub });
   if (!vaultDoc) {
     return NextResponse.json(
-      { error: 'not_found', error_description: 'User has no delegated vault credentials' },
-      { status: 404 }
+      { error: 'forbidden', error_description: 'No vault credentials for subject' },
+      { status: 403 }
     );
   }
 
   const masterKey = masterKeyFromSecret(config.vaultMasterKey);
 
-  // Decrypt password
-  const passwordBlob: SealedBlob = {
-    nonce: Buffer.from(vaultDoc.password_nonce, 'base64'),
-    ciphertext: Buffer.from(vaultDoc.encrypted_password, 'base64'),
-    wrapNonce: Buffer.from(vaultDoc.password_wrap_nonce, 'base64'),
-    wrappedDek: Buffer.from(vaultDoc.password_wrapped_dek, 'base64'),
-    keyVersion: vaultDoc.key_version,
-  };
+  // Check cached session validity (at least 60s remaining)
+  const now = Date.now();
+  if (
+    vaultDoc.encrypted_session &&
+    vaultDoc.session_nonce &&
+    vaultDoc.session_wrap_nonce &&
+    vaultDoc.session_wrapped_dek &&
+    vaultDoc.session_expires_at &&
+    vaultDoc.session_expires_at.getTime() > now + 60000
+  ) {
+    try {
+      const sessionBlob: SealedBlob = {
+        nonce: Buffer.from(vaultDoc.session_nonce, 'base64'),
+        ciphertext: Buffer.from(vaultDoc.encrypted_session, 'base64'),
+        wrapNonce: Buffer.from(vaultDoc.session_wrap_nonce, 'base64'),
+        wrappedDek: Buffer.from(vaultDoc.session_wrapped_dek, 'base64'),
+        keyVersion: vaultDoc.key_version,
+      };
+      const sessionJsonStr = open(masterKey, sessionBlob).toString('utf-8');
+      const sessionData = JSON.parse(sessionJsonStr);
+      return NextResponse.json(sessionData);
+    } catch {
+      // If decryption fails, fall through to refresh with Academy
+    }
+  }
 
+  // Decrypt user password from vault
   let decryptedPassword = '';
   try {
+    const passwordBlob: SealedBlob = {
+      nonce: Buffer.from(vaultDoc.password_nonce, 'base64'),
+      ciphertext: Buffer.from(vaultDoc.encrypted_password, 'base64'),
+      wrapNonce: Buffer.from(vaultDoc.password_wrap_nonce, 'base64'),
+      wrappedDek: Buffer.from(vaultDoc.password_wrapped_dek, 'base64'),
+      keyVersion: vaultDoc.key_version,
+    };
     decryptedPassword = open(masterKey, passwordBlob).toString('utf-8');
   } catch {
     return NextResponse.json(
-      { error: 'server_error', error_description: 'Failed to decrypt vault credentials' },
-      { status: 500 }
+      { error: 'forbidden', error_description: 'Vault credentials unreadable' },
+      { status: 403 }
     );
   }
 
-  const user = await User.findOne({ sub: targetSub, deleted_at: null });
+  const user = await User.findOne({ sub, deleted_at: null });
   if (!user) {
     return NextResponse.json(
-      { error: 'invalid_grant', error_description: 'User not found' },
-      { status: 404 }
+      { error: 'forbidden', error_description: 'User not found or deleted' },
+      { status: 403 }
     );
   }
 
-  // Obtain or refresh Academy session material
+  // Refresh Academy session
   const academy = new AcademyClient();
   try {
     const authResult = await academy.login(user.prn || user.srn, decryptedPassword);
 
-    // Encrypt fresh session and save to vaultDoc
-    if (authResult.session.token) {
-      const sessionBlob = seal(masterKey, Buffer.from(authResult.session.token, 'utf-8'), 1);
-      vaultDoc.encrypted_session = sessionBlob.ciphertext.toString('base64');
-      vaultDoc.session_nonce = sessionBlob.nonce.toString('base64');
-      vaultDoc.session_wrap_nonce = sessionBlob.wrapNonce.toString('base64');
-      vaultDoc.session_wrapped_dek = sessionBlob.wrappedDek.toString('base64');
-      vaultDoc.updated_at = new Date();
-      await vaultDoc.save();
-    }
-
-    return NextResponse.json({
+    const sessionData = {
       token: authResult.session.token,
       access_token: authResult.session.accessToken,
       user_id: authResult.session.userId,
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Academy login failed';
+    };
+
+    const sessionBlob = seal(
+      masterKey,
+      Buffer.from(JSON.stringify(sessionData), 'utf-8'),
+      1
+    );
+
+    vaultDoc.encrypted_session = sessionBlob.ciphertext.toString('base64');
+    vaultDoc.session_nonce = sessionBlob.nonce.toString('base64');
+    vaultDoc.session_wrap_nonce = sessionBlob.wrapNonce.toString('base64');
+    vaultDoc.session_wrapped_dek = sessionBlob.wrappedDek.toString('base64');
+    vaultDoc.session_expires_at = authResult.session.expiresAt || undefined;
+    vaultDoc.updated_at = new Date();
+    await vaultDoc.save();
+
+    return NextResponse.json(sessionData);
+  } catch {
     return NextResponse.json(
-      { error: 'invalid_grant', error_description: msg },
-      { status: 400 }
+      {
+        error: 'academy_unavailable',
+        error_description: 'Could not refresh Academy session',
+      },
+      { status: 502 }
     );
   }
 }

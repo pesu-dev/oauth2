@@ -13,6 +13,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from '@/components/ui/drawer';
+import { useRouter } from 'next/navigation';
 import { Lock, Trash2, KeyRound, User, CheckCircle2 } from 'lucide-react';
 
 interface UserData {
@@ -37,11 +38,17 @@ interface ConsentItem {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [user, setUser] = React.useState<UserData | null>(null);
   const [hasVault, setHasVault] = React.useState(false);
   const [vaultUpdatedAt, setVaultUpdatedAt] = React.useState<string | null>(null);
   const [consents, setConsents] = React.useState<ConsentItem[]>([]);
   const [loading, setLoading] = React.useState(true);
+
+  // Account deletion state
+  const [deleteConfirm, setDeleteConfirm] = React.useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   // Update password drawer state
   const [isPasswordDrawerOpen, setIsPasswordDrawerOpen] = React.useState(false);
@@ -109,6 +116,31 @@ export default function SettingsPage() {
       setPasswordMessage(msg);
     } finally {
       setUpdatingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm.trim() !== 'DELETE') {
+      setDeleteError('Type DELETE to confirm account deletion');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/settings?action=account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete account');
+      }
+      router.push('/login');
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Error deleting account');
+      setIsDeletingAccount(false);
     }
   };
 
@@ -295,6 +327,41 @@ export default function SettingsPage() {
               </div>
             ))
           )}
+        </div>
+      </Card>
+
+      {/* Danger Zone: Account Deletion */}
+      <Card className="border-red-500/20 bg-red-500/[0.02]">
+        <CardTitle className="text-lg text-red-600 dark:text-red-400">Danger Zone</CardTitle>
+        <CardDescription className="mt-1 text-zinc-500">
+          Permanently delete your PESU OAuth2 account, revoke all application grants, and wipe all stored credentials. Your account identifier will be permanently tombstoned and never reused.
+        </CardDescription>
+
+        <div className="mt-6 space-y-4 max-w-md">
+          {deleteError && (
+            <div className="text-xs text-red-500 font-medium">
+              {deleteError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-xs text-zinc-400">
+              Type <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">DELETE</span> to confirm:
+            </label>
+            <Input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="DELETE"
+              className="font-mono text-xs"
+            />
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteAccount}
+            disabled={deleteConfirm.trim() !== 'DELETE' || isDeletingAccount}
+          >
+            {isDeletingAccount ? 'Deleting Account...' : 'Delete Account Permanently'}
+          </Button>
         </div>
       </Card>
     </div>

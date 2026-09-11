@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { Client, ProductionRequest } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newRequestId } from '@/lib/id/nanoid';
+import { notifySubQuietly } from '@/lib/mailer';
 
 export async function POST(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { justification } = body;
+  const { justification, delegatedRequested } = body;
 
   if (!justification || justification.length < 10) {
     return NextResponse.json(
@@ -40,14 +41,22 @@ export async function POST(
   const prodRequest = await ProductionRequest.create({
     request_id: newRequestId(),
     client_id: clientId,
+    requested_by_sub: session.sub,
     owner_sub: session.sub,
     status: 'pending',
+    delegated_requested: Boolean(delegatedRequested),
     justification,
     created_at: new Date(),
   });
 
   client.publishing_status = 'pending_production';
   await client.save();
+
+  notifySubQuietly({
+    sub: session.sub,
+    subject: `Production review requested for ${client.name}`,
+    body: `Your client ${client.name} (${client.client_id}) was submitted for Production review. An admin will approve or reject the request.`,
+  });
 
   return NextResponse.json({ request: prodRequest });
 }

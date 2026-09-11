@@ -10,6 +10,7 @@ export interface IAuthCode extends Document {
   redirect_uri: string;
   code_challenge: string;
   code_challenge_method: string;
+  nonce?: string;
   created_at: Date;
 }
 
@@ -23,6 +24,7 @@ export const AuthCodeSchema = new Schema<IAuthCode>(
     redirect_uri: { type: String, required: true },
     code_challenge: { type: String, required: true },
     code_challenge_method: { type: String, default: 'S256' },
+    nonce: { type: String },
     created_at: { type: Date, default: Date.now, expires: 600 }, // 10 minutes TTL
   },
   { collection: 'authorization_codes' }

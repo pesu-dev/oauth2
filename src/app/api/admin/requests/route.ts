@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
 import { Admin, Client, ProductionRequest } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { notifySubQuietly } from '@/lib/mailer';
 
 async function checkAdmin(request: NextRequest): Promise<string | null> {
   const sessionCookie = request.cookies.get('pesu_session')?.value;
@@ -19,17 +20,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const requests = await ProductionRequest.find({ status: 'pending' }).sort({ created_at: -1 });
+  const requests = await ProductionRequest.find({ status: 'pending' }).sort({ created_at: 1 });
 
-  // Enrich with client names
+  // Enrich with client details
   const clientIds = requests.map((r) => r.client_id);
   const clients = await Client.find({ client_id: { $in: clientIds } });
-  const clientMap = new Map(clients.map((c) => [c.client_id, c.name]));
+  const clientMap = new Map(clients.map((c) => [c.client_id, c]));
 
-  const enriched = requests.map((r) => ({
-    ...r.toObject(),
-    client_name: clientMap.get(r.client_id) || 'Unknown App',
-  }));
+  const enriched = requests.map((r) => {
+    const client = clientMap.get(r.client_id);
+    return {
+      request_id: r.request_id,
+      client_id: r.client_id,
+      client_name: client?.name || r.client_id,
+      owner_sub: r.requested_by_sub || r.owner_sub || client?.owner_sub || 'Unknown',
+      status: r.status,
+      delegated_requested: r.delegated_requested,
+      justification: r.justification || '',
+      created_at: r.created_at,
+    };
+  });
 
   return NextResponse.json({ requests: enriched });
 }
@@ -41,32 +51,66 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { requestId, action } = body; // 'approve' | 'reject'
+  const { requestId, action, allowDelegated = false } = body; // 'approve' | 'reject'
 
   if (!requestId || !['approve', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
   }
 
-  const prodReq = await ProductionRequest.findOne({ request_id: requestId });
+  const now = new Date();
+
+  // Atomic CAS resolve
+  const prodReq = await ProductionRequest.findOneAndUpdate(
+    { request_id: requestId, status: 'pending' },
+    {
+      $set: {
+        status: action === 'approve' ? 'approved' : 'rejected',
+        resolved_at: now,
+        resolved_by_sub: adminSub,
+        reviewed_at: now,
+        reviewer_sub: adminSub,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
   if (!prodReq) {
-    return NextResponse.json({ error: 'Production request not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Production request not found or already resolved' },
+      { status: 404 }
+    );
   }
 
-  prodReq.status = action === 'approve' ? 'approved' : 'rejected';
-  prodReq.reviewed_at = new Date();
-  prodReq.reviewer_sub = adminSub;
-  await prodReq.save();
+  const isApprove = action === 'approve';
+  const shouldAllowDelegated = isApprove && Boolean(allowDelegated);
 
-  if (action === 'approve') {
-    await Client.updateOne(
-      { client_id: prodReq.client_id },
-      { publishing_status: 'production', updated_at: new Date() }
-    );
-  } else {
-    await Client.updateOne(
-      { client_id: prodReq.client_id },
-      { publishing_status: 'testing', updated_at: new Date() }
-    );
+  const client = await Client.findOneAndUpdate(
+    { client_id: prodReq.client_id },
+    {
+      $set: {
+        publishing_status: isApprove ? 'production' : 'testing',
+        delegated_allowed: shouldAllowDelegated,
+        updated_at: now,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (client) {
+    const ownerSub = client.owner_sub || prodReq.requested_by_sub;
+    if (isApprove) {
+      notifySubQuietly({
+        sub: ownerSub,
+        subject: `${client.name} approved for Production`,
+        body: `Your client ${client.name} (${client.client_id}) was approved for Production.${shouldAllowDelegated ? ' Delegated mode is allowed.' : ''}`,
+      });
+    } else {
+      notifySubQuietly({
+        sub: ownerSub,
+        subject: `${client.name} returned to Testing`,
+        body: `Your Production request for ${client.name} (${client.client_id}) was rejected. The client remains in Testing.`,
+      });
+    }
   }
 
   return NextResponse.json({ success: true, status: prodReq.status });

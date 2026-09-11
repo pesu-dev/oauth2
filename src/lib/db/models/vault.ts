@@ -10,7 +10,7 @@ export interface IVault extends Document {
   session_nonce?: string;
   session_wrap_nonce?: string;
   session_wrapped_dek?: string;
-  session_expires_at?: Date;
+  session_expires_at?: Date | null;
   key_version: number;
   updated_at: Date;
 }
