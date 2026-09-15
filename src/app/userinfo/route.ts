@@ -10,7 +10,7 @@ async function handleUserInfo(request: NextRequest | Request) {
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json(
       { error: 'invalid_token', error_description: 'Missing or malformed Bearer token' },
-      { status: 401 }
+      { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } }
     );
   }
 
@@ -23,7 +23,7 @@ async function handleUserInfo(request: NextRequest | Request) {
   } catch {
     return NextResponse.json(
       { error: 'invalid_token', error_description: 'Token signature or expiration invalid' },
-      { status: 401 }
+      { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } }
     );
   }
 
@@ -32,7 +32,7 @@ async function handleUserInfo(request: NextRequest | Request) {
   if (!user) {
     return NextResponse.json(
       { error: 'invalid_token', error_description: 'User not found' },
-      { status: 401 }
+      { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } }
     );
   }
 

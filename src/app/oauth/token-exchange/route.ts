@@ -159,9 +159,19 @@ export async function POST(request: NextRequest | Request) {
         wrappedDek: Buffer.from(vaultDoc.session_wrapped_dek, 'base64'),
         keyVersion: vaultDoc.key_version,
       };
-      const sessionJsonStr = open(masterKey, sessionBlob).toString('utf-8');
-      const sessionData = JSON.parse(sessionJsonStr);
-      return NextResponse.json(sessionData);
+      const sessionDecrypted = open(masterKey, sessionBlob).toString('utf-8');
+      let sessionData;
+      try {
+        sessionData = JSON.parse(sessionDecrypted);
+      } catch {
+        sessionData = { token: sessionDecrypted };
+      }
+      return NextResponse.json(sessionData, {
+        headers: {
+          'Cache-Control': 'no-store',
+          Pragma: 'no-cache',
+        },
+      });
     } catch {
       // If decryption fails, fall through to refresh with Academy
     }
@@ -193,10 +203,11 @@ export async function POST(request: NextRequest | Request) {
     );
   }
 
-  // Refresh Academy session
+  // Refresh Academy session using stored username if available
+  const loginIdentifier = vaultDoc.username || user.prn || user.srn;
   const academy = new AcademyClient();
   try {
-    const authResult = await academy.login(user.prn || user.srn, decryptedPassword);
+    const authResult = await academy.login(loginIdentifier, decryptedPassword);
 
     const sessionData = {
       token: authResult.session.token,
@@ -214,11 +225,16 @@ export async function POST(request: NextRequest | Request) {
     vaultDoc.session_nonce = sessionBlob.nonce.toString('base64');
     vaultDoc.session_wrap_nonce = sessionBlob.wrapNonce.toString('base64');
     vaultDoc.session_wrapped_dek = sessionBlob.wrappedDek.toString('base64');
-    vaultDoc.session_expires_at = authResult.session.expiresAt || undefined;
+    vaultDoc.session_expires_at = authResult.session.expiresAt || new Date(Date.now() + 24 * 3600 * 1000);
     vaultDoc.updated_at = new Date();
     await vaultDoc.save();
 
-    return NextResponse.json(sessionData);
+    return NextResponse.json(sessionData, {
+      headers: {
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      },
+    });
   } catch {
     return NextResponse.json(
       {

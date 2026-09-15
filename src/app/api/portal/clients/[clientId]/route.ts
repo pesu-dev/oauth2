@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
 import { Client, ClientTester } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
 
 export async function GET(
   request: NextRequest,
@@ -41,14 +42,15 @@ export async function PATCH(
   const body = await request.json();
   const { redirectUris } = body;
 
-  if (!redirectUris || !Array.isArray(redirectUris)) {
-    return NextResponse.json({ error: 'Invalid redirectUris' }, { status: 400 });
+  const validated = parseAndValidateRedirectUris(redirectUris);
+  if (!validated.valid) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
   }
 
   await connectToDatabase();
   const client = await Client.findOneAndUpdate(
     { client_id: clientId, owner_sub: session.sub },
-    { redirect_uris: redirectUris, updated_at: new Date() },
+    { redirect_uris: validated.uris, updated_at: new Date() },
     { returnDocument: 'after' }
   );
 

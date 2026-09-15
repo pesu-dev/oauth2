@@ -29,14 +29,20 @@ export async function POST(
   }
 
   // Resolve target sub
-  let targetSub = identifier;
-  if (!identifier.startsWith('usr_')) {
+  let targetSub = identifier.trim();
+  if (!targetSub.startsWith('usr_')) {
     const user = await User.findOne({
-      $or: [{ prn: identifier }, { srn: identifier }],
+      $or: [{ prn: targetSub }, { srn: targetSub }],
     });
-    if (user) {
-      targetSub = user.sub;
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: `User with identifier "${targetSub}" has not signed in yet. Testers must be registered users or a valid usr_ subject.`,
+        },
+        { status: 400 }
+      );
     }
+    targetSub = user.sub;
   }
 
   const tester = await ClientTester.findOneAndUpdate(

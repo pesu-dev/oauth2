@@ -68,7 +68,7 @@ export function getConfig(): AppConfig {
     }
   }
 
-  return ConfigSchema.parse({
+  const parsed = ConfigSchema.parse({
     appEnv,
     mongoUri,
     issuerUrl,
@@ -83,4 +83,18 @@ export function getConfig(): AppConfig {
     gmailSmtpUser: process.env.GMAIL_SMTP_USER,
     gmailSmtpAppPassword: process.env.GMAIL_SMTP_APP_PASSWORD,
   });
+
+  if (appEnv !== 'local') {
+    const missing: string[] = [];
+    if (!parsed.vaultMasterKey) missing.push('VAULT_MASTER_KEY');
+    if (!parsed.tokenExchangeSecret) missing.push('TOKEN_EXCHANGE_SECRET');
+    if (!process.env.SESSION_SECRET) missing.push('SESSION_SECRET');
+    if (!parsed.tokenSigningKeyPem) missing.push('TOKEN_SIGNING_KEY_PEM / TOKEN_SIGNING_KEY_PATH');
+
+    if (missing.length > 0) {
+      throw new Error(`[Config] Missing required secrets for ${appEnv} environment: ${missing.join(', ')}`);
+    }
+  }
+
+  return parsed;
 }

@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IVault extends Document {
   sub: string;
+  username?: string;
   encrypted_password: string; // Base64
   password_nonce: string; // Base64
   password_wrap_nonce: string; // Base64
@@ -18,6 +19,7 @@ export interface IVault extends Document {
 export const VaultSchema = new Schema<IVault>(
   {
     sub: { type: String, required: true, unique: true, index: true },
+    username: { type: String },
     encrypted_password: { type: String, required: true },
     password_nonce: { type: String, required: true },
     password_wrap_nonce: { type: String, required: true },

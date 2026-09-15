@@ -202,13 +202,23 @@ export async function PATCH(request: NextRequest) {
 
   let sessionBlob;
   if (authResult.session.token) {
-    sessionBlob = seal(masterKey, Buffer.from(authResult.session.token, 'utf-8'), 1);
+    const sessionData = {
+      token: authResult.session.token,
+      access_token: authResult.session.accessToken || null,
+      user_id: authResult.session.userId || null,
+    };
+    sessionBlob = seal(
+      masterKey,
+      Buffer.from(JSON.stringify(sessionData), 'utf-8'),
+      1
+    );
   }
 
   await Vault.findOneAndUpdate(
     { sub: session.sub },
     {
       sub: session.sub,
+      username: user.prn || user.srn,
       encrypted_password: passBlob.ciphertext.toString('base64'),
       password_nonce: passBlob.nonce.toString('base64'),
       password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
@@ -217,7 +227,7 @@ export async function PATCH(request: NextRequest) {
       session_nonce: sessionBlob?.nonce.toString('base64'),
       session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
       session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
-      session_expires_at: authResult.session.expiresAt,
+      session_expires_at: authResult.session.expiresAt || new Date(Date.now() + 24 * 3600 * 1000),
       key_version: 1,
       updated_at: new Date(),
     },

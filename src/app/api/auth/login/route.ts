@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { User } from '@/lib/db/models';
 import { AcademyClient } from '@/lib/academy/client';
 import { createSessionToken } from '@/lib/session/cookie';
+import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newSub } from '@/lib/id/nanoid';
 import { cookies } from 'next/headers';
 
@@ -16,6 +17,19 @@ export async function POST(request: NextRequest) {
         { error: 'Username and password are required' },
         { status: 400 }
       );
+    }
+
+    // Sanitize returnTo against open redirects
+    let safeRedirect = '/portal';
+    if (
+      returnTo &&
+      typeof returnTo === 'string' &&
+      returnTo.startsWith('/') &&
+      !returnTo.startsWith('//') &&
+      !returnTo.includes('://') &&
+      !returnTo.includes('\\')
+    ) {
+      safeRedirect = returnTo;
     }
 
     const academy = new AcademyClient();
@@ -72,12 +86,19 @@ export async function POST(request: NextRequest) {
       maxAge: 1800,
     });
 
-    // Also store temporary encrypted pending credential for delegated vault if flow requires it
+    // Store in-memory ephemeral pending credential (never put raw password in the cookie)
+    const credId = pendingCredentialStore.put({
+      username: username.trim(),
+      password,
+      sessionToken: result.session.token,
+      accessToken: result.session.accessToken,
+      userId: result.session.userId,
+      expiresAt: result.session.expiresAt,
+    });
+
     const pendingCredToken = await createSessionToken({
       sub: user.sub,
-      password,
-      session_token: result.session.token,
-      user_id: result.session.userId,
+      cred_id: credId,
     }, 600);
 
     cookieStore.set('pesu_pending', pendingCredToken, {
@@ -91,7 +112,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       sub: user.sub,
-      redirectTo: returnTo || '/portal',
+      redirectTo: safeRedirect,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Authentication failed';

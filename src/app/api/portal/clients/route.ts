@@ -4,6 +4,7 @@ import { Client } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newClientId, newClientSecret } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
+import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
 
 export async function GET(request: NextRequest) {
   const sessionCookie = request.cookies.get('pesu_session')?.value;
@@ -31,11 +32,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, redirectUris } = body;
 
-    if (!name || !redirectUris || !Array.isArray(redirectUris) || redirectUris.length === 0) {
+    if (!name || !name.trim()) {
       return NextResponse.json(
-        { error: 'Name and at least one redirect URI are required' },
+        { error: 'Client application name is required' },
         { status: 400 }
       );
+    }
+
+    const validated = parseAndValidateRedirectUris(redirectUris);
+    if (!validated.valid) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
     await connectToDatabase();
@@ -47,9 +53,9 @@ export async function POST(request: NextRequest) {
     const client = await Client.create({
       client_id: clientId,
       client_secret_hash: secretHash,
-      name,
+      name: name.trim(),
       owner_sub: session.sub,
-      redirect_uris: redirectUris,
+      redirect_uris: validated.uris,
       publishing_status: 'testing',
       delegated_allowed: false, // Security: only admins can grant delegated mode upon production review
       token_endpoint_auth_method: 'client_secret_post',

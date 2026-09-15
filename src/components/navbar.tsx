@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Shield, Menu, X } from 'lucide-react';
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
@@ -16,6 +18,7 @@ export function Navbar() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data) {
+          setIsAuthenticated(Boolean(data.authenticated));
           setIsAdmin(Boolean(data.isAdmin));
         }
       })
@@ -25,6 +28,18 @@ export function Navbar() {
       isMounted = false;
     };
   }, [pathname]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+      router.push('/');
+      router.refresh();
+    } catch {
+      router.push('/');
+    }
+  };
 
   const [prevPathname, setPrevPathname] = React.useState(pathname);
   if (prevPathname !== pathname) {
@@ -67,6 +82,22 @@ export function Navbar() {
           >
             <Shield className="w-3.5 h-3.5" />
             <span>Admin</span>
+          </Link>
+        )}
+        {isAuthenticated ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+          >
+            Sign Out
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            Sign In
           </Link>
         )}
       </nav>
@@ -122,6 +153,26 @@ export function Navbar() {
             >
               <Shield className="w-4 h-4" />
               <span>Admin Dashboard</span>
+            </Link>
+          )}
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              className="text-left text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1 cursor-pointer"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
+            >
+              Sign In
             </Link>
           )}
         </div>

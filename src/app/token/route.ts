@@ -53,6 +53,17 @@ async function parseParams(request: Request): Promise<Record<string, string>> {
   return params;
 }
 
+const TOKEN_HEADERS = {
+  'Cache-Control': 'no-store',
+  Pragma: 'no-cache',
+};
+
+const VERIFIER_RE = /^[A-Za-z0-9\-._~]{43,128}$/;
+
+function tokenResponse(data: Record<string, unknown>, status: number = 200) {
+  return NextResponse.json(data, { status, headers: TOKEN_HEADERS });
+}
+
 export async function POST(request: NextRequest | Request) {
   await connectToDatabase();
   const config = getConfig();
@@ -63,26 +74,26 @@ export async function POST(request: NextRequest | Request) {
   const clientSecret = params.client_secret;
 
   if (!grantType || !clientId) {
-    return NextResponse.json(
+    return tokenResponse(
       { error: 'invalid_request', error_description: 'Missing grant_type or client_id' },
-      { status: 400 }
+      400
     );
   }
 
   const client = await Client.findOne({ client_id: clientId });
   if (!client) {
-    return NextResponse.json(
+    return tokenResponse(
       { error: 'invalid_client', error_description: 'Client not found' },
-      { status: 401 }
+      401
     );
   }
 
   // If client is confidential, verify client secret
   if (client.token_endpoint_auth_method !== 'none') {
     if (!clientSecret || sha256Hex(clientSecret) !== client.client_secret_hash) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_client', error_description: 'Invalid client credentials' },
-        { status: 401 }
+        401
       );
     }
   }
@@ -96,9 +107,16 @@ export async function POST(request: NextRequest | Request) {
     const codeVerifier = params.code_verifier;
 
     if (!code || !redirectUri || !codeVerifier) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_request', error_description: 'Missing code, redirect_uri, or code_verifier' },
-        { status: 400 }
+        400
+      );
+    }
+
+    if (!VERIFIER_RE.test(codeVerifier)) {
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'code_verifier must be 43-128 unreserved ASCII characters' },
+        400
       );
     }
 
@@ -106,23 +124,23 @@ export async function POST(request: NextRequest | Request) {
     const authCode = await AuthCode.findOne({ code_hash: codeHash });
 
     if (!authCode) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'Authorization code is invalid or expired' },
-        { status: 400 }
+        400
       );
     }
 
     if (authCode.client_id !== clientId) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'Code was issued to a different client' },
-        { status: 400 }
+        400
       );
     }
 
     if (authCode.redirect_uri !== redirectUri) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'redirect_uri mismatch' },
-        { status: 400 }
+        400
       );
     }
 
@@ -133,9 +151,9 @@ export async function POST(request: NextRequest | Request) {
     );
 
     if (!pkceValid) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'PKCE verification failed' },
-        { status: 400 }
+        400
       );
     }
 
@@ -144,9 +162,9 @@ export async function POST(request: NextRequest | Request) {
 
     const user = await User.findOne({ sub: authCode.sub, deleted_at: null });
     if (!user) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'User not found or deleted' },
-        { status: 400 }
+        400
       );
     }
 
@@ -189,7 +207,7 @@ export async function POST(request: NextRequest | Request) {
       refreshToken = rawRt;
     }
 
-    return NextResponse.json({
+    return tokenResponse({
       access_token: accessToken,
       token_type: 'Bearer',
       expires_in: config.accessTokenTtlSeconds,
@@ -205,9 +223,9 @@ export async function POST(request: NextRequest | Request) {
   if (grantType === 'refresh_token') {
     const rawRt = params.refresh_token;
     if (!rawRt) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_request', error_description: 'Missing refresh_token' },
-        { status: 400 }
+        400
       );
     }
 
@@ -235,15 +253,15 @@ export async function POST(request: NextRequest | Request) {
     if (!claimed) {
       const existing = await RefreshToken.findOne({ token_hash: tokenHash });
       if (!existing) {
-        return NextResponse.json(
+        return tokenResponse(
           { error: 'invalid_grant', error_description: 'Invalid refresh token' },
-          { status: 400 }
+          400
         );
       }
       if (existing.client_id !== clientId) {
-        return NextResponse.json(
+        return tokenResponse(
           { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
-          { status: 400 }
+          400
         );
       }
       // Reused revoked or expired token: revoke family immediately
@@ -252,14 +270,14 @@ export async function POST(request: NextRequest | Request) {
           { family_id: existing.family_id, revoked_at: null },
           { $set: { revoked_at: now } }
         );
-        return NextResponse.json(
+        return tokenResponse(
           { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-          { status: 400 }
+          400
         );
       }
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'Invalid or reused refresh token' },
-        { status: 400 }
+        400
       );
     }
 
@@ -268,17 +286,17 @@ export async function POST(request: NextRequest | Request) {
         { family_id: claimed.family_id, revoked_at: null },
         { $set: { revoked_at: now } }
       );
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
-        { status: 400 }
+        400
       );
     }
 
     const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
     if (!user) {
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'User not found or deleted' },
-        { status: 400 }
+        400
       );
     }
 
@@ -307,9 +325,9 @@ export async function POST(request: NextRequest | Request) {
         { family_id: claimed.family_id, revoked_at: null },
         { $set: { revoked_at: now } }
       );
-      return NextResponse.json(
+      return tokenResponse(
         { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-        { status: 400 }
+        400
       );
     }
 
@@ -334,7 +352,7 @@ export async function POST(request: NextRequest | Request) {
       });
     }
 
-    return NextResponse.json({
+    return tokenResponse({
       access_token: accessToken,
       token_type: 'Bearer',
       expires_in: config.accessTokenTtlSeconds,
@@ -344,8 +362,8 @@ export async function POST(request: NextRequest | Request) {
     });
   }
 
-  return NextResponse.json(
+  return tokenResponse(
     { error: 'unsupported_grant_type', error_description: `Unsupported grant_type: ${grantType}` },
-    { status: 400 }
+    400
   );
 }

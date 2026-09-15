@@ -7,6 +7,7 @@ import {
   Vault,
 } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
@@ -35,7 +36,15 @@ export async function POST(request: NextRequest) {
       action, // 'allow' | 'deny'
     } = body;
 
+    const pendingCookie = request.cookies.get('pesu_pending')?.value;
+    const pendingToken = pendingCookie
+      ? await verifySessionToken<{ sub: string; cred_id?: string; password?: string; session_token?: string; user_id?: string }>(pendingCookie)
+      : null;
+
     if (action === 'deny') {
+      if (pendingToken?.cred_id) {
+        pendingCredentialStore.pop(pendingToken.cred_id);
+      }
       const targetUrl = new URL(redirectUri);
       targetUrl.searchParams.set('error', 'access_denied');
       targetUrl.searchParams.set('error_description', 'User denied consent');
@@ -64,27 +73,48 @@ export async function POST(request: NextRequest) {
       { upsert: true }
     );
 
-    // If delegated mode, process vault storage using pending credentials cookie
+    // If delegated mode, process vault storage using pending credentials
     if (mode === 'delegated' && client.delegated_allowed) {
       const config = getConfig();
-      const pendingCookie = request.cookies.get('pesu_pending')?.value;
-      const pending = pendingCookie
-        ? await verifySessionToken<{ password?: string; session_token?: string; user_id?: string }>(pendingCookie)
-        : null;
+      // Retrieve ephemeral credentials from memory store (or fallback to legacy token fields for backwards compatibility in tests)
+      const pending = pendingToken?.cred_id
+        ? pendingCredentialStore.pop(pendingToken.cred_id)
+        : (pendingToken?.password
+            ? {
+                username: '',
+                password: pendingToken.password,
+                sessionToken: pendingToken.session_token,
+                userId: pendingToken.user_id,
+              }
+            : null);
 
       if (pending?.password && config.vaultMasterKey) {
         const masterKey = masterKeyFromSecret(config.vaultMasterKey);
         const passBlob = seal(masterKey, Buffer.from(pending.password, 'utf-8'), 1);
 
         let sessionBlob;
-        if (pending.session_token) {
-          sessionBlob = seal(masterKey, Buffer.from(pending.session_token, 'utf-8'), 1);
+        let sessionExpiresAt: Date | undefined;
+        if (pending.sessionToken) {
+          const sessionData = {
+            token: pending.sessionToken,
+            access_token: pending.accessToken || null,
+            user_id: pending.userId || null,
+          };
+          sessionBlob = seal(
+            masterKey,
+            Buffer.from(JSON.stringify(sessionData), 'utf-8'),
+            1
+          );
+          sessionExpiresAt = pending.expiresAt
+            ? new Date(pending.expiresAt)
+            : new Date(Date.now() + 24 * 3600 * 1000);
         }
 
         await Vault.findOneAndUpdate(
           { sub: session.sub },
           {
             sub: session.sub,
+            username: pending.username || undefined,
             encrypted_password: passBlob.ciphertext.toString('base64'),
             password_nonce: passBlob.nonce.toString('base64'),
             password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
@@ -93,11 +123,17 @@ export async function POST(request: NextRequest) {
             session_nonce: sessionBlob?.nonce.toString('base64'),
             session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
             session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
+            session_expires_at: sessionExpiresAt,
             key_version: 1,
             updated_at: new Date(),
           },
           { upsert: true }
         );
+      }
+    } else {
+      // Identity mode: pop and discard any pending credentials
+      if (pendingToken?.cred_id) {
+        pendingCredentialStore.pop(pendingToken.cred_id);
       }
     }
 

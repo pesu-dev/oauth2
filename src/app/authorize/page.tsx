@@ -1,11 +1,16 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client, ClientTester, Consent, AuthCode } from '@/lib/db/models';
+import { Client, ClientTester, Consent, AuthCode, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
+import { getConfig } from '@/lib/config';
+import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
 import { ConsentClient } from './consent-client';
+
+const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
 
 interface AuthorizePageProps {
   searchParams: Promise<{
@@ -27,18 +32,51 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: responseType,
-    scope = 'openid',
+    scope = '',
     state,
     nonce,
     code_challenge: codeChallenge,
-    code_challenge_method: codeChallengeMethod = 'S256',
-    mode = 'identity',
+    code_challenge_method: codeChallengeMethod,
   } = params;
 
-  if (!clientId || !redirectUri || responseType !== 'code' || !codeChallenge) {
+  if (!clientId || !redirectUri || responseType !== 'code') {
     return (
       <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
-        Invalid authorization request. Required: client_id, redirect_uri, response_type=code, and code_challenge.
+        Invalid authorization request. Required: client_id, redirect_uri, and response_type=code.
+      </div>
+    );
+  }
+
+  // PKCE is strictly required (RFC 7636)
+  if (!codeChallenge || !codeChallengeMethod) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        Authorization requires PKCE with code_challenge and code_challenge_method=S256.
+      </div>
+    );
+  }
+
+  if (codeChallengeMethod !== 'S256') {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        Only code_challenge_method=S256 is supported.
+      </div>
+    );
+  }
+
+  if (!PKCE_CHALLENGE_RE.test(codeChallenge)) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        code_challenge must be a valid BASE64URL (S256) string (43–128 characters).
+      </div>
+    );
+  }
+
+  const requestedScopes = (scope || '').split(' ').filter(Boolean);
+  if (!requestedScopes.includes('openid')) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        A valid openid scope is required in the scope parameter.
       </div>
     );
   }
@@ -87,7 +125,8 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     }
   }
 
-  const requestedScopes = scope.split(' ').filter(Boolean);
+  // Mode is determined by client's delegated_allowed permissions
+  const targetMode = client.delegated_allowed ? 'delegated' : 'identity';
 
   // Check existing consent
   const existingConsent = await Consent.findOne({
@@ -100,10 +139,55 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     requestedScopes.every((s) => existingConsent.scopes.includes(s));
   const coversMode =
     existingConsent &&
-    (mode === 'identity' || existingConsent.mode === 'delegated');
+    (targetMode === 'identity' || existingConsent.mode === 'delegated');
 
-  // If already consented, auto-issue code and redirect
+  // If already consented, reseal fresh credentials if delegated, auto-issue code and redirect
   if (coversScopes && coversMode) {
+    if (existingConsent.mode === 'delegated') {
+      const pendingCookie = cookieStore.get('pesu_pending')?.value;
+      const pendingToken = pendingCookie
+        ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
+        : null;
+      if (pendingToken?.cred_id) {
+        const pending = pendingCredentialStore.pop(pendingToken.cred_id);
+        const config = getConfig();
+        if (pending?.password && config.vaultMasterKey) {
+          const masterKey = masterKeyFromSecret(config.vaultMasterKey);
+          const passBlob = seal(masterKey, Buffer.from(pending.password, 'utf-8'), 1);
+          let sessionBlob;
+          let sessionExpiresAt: Date | undefined;
+          if (pending.sessionToken) {
+            const sessionData = {
+              token: pending.sessionToken,
+              access_token: pending.accessToken || null,
+              user_id: pending.userId || null,
+            };
+            sessionBlob = seal(masterKey, Buffer.from(JSON.stringify(sessionData), 'utf-8'), 1);
+            sessionExpiresAt = pending.expiresAt ? new Date(pending.expiresAt) : undefined;
+          }
+          await Vault.findOneAndUpdate(
+            { sub: session.sub },
+            {
+              sub: session.sub,
+              username: pending.username,
+              encrypted_password: passBlob.ciphertext.toString('base64'),
+              password_nonce: passBlob.nonce.toString('base64'),
+              password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
+              password_wrapped_dek: passBlob.wrappedDek.toString('base64'),
+              encrypted_session: sessionBlob?.ciphertext.toString('base64'),
+              session_nonce: sessionBlob?.nonce.toString('base64'),
+              session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
+              session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
+              session_expires_at: sessionExpiresAt,
+              key_version: 1,
+              updated_at: new Date(),
+            },
+            { upsert: true }
+          );
+        }
+      }
+    }
+
     const rawCode = newAuthCode();
     await AuthCode.create({
       code_hash: sha256Hex(rawCode),
@@ -133,7 +217,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       }}
       userName={session.name}
       requestedScopes={requestedScopes}
-      mode={mode as 'identity' | 'delegated'}
+      mode={targetMode}
       redirectUri={redirectUri}
       state={state}
       nonce={nonce}
