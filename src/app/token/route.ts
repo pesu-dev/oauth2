@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { connectToDatabase } from '@/lib/db/connection';
 import {
   AuthCode,
@@ -44,10 +45,26 @@ async function parseParams(request: Request): Promise<Record<string, string>> {
   // Also check HTTP Basic auth for client credentials if present
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Basic ')) {
-    const credentials = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
-    const [clientId, clientSecret] = credentials.split(':');
-    if (clientId && !params.client_id) params.client_id = clientId;
-    if (clientSecret && !params.client_secret) params.client_secret = clientSecret;
+    try {
+      const credentials = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
+      const colonIdx = credentials.indexOf(':');
+      if (colonIdx !== -1) {
+        const rawClientId = credentials.slice(0, colonIdx);
+        const rawClientSecret = credentials.slice(colonIdx + 1);
+        let clientId = rawClientId;
+        let clientSecret = rawClientSecret;
+        try {
+          clientId = decodeURIComponent(rawClientId);
+          clientSecret = decodeURIComponent(rawClientSecret);
+        } catch {
+          // fallback to raw if not URL encoded
+        }
+        if (clientId && !params.client_id) params.client_id = clientId;
+        if (clientSecret && !params.client_secret) params.client_secret = clientSecret;
+      }
+    } catch {
+      // ignore malformed basic auth header
+    }
   }
 
   return params;
@@ -73,9 +90,16 @@ export async function POST(request: NextRequest | Request) {
   const clientId = params.client_id;
   const clientSecret = params.client_secret;
 
-  if (!grantType || !clientId) {
+  if (!clientId) {
     return tokenResponse(
-      { error: 'invalid_request', error_description: 'Missing grant_type or client_id' },
+      { error: 'invalid_client', error_description: 'client_id is required' },
+      401
+    );
+  }
+
+  if (!grantType) {
+    return tokenResponse(
+      { error: 'invalid_request', error_description: 'Missing grant_type' },
       400
     );
   }
@@ -90,7 +114,19 @@ export async function POST(request: NextRequest | Request) {
 
   // If client is confidential, verify client secret
   if (client.token_endpoint_auth_method !== 'none') {
-    if (!clientSecret || sha256Hex(clientSecret) !== client.client_secret_hash) {
+    if (!clientSecret || !client.client_secret_hash) {
+      return tokenResponse(
+        { error: 'invalid_client', error_description: 'Invalid client credentials' },
+        401
+      );
+    }
+    const computedHash = sha256Hex(clientSecret);
+    const hashBuf = Buffer.from(computedHash);
+    const storedBuf = Buffer.from(client.client_secret_hash);
+    if (
+      hashBuf.length !== storedBuf.length ||
+      !crypto.timingSafeEqual(hashBuf, storedBuf)
+    ) {
       return tokenResponse(
         { error: 'invalid_client', error_description: 'Invalid client credentials' },
         401

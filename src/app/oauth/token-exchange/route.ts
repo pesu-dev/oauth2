@@ -75,6 +75,28 @@ async function extractAccessToken(request: Request): Promise<string | null> {
   }
 }
 
+function requireFirstPartyClient(configClientId: string, tokenClientId: string): boolean {
+  try {
+    const a = Buffer.from(tokenClientId);
+    const b = Buffer.from(configClientId);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function sessionResponse(data: { token: string; access_token?: string | null; user_id?: string | null }) {
+  const body: Record<string, string> = { token: data.token };
+  if (data.access_token) body.access_token = data.access_token;
+  if (data.user_id) body.user_id = data.user_id;
+  return NextResponse.json(body, {
+    headers: {
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+  });
+}
+
 export async function POST(request: NextRequest | Request) {
   const config = getConfig();
   if (!checkExchangeSecret(request, config.tokenExchangeSecret)) {
@@ -102,7 +124,7 @@ export async function POST(request: NextRequest | Request) {
     );
   }
 
-  if (tokenClaims.client_id !== config.firstPartyApiClientId) {
+  if (!requireFirstPartyClient(config.firstPartyApiClientId, tokenClaims.client_id)) {
     return NextResponse.json(
       { error: 'forbidden', error_description: 'Token client is not the first-party API client' },
       { status: 403 }
@@ -160,18 +182,13 @@ export async function POST(request: NextRequest | Request) {
         keyVersion: vaultDoc.key_version,
       };
       const sessionDecrypted = open(masterKey, sessionBlob).toString('utf-8');
-      let sessionData;
+      let sessionData: { token: string; access_token?: string | null; user_id?: string | null };
       try {
         sessionData = JSON.parse(sessionDecrypted);
       } catch {
         sessionData = { token: sessionDecrypted };
       }
-      return NextResponse.json(sessionData, {
-        headers: {
-          'Cache-Control': 'no-store',
-          Pragma: 'no-cache',
-        },
-      });
+      return sessionResponse(sessionData);
     } catch {
       // If decryption fails, fall through to refresh with Academy
     }
@@ -229,12 +246,7 @@ export async function POST(request: NextRequest | Request) {
     vaultDoc.updated_at = new Date();
     await vaultDoc.save();
 
-    return NextResponse.json(sessionData, {
-      headers: {
-        'Cache-Control': 'no-store',
-        Pragma: 'no-cache',
-      },
-    });
+    return sessionResponse(sessionData);
   } catch {
     return NextResponse.json(
       {

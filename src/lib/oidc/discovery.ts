@@ -29,6 +29,6 @@ export function buildOpenIdConfiguration(issuerUrl: string): OpenIdConfiguration
     code_challenge_methods_supported: ['S256'],
     scopes_supported: ['openid', 'profile', 'email', 'phone', 'offline_access'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
-    token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
   };
 }

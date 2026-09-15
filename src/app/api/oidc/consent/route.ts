@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db/connection';
 import {
   AuthCode,
   Client,
+  ClientTester,
   Consent,
   Vault,
 } from '@/lib/db/models';
@@ -36,6 +37,35 @@ export async function POST(request: NextRequest) {
       action, // 'allow' | 'deny'
     } = body;
 
+    if (!clientId || !redirectUri || !action) {
+      return NextResponse.json(
+        { error: 'Missing required parameters (clientId, redirectUri, action)' },
+        { status: 400 }
+      );
+    }
+
+    await connectToDatabase();
+    const client = await Client.findOne({ client_id: clientId });
+    if (!client) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    }
+
+    if (!client.redirect_uris || !client.redirect_uris.includes(redirectUri)) {
+      return NextResponse.json({ error: 'Invalid redirect URI' }, { status: 400 });
+    }
+
+    // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
+    if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
+      const isOwner = client.owner_sub === session.sub;
+      const isTester = await ClientTester.findOne({ client_id: clientId, sub: session.sub });
+      if (!isOwner && !isTester) {
+        return NextResponse.json(
+          { error: 'Application in testing mode. Only the owner and designated testers can authorize it.' },
+          { status: 403 }
+        );
+      }
+    }
+
     const pendingCookie = request.cookies.get('pesu_pending')?.value;
     const pendingToken = pendingCookie
       ? await verifySessionToken<{ sub: string; cred_id?: string; password?: string; session_token?: string; user_id?: string }>(pendingCookie)
@@ -50,12 +80,6 @@ export async function POST(request: NextRequest) {
       targetUrl.searchParams.set('error_description', 'User denied consent');
       if (state) targetUrl.searchParams.set('state', state);
       return NextResponse.json({ redirectTo: targetUrl.toString() });
-    }
-
-    await connectToDatabase();
-    const client = await Client.findOne({ client_id: clientId });
-    if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
     const scopes = (scope || 'openid').split(' ').filter(Boolean);
@@ -88,7 +112,21 @@ export async function POST(request: NextRequest) {
               }
             : null);
 
-      if (pending?.password && config.vaultMasterKey) {
+      const existingVault = await Vault.findOne({ sub: session.sub });
+      if (!pending?.password && !existingVault) {
+        return NextResponse.json(
+          { error: 'Session expired or credentials missing. Please start authorization again.' },
+          { status: 400 }
+        );
+      }
+
+      if (pending?.password) {
+        if (!config.vaultMasterKey) {
+          return NextResponse.json(
+            { error: 'Vault master key unavailable. Delegated consent cannot be stored.' },
+            { status: 503 }
+          );
+        }
         const masterKey = masterKeyFromSecret(config.vaultMasterKey);
         const passBlob = seal(masterKey, Buffer.from(pending.password, 'utf-8'), 1);
 

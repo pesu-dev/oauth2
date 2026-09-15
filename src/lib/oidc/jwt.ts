@@ -164,9 +164,14 @@ export async function verifyAccessToken(
     issuer,
   });
 
+  const clientId =
+    (payload.client_id as string) ||
+    (typeof payload.aud === 'string' ? payload.aud : Array.isArray(payload.aud) ? payload.aud[0] : '') ||
+    '';
+
   return {
     sub: payload.sub as string,
-    client_id: payload.client_id as string,
+    client_id: clientId,
     scope: (payload.scope as string) || '',
   };
 }

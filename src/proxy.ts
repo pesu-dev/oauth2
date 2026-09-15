@@ -61,7 +61,39 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 3. Centralized Protected Routes Authentication
+  // 3. CSRF & Cross-Origin Defense for internal mutating API endpoints
+  const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+  if (MUTATING_METHODS.includes(request.method) && pathname.startsWith('/api/')) {
+    const origin = request.headers.get('origin');
+    const host = request.headers.get('host');
+    const secFetchSite = request.headers.get('sec-fetch-site');
+
+    if (secFetchSite === 'cross-site') {
+      return NextResponse.json(
+        { error: 'Forbidden: cross-origin requests are not allowed' },
+        { status: 403 }
+      );
+    }
+
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        if (host && originUrl.host !== host) {
+          return NextResponse.json(
+            { error: 'Forbidden: cross-origin requests are not allowed' },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: 'Forbidden: invalid origin header' },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
+  // 4. Centralized Protected Routes Authentication
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const isProtectedApi = PROTECTED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 

@@ -144,6 +144,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   // If already consented, reseal fresh credentials if delegated, auto-issue code and redirect
   if (coversScopes && coversMode) {
     if (existingConsent.mode === 'delegated') {
+      const vaultExists = await Vault.findOne({ sub: session.sub });
       const pendingCookie = cookieStore.get('pesu_pending')?.value;
       const pendingToken = pendingCookie
         ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
@@ -185,6 +186,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
             { upsert: true }
           );
         }
+      } else if (!vaultExists) {
+        const returnUrl = `/authorize?${new URLSearchParams(params as Record<string, string>).toString()}`;
+        redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
       }
     }
 

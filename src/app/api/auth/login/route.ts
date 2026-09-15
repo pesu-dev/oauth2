@@ -64,9 +64,16 @@ export async function POST(request: NextRequest) {
       });
     } else {
       user.name = result.profile.name || user.name;
-      user.last_login_at = new Date();
+      if (result.profile.prn) user.prn = result.profile.prn;
+      if (result.profile.srn) user.srn = result.profile.srn;
+      if (result.profile.program) user.program = result.profile.program;
+      if (result.profile.branch) user.branch = result.profile.branch;
+      if (result.profile.semester) user.semester = result.profile.semester;
+      if (result.profile.section) user.section = result.profile.section;
+      if (result.profile.campus) user.campus = result.profile.campus;
       if (result.profile.email) user.email = result.profile.email;
       if (result.profile.phone) user.phone = result.profile.phone;
+      user.last_login_at = new Date();
       await user.save();
     }
 

@@ -33,8 +33,22 @@ export async function POST(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  if (client.publishing_status === 'production') {
-    return NextResponse.json({ error: 'Client is already in production' }, { status: 400 });
+  if (client.publishing_status !== 'testing') {
+    return NextResponse.json(
+      { error: 'Only Testing clients can request Production approval.' },
+      { status: 400 }
+    );
+  }
+
+  const existingPending = await ProductionRequest.findOne({
+    client_id: clientId,
+    status: 'pending',
+  });
+  if (existingPending) {
+    return NextResponse.json(
+      { error: 'A Production request is already pending review for this client.' },
+      { status: 400 }
+    );
   }
 
   // Create production request
