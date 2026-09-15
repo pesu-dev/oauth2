@@ -3,24 +3,24 @@ import { HelpCircle } from 'lucide-react';
 
 const FAQS = [
   {
-    q: 'What is Sign in with PESU?',
-    a: 'Sign in with PESU is an unofficial OpenID Connect authorization server built by student developers at PES University. It allows student-built web applications and club platforms to authenticate students safely without requiring or storing their PESU Academy password.',
+    q: 'Is this an official PESU / PESU Academy product?',
+    a: 'No. This is an unofficial community project built by student developers. It is not owned, operated, or endorsed by PES University or PESU Academy. The code is entirely open source (MIT) on GitHub.',
   },
   {
-    q: 'Does this service store my PESU Academy password?',
-    a: 'In standard Identity mode, NO. When you log in, your credentials are used solely to establish your profile and are immediately discarded. In Delegated mode (optional and only when explicitly asked for by an authorized app), your password and session are encrypted in an isolated vault using AES-256-GCM envelope encryption.',
+    q: 'Does "Sign in with PESU" store my password?',
+    a: 'For identity-only sign-ins, no — your password is verified against Academy and immediately discarded; nothing is stored in the credential vault. If you explicitly grant delegated access to an authorized client, an encrypted credential vault entry is created so an internal first-party API can refresh Academy sessions. Third-party applications never see your password either way.',
   },
   {
-    q: 'How does it work for student developers and clubs?',
-    a: 'Developers register an application in the Developer Portal to receive a client_id and client_secret. They can then use standard OpenID Connect libraries (such as Auth.js / NextAuth, Passport, or generic OAuth2 client libraries) with our discovery endpoint.',
+    q: 'What is Testing vs Production for apps?',
+    a: 'All newly registered apps start in Testing (or pending production). Only the application owner and designated allowlisted testers can complete sign-in until the application is reviewed and published to Production by an administrator. This gate protects users during active development.',
   },
   {
-    q: 'What is the difference between Testing and Production publishing status?',
-    a: 'When an application is created, it is in Testing mode. Only the app owner and approved testers can sign into it. Once tested, the developer submits a production request for verification, which opens sign-in to any authenticated PESU student.',
+    q: 'What is delegated access / the credential vault?',
+    a: 'Delegated access is an optional consent mode beyond standard identity. With explicit approval, envelope-encrypted Academy credentials (AES-256-GCM) are stored in an isolated vault so an internal token-exchange path can obtain short-lived Academy sessions for first-party APIs on your behalf, without disclosing passwords. Standard identity consents never create a vault record.',
   },
   {
-    q: 'Can I revoke access to apps I have signed into?',
-    a: 'Yes! Visit the Settings page anytime to view all third-party applications you have granted permission to and revoke access with a single click. If you used delegated credentials, you can also delete your vault document at any time.',
+    q: 'How is this different from pesu-auth?',
+    a: 'This repository is a standalone OpenID Connect authorization server providing standard OIDC flows (authorize, PKCE, token, userinfo, discovery, revocation, hosted login/consent, and developer portal). It does not replace or modify pesu-auth; that project remains independent. Campus applications integrate with this authorization server via standard OAuth 2.0 / OIDC protocol endpoints.',
   },
 ];
 

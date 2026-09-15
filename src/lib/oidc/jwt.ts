@@ -150,6 +150,7 @@ export async function mintIdToken({
     .setIssuer(issuer)
     .setSubject(sub)
     .setAudience(clientId)
+    .setJti(nanoid())
     .setIssuedAt(now)
     .setExpirationTime(now + ttlSeconds)
     .sign(privateKey);

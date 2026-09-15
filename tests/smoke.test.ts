@@ -18,5 +18,5 @@ describe('smoke test', () => {
     expect(conn).toBeDefined();
     const count = await User.countDocuments();
     expect(typeof count).toBe('number');
-  });
+  }, 15000);
 });

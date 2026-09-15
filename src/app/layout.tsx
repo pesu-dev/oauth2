@@ -45,13 +45,24 @@ export default function RootLayout({
 
           <footer className="border-t border-black/[0.06] dark:border-white/[0.08] py-8 text-center text-xs text-zinc-400 dark:text-zinc-500">
             <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p>© {new Date().getFullYear()} PESU Developer Community. Open Source under MIT.</p>
+              <div className="text-left space-y-1">
+                <p>© {new Date().getFullYear()} PESU Developer Community. Open Source under MIT.</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-600">
+                  Unofficial community service. Not affiliated with or endorsed by PES University or PESU Academy.
+                </p>
+              </div>
               <div className="flex items-center gap-4">
-                <Link href="/privacy" className="hover:underline">
-                  Privacy Policy
+                <Link href="/" className="hover:underline">
+                  Home
                 </Link>
                 <Link href="/docs" className="hover:underline">
                   Developer API
+                </Link>
+                <Link href="/faq" className="hover:underline">
+                  FAQ
+                </Link>
+                <Link href="/privacy" className="hover:underline">
+                  Privacy Policy
                 </Link>
                 <a
                   href="https://github.com/pesu-dev/oauth2"

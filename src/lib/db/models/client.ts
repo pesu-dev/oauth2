@@ -4,7 +4,7 @@ export type PublishingStatus = 'testing' | 'pending_production' | 'production';
 
 export interface IClient extends Document {
   client_id: string;
-  client_secret_hash: string;
+  client_secret_hash?: string | null;
   name: string;
   owner_sub: string;
   redirect_uris: string[];
@@ -18,7 +18,7 @@ export interface IClient extends Document {
 export const ClientSchema = new Schema<IClient>(
   {
     client_id: { type: String, required: true, unique: true, index: true },
-    client_secret_hash: { type: String, required: true },
+    client_secret_hash: { type: String, required: false, default: null },
     name: { type: String, required: true },
     owner_sub: { type: String, required: true, index: true },
     redirect_uris: { type: [String], required: true },

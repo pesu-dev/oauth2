@@ -38,13 +38,13 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
 
     // Check existing user by PRN or SRN (ignoring tombstoned accounts)
-    let user = await User.findOne({
-      $or: [
-        { prn: result.profile.prn },
-        { srn: result.profile.srn },
-      ],
-      deleted_at: null,
-    });
+    const orConditions: Array<{ prn?: string; srn?: string }> = [];
+    if (result.profile.prn) orConditions.push({ prn: result.profile.prn });
+    if (result.profile.srn) orConditions.push({ srn: result.profile.srn });
+
+    let user = orConditions.length > 0
+      ? await User.findOne({ $or: orConditions, deleted_at: null })
+      : null;
 
     if (!user) {
       user = await User.create({

@@ -12,6 +12,19 @@ import { ConsentClient } from './consent-client';
 
 const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
 
+const KNOWN_SCOPES = new Set(['openid', 'profile', 'email', 'phone', 'offline_access']);
+
+function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(rawParams)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, value);
+    }
+  }
+  const query = search.toString();
+  return `/authorize${query ? `?${query}` : ''}`;
+}
+
 interface AuthorizePageProps {
   searchParams: Promise<{
     client_id?: string;
@@ -72,7 +85,11 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
-  const requestedScopes = (scope || '').split(' ').filter(Boolean);
+  // Filter requested scopes against known valid OIDC scopes
+  const requestedScopes = (scope || '')
+    .split(/\s+/)
+    .filter((s) => KNOWN_SCOPES.has(s));
+
   if (!requestedScopes.includes('openid')) {
     return (
       <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
@@ -105,7 +122,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   const session = sessionCookie ? await verifySessionToken<{ sub: string; name: string }>(sessionCookie) : null;
 
   if (!session?.sub) {
-    const returnUrl = `/authorize?${new URLSearchParams(params as Record<string, string>).toString()}`;
+    const returnUrl = buildAuthorizeUrl(params);
     redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
   }
 
@@ -143,7 +160,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   // If already consented, reseal fresh credentials if delegated, auto-issue code and redirect
   if (coversScopes && coversMode) {
-    if (existingConsent.mode === 'delegated') {
+    const effectiveMode = client.delegated_allowed && existingConsent.mode === 'delegated' ? 'delegated' : 'identity';
+
+    if (effectiveMode === 'delegated') {
       const vaultExists = await Vault.findOne({ sub: session.sub });
       const pendingCookie = cookieStore.get('pesu_pending')?.value;
       const pendingToken = pendingCookie
@@ -187,7 +206,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
           );
         }
       } else if (!vaultExists) {
-        const returnUrl = `/authorize?${new URLSearchParams(params as Record<string, string>).toString()}`;
+        const returnUrl = buildAuthorizeUrl(params);
         redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
       }
     }
@@ -198,7 +217,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       client_id: clientId,
       sub: session.sub,
       scopes: requestedScopes,
-      mode: existingConsent.mode,
+      mode: effectiveMode,
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,

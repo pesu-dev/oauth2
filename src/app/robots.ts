@@ -10,6 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         '/login',
         '/consent',
         '/settings',
+        '/portal',
         '/admin',
         '/token',
         '/userinfo',
