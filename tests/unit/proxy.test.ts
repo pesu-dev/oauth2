@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { proxy } from '@/proxy';
 import { NextRequest } from 'next/server';
 import { createSessionToken } from '@/lib/session/cookie';
+import * as cookieHelper from '@/lib/session/cookie';
 import { loginLimiter, tokenLimiter, exchangeLimiter } from '@/lib/rate-limit';
 
 describe('Next.js Proxy', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     loginLimiter.reset();
     tokenLimiter.reset();
     exchangeLimiter.reset();
@@ -131,6 +133,58 @@ describe('Next.js Proxy', () => {
       const req = new NextRequest('http://localhost:3000/jwks.json');
       const res = await proxy(req);
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    });
+  });
+
+  describe('CSRF & Cross-Origin Defense', () => {
+    it('blocks mutating API request when sec-fetch-site is cross-site', async () => {
+      const req = new NextRequest('http://localhost:3000/api/settings?action=account', {
+        method: 'DELETE',
+        headers: {
+          'sec-fetch-site': 'cross-site',
+          cookie: 'pesu_session=valid',
+        },
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('cross-origin requests are not allowed');
+    });
+
+    it('blocks mutating API request when origin does not match host', async () => {
+      const req = new NextRequest('http://localhost:3000/api/settings?action=vault', {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://evil-attacker-site.com',
+          host: 'localhost:3000',
+          cookie: 'pesu_session=valid',
+        },
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('cross-origin requests are not allowed');
+    });
+
+    it('allows mutating API request from same origin', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3000',
+          host: 'localhost:3000',
+          cookie: 'pesu_session=valid',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'My App', redirectUris: ['https://app.com/cb'] }),
+      });
+
+      const res = await proxy(req);
+      // Status 200 indicates proxy allowed it through
+      expect(res.status).toBe(200);
     });
   });
 });

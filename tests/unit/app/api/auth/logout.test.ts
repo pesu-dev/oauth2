@@ -14,7 +14,7 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => mockCookieStore),
 }));
 
-describe('Auth Logout Route', () => {
+describe('Auth Logout Route (/api/auth/logout)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

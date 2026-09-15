@@ -40,6 +40,19 @@ describe('Mongoose Models Schema Validation', () => {
     expect(client.delegated_allowed).toBe(false);
   });
 
+  it('supports public clients with null client_secret_hash', async () => {
+    const publicClient = new Client({
+      client_id: 'cli_public_app',
+      name: 'Single Page App',
+      owner_sub: 'usr_dev1',
+      redirect_uris: ['https://spa.pesu.edu/callback'],
+      token_endpoint_auth_method: 'none',
+      client_secret_hash: null,
+    });
+    const err = await publicClient.validate().catch((e: unknown) => e);
+    expect(err).toBeUndefined();
+  });
+
   it('validates AuthCode TTL and fields', async () => {
     const code = new AuthCode({
       code_hash: 'code_hash_val',

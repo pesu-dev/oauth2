@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "legacy/**",
     "scratch/**",
+    "coverage/**",
   ]),
 ]);
 

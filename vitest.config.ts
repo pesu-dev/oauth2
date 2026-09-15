@@ -11,5 +11,11 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov', 'json-summary'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.d.ts'],
+    },
   },
 });

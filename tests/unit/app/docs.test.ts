@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import nextConfig from '@/../next.config';
 import {
   API_ENDPOINTS,
   createEndpoints,
@@ -77,5 +78,22 @@ describe('API Reference Documentation Data & LLM Generators', () => {
 
     const md = generateEndpointMarkdownForLlm(tokenEp, customBase);
     expect(md).toContain(`**Full URL:** \`${customBase}/token\``);
+  });
+
+  it('redirects legacy /docs sub-routes to anchor sections in next.config.ts', async () => {
+    if (typeof nextConfig.redirects === 'function') {
+      const redirects = await nextConfig.redirects();
+      const sources = redirects.map((r: { source: string }) => r.source);
+      expect(sources).toContain('/docs/token');
+      expect(sources).toContain('/docs/authorize');
+      expect(sources).toContain('/docs/discovery');
+      expect(sources).toContain('/docs/jwks');
+      expect(sources).toContain('/docs/userinfo');
+      expect(sources).toContain('/docs/revoke');
+      expect(sources).toContain('/docs/scopes');
+      expect(sources).toContain('/docs/quick-start');
+    } else {
+      throw new Error('nextConfig.redirects is not defined');
+    }
   });
 });
