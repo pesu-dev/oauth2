@@ -114,5 +114,114 @@ describe('PESU Academy Client & Profile Mapping', () => {
         'Invalid username or password'
       );
     });
+
+    it('throws AcademyAuthError on invalid JSON server response format', async () => {
+      const mockPost = vi.fn().mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        data: 'not a json string at all {[[[',
+      });
+
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      await expect(client.login('PES1UG20CS001', 'password')).rejects.toThrow(
+        'Invalid server response format'
+      );
+    });
+
+    it('supports stringified JSON data and camelCase mobileAppAuthenticationToken header', async () => {
+      const mockPost = vi.fn();
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        headers: {
+          mobileAppAuthenticationToken: 'camel-token',
+        },
+        data: JSON.stringify({
+          mobileJsonObject: {
+            login: 'SUCCESS',
+            loginId: 'PES1UG20CS001',
+            name: 'Test Student',
+          },
+        }),
+      });
+
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      const res = await client.login('PES1UG20CS001', 'pass');
+      expect(res.session.token).toBe('camel-token');
+      expect(res.profile.prn).toBe('PES1UG20CS001');
+    });
+
+    it('handles fetchProfileDetails stringified JSON and error fallbacks', async () => {
+      const mockPost = vi.fn();
+
+      // 1. Success with stringified JSON in dispatcher
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: JSON.stringify({
+            MESSAGE: 'SUCCESS',
+            STUDENT_PHOTO: { nameAsInSSLC: 'STRINGIFIED NAME' },
+          }),
+        });
+
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      const res1 = await client.login('PES1UG20CS001', 'pass');
+      expect(res1.profile.name).toBe('STRINGIFIED NAME');
+
+      // 2. Dispatcher returns invalid JSON string
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: 'invalid json {{{',
+        });
+
+      const res2 = await client.login('PES1UG20CS001', 'pass');
+      expect(res2.profile.name).toBe('Test Student');
+
+      // 3. Dispatcher call fails / throws
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockRejectedValueOnce(new Error('Network failure'));
+
+      const res3 = await client.login('PES1UG20CS001', 'pass');
+      expect(res3.profile.name).toBe('Test Student');
+    });
   });
 });

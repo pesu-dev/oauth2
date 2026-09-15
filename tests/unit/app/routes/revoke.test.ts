@@ -221,4 +221,25 @@ describe('Revocation Endpoint (/revoke)', () => {
     const data = await res.json();
     expect(data.error).toBe('invalid_client');
   });
+
+  it('handles text/plain body fallback for parsing parameters', async () => {
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli_test',
+      token_endpoint_auth_method: 'none',
+    } as never);
+    vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+      token_hash: sha256Hex('rt_plain_token'),
+      client_id: 'cli_test',
+    } as never);
+    vi.spyOn(RefreshToken, 'updateOne').mockResolvedValueOnce({} as never);
+
+    const req = new Request('http://localhost:3000/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'client_id=cli_test&token=rt_plain_token',
+    });
+
+    const res = await postRevoke(req);
+    expect(res.status).toBe(200);
+  });
 });

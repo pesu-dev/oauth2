@@ -321,5 +321,164 @@ describe('Token Endpoint (/token)', () => {
       expect(data.refresh_token).toBeDefined();
       expect(data.token_type).toBe('Bearer');
     });
+
+    it('rejects refresh token issued to a different client', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_attacker',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+        family_id: 'fam_other',
+        client_id: 'cli_victim',
+        sub: 'usr_victim',
+      } as never);
+      vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_attacker',
+          refresh_token: 'rt_stolen',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toContain('Token was issued to a different client');
+    });
+
+    it('rejects refresh token when user is not found or deleted', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+        family_id: 'fam_valid',
+        client_id: 'cli_test',
+        sub: 'usr_deleted',
+      } as never);
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: 'grant_type=refresh_token&client_id=cli_test&refresh_token=rt_user_deleted',
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toContain('User not found or deleted');
+    });
+
+    it('detects concurrent refresh race condition and revokes family', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+        family_id: 'fam_race',
+        client_id: 'cli_test',
+        sub: 'usr_race',
+        scopes: [],
+        expires_at: new Date(Date.now() + 10000),
+      } as never);
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_race' } as never);
+      vi.spyOn(RefreshToken, 'create').mockResolvedValueOnce({} as never);
+      // Simulate race where multiple live tokens exist
+      vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValueOnce(2);
+      const updateManySpy = vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_test',
+          refresh_token: 'rt_race',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toContain('Refresh token reuse detected; family revoked');
+      expect(updateManySpy).toHaveBeenCalledWith(
+        { family_id: 'fam_race', revoked_at: null },
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('Client Authentication & Unsupported Grants', () => {
+    it('verifies confidential client secret mismatch and missing secret', async () => {
+      // 1. Missing secret
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_confidential',
+        token_endpoint_auth_method: 'client_secret_post',
+        client_secret_hash: sha256Hex('secret123'),
+      } as never);
+
+      let req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_confidential',
+        }),
+      });
+      let res = await postToken(req);
+      expect(res.status).toBe(401);
+      let data = await res.json();
+      expect(data.error_description).toBe('Invalid client credentials');
+
+      // 2. Wrong secret
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_confidential',
+        token_endpoint_auth_method: 'client_secret_post',
+        client_secret_hash: sha256Hex('secret123'),
+      } as never);
+
+      req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_confidential',
+          client_secret: 'wrong_secret',
+        }),
+      });
+      res = await postToken(req);
+      expect(res.status).toBe(401);
+      data = await res.json();
+      expect(data.error_description).toBe('Invalid client credentials');
+    });
+
+    it('rejects unsupported grant types', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'password',
+          client_id: 'cli_test',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('unsupported_grant_type');
+    });
   });
 });

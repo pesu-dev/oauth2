@@ -10,9 +10,22 @@ import {
   RefreshToken,
   ProductionRequest,
   Admin,
-} from '@/lib/db/models';
+} from '@/lib/db/models/index';
+import * as ModelsIndex from '@/lib/db/models/index';
 
 describe('Mongoose Models Schema Validation', () => {
+  it('exports all model schemas from index', () => {
+    expect(ModelsIndex.User).toBeDefined();
+    expect(ModelsIndex.Client).toBeDefined();
+    expect(ModelsIndex.ClientTester).toBeDefined();
+    expect(ModelsIndex.Consent).toBeDefined();
+    expect(ModelsIndex.Vault).toBeDefined();
+    expect(ModelsIndex.AuthCode).toBeDefined();
+    expect(ModelsIndex.RefreshToken).toBeDefined();
+    expect(ModelsIndex.ProductionRequest).toBeDefined();
+    expect(ModelsIndex.Admin).toBeDefined();
+  });
+
   it('validates required fields for User', async () => {
     const user = new User({});
     let error: mongoose.Error.ValidationError | undefined;

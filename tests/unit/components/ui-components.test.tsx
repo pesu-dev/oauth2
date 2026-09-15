@@ -10,8 +10,10 @@ import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, Drawer
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
 
+let currentPathname = '/';
+
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => currentPathname,
   useRouter: () => ({
     push: mockPush,
     refresh: mockRefresh,
@@ -143,6 +145,122 @@ describe('UI Primitives & Navigation', () => {
 
       // Click toggle again to close
       fireEvent.click(toggleBtn);
+    });
+
+    it('handles mobile menu links click and logout in mobile menu', async () => {
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url === '/api/auth/status') {
+          return {
+            ok: true,
+            json: async () => ({ authenticated: true, isAdmin: true }),
+          } as Response;
+        }
+        if (url === '/api/auth/logout') {
+          return { ok: true } as Response;
+        }
+        return { ok: false } as Response;
+      });
+
+      await React.act(async () => {
+        render(<Navbar />);
+      });
+
+      const toggleBtn = screen.getByLabelText('Toggle navigation menu');
+      fireEvent.click(toggleBtn);
+
+      // Click Admin Dashboard in mobile menu
+      const adminLinks = screen.getAllByText('Admin Dashboard');
+      expect(adminLinks.length).toBeGreaterThan(0);
+      fireEvent.click(adminLinks[0]);
+
+      // Open again and click mobile Sign Out
+      fireEvent.click(toggleBtn);
+      const signoutBtns = screen.getAllByText('Sign Out');
+      expect(signoutBtns.length).toBeGreaterThan(1);
+      await React.act(async () => {
+        fireEvent.click(signoutBtns[1]); // the mobile button
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+
+    it('handles logout network error gracefully', async () => {
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url === '/api/auth/status') {
+          return {
+            ok: true,
+            json: async () => ({ authenticated: true, isAdmin: false }),
+          } as Response;
+        }
+        if (url === '/api/auth/logout') {
+          throw new Error('Network error');
+        }
+        return { ok: false } as Response;
+      });
+
+      await React.act(async () => {
+        render(<Navbar />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Sign Out')).toBeDefined();
+      });
+
+      await React.act(async () => {
+        fireEvent.click(screen.getByText('Sign Out'));
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+
+    it('clicks mobile menu links when unauthenticated', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ authenticated: false, isAdmin: false }),
+      } as Response);
+
+      await React.act(async () => {
+        render(<Navbar />);
+      });
+
+      const toggleBtn = screen.getByLabelText('Toggle navigation menu');
+      fireEvent.click(toggleBtn);
+
+      // Click Portal, Settings, Documentation, FAQ, Sign In
+      const portalLinks = screen.getAllByText('Portal');
+      fireEvent.click(portalLinks[portalLinks.length - 1]);
+
+      fireEvent.click(toggleBtn);
+      const settingsLinks = screen.getAllByText('Settings');
+      fireEvent.click(settingsLinks[settingsLinks.length - 1]);
+
+      fireEvent.click(toggleBtn);
+      const docLinks = screen.getAllByText('Documentation');
+      fireEvent.click(docLinks[docLinks.length - 1]);
+
+      fireEvent.click(toggleBtn);
+      const faqLinks = screen.getAllByText('FAQ');
+      fireEvent.click(faqLinks[faqLinks.length - 1]);
+
+      fireEvent.click(toggleBtn);
+      const signinLinks = screen.getAllByText('Sign In');
+      fireEvent.click(signinLinks[signinLinks.length - 1]);
+    });
+
+    it('closes mobile menu when pathname changes on rerender', async () => {
+      currentPathname = '/';
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ authenticated: false, isAdmin: false }),
+      } as Response);
+
+      const { rerender } = render(<Navbar />);
+      const toggleBtn = screen.getByLabelText('Toggle navigation menu');
+      fireEvent.click(toggleBtn);
+
+      // Change pathname and rerender
+      currentPathname = '/docs';
+      rerender(<Navbar />);
     });
   });
 });

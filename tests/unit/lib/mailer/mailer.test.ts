@@ -87,10 +87,32 @@ describe('Transactional Mailer Service', () => {
       expect(mailer).toBeInstanceOf(SmtpMailer);
     });
 
+    it('getMailer falls back to LogMailer when SMTP config is absent', async () => {
+      const configHelper = vi.mocked(await import('@/lib/config'));
+      configHelper.getConfig.mockReturnValueOnce({
+        gmailSmtpUser: '',
+        gmailSmtpAppPassword: '',
+      } as never);
+
+      const mailer = getMailer();
+      expect(mailer).toBeInstanceOf(LogMailer);
+    });
+
     it('setMailer allows custom mailer injection', () => {
       const custom = new LogMailer();
       setMailer(custom);
       expect(getMailer()).toBe(custom);
+    });
+
+    it('notifySubQuietly catches DB or retrieval errors without throwing', async () => {
+      vi.spyOn(User, 'findOne').mockRejectedValueOnce(new Error('DB read error'));
+      await expect(
+        notifySubQuietly({
+          sub: 'usr_error',
+          subject: 'Test',
+          body: 'Test',
+        })
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -144,6 +166,40 @@ describe('Transactional Mailer Service', () => {
       expect(mockSocket.write).toHaveBeenCalledWith(expect.stringContaining('MAIL FROM'));
       expect(mockSocket.write).toHaveBeenCalledWith(expect.stringContaining('RCPT TO'));
       expect(mockSocket.write).toHaveBeenCalledWith(expect.stringContaining('Hello World'));
+      expect(mockSocket.end).toHaveBeenCalled();
+    });
+
+    it('rejects on SMTP error response code >= 400', async () => {
+      const mockSocket = new EventEmitter() as unknown as EventEmitter & {
+        write: ReturnType<typeof vi.fn>;
+        end: ReturnType<typeof vi.fn>;
+      };
+      mockSocket.write = vi.fn();
+      mockSocket.end = vi.fn();
+
+      vi.spyOn(tls, 'connect').mockImplementation((...args: unknown[]) => {
+        const connectListener = typeof args[1] === 'function' ? (args[1] as () => void) : typeof args[0] === 'function' ? (args[0] as () => void) : null;
+        if (connectListener) {
+          setTimeout(() => {
+            connectListener();
+            mockSocket.emit('data', Buffer.from('550 User not found\r\n'));
+          }, 5);
+        }
+        return mockSocket as never;
+      });
+
+      const smtp = new SmtpMailer({
+        username: 'user@pesu.edu',
+        password: 'pass',
+      });
+
+      await expect(
+        smtp.send({
+          to: 'target@pesu.edu',
+          subject: 'Test Subject',
+          body: 'Hello',
+        })
+      ).rejects.toThrow('SMTP error (550)');
       expect(mockSocket.end).toHaveBeenCalled();
     });
   });

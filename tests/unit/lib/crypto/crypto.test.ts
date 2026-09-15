@@ -46,6 +46,10 @@ describe('Crypto utilities', () => {
     it('rejects unsupported challenge methods', () => {
       expect(verifyPkce('foo', 'bar', 'plain')).toBe(false);
     });
+
+    it('rejects challenge when length does not match calculated challenge', () => {
+      expect(verifyPkce('verifier', 'short')).toBe(false);
+    });
   });
 
   describe('Envelope Encryption (Vault)', () => {
@@ -54,6 +58,15 @@ describe('Crypto utilities', () => {
 
     it('derives a 32-byte master key from secret', () => {
       expect(masterKey.length).toBe(32);
+    });
+
+    it('throws error when masterKey is not 32 bytes', () => {
+      const shortKey = Buffer.from('too-short');
+      const plaintext = Buffer.from('hello');
+      expect(() => seal(shortKey, plaintext)).toThrow('masterKey must be 32 bytes');
+
+      const sealed = seal(masterKey, plaintext);
+      expect(() => open(shortKey, sealed)).toThrow('masterKey must be 32 bytes');
     });
 
     it('encrypts and decrypts round-trip correctly', () => {

@@ -427,5 +427,129 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     const data = await res.json();
     expect(data.error).toBe('academy_unavailable');
   });
+
+  it('handles non-JSON decrypted session by falling back to { token: sessionDecrypted }', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+    process.env.FIRST_PARTY_API_CLIENT_ID = 'cli_pesu_api';
+    process.env.VAULT_MASTER_KEY = 'valid-vault-master-key-that-is-long-enough-for-hkdf';
+
+    vi.spyOn(jwtHelper, 'verifyAccessToken').mockResolvedValueOnce({
+      sub: 'usr_sub',
+      client_id: 'cli_pesu_api',
+      scope: 'openid',
+    });
+    vi.spyOn(Consent, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_sub',
+      client_id: 'cli_pesu_api',
+      mode: 'delegated',
+    } as unknown as InstanceType<typeof Consent>);
+    vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_sub',
+      encrypted_session: 'YWJj',
+      session_nonce: 'bm9uY2U=',
+      session_wrap_nonce: 'd3JhcA==',
+      session_wrapped_dek: 'ZGVr',
+      session_expires_at: new Date(Date.now() + 3600000),
+      key_version: 1,
+    } as unknown as InstanceType<typeof Vault>);
+
+    // Return non-JSON raw string
+    mockEnvelopeOpen.mockReturnValue(Buffer.from('raw_plain_session_cookie'));
+
+    const req = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'text/plain',
+      },
+      body: 'access_token=valid_jwt',
+    });
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.token).toBe('raw_plain_session_cookie');
+  });
+
+  it('handles body extraction errors gracefully (invalid JSON and formData rejection)', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+
+    // 1. Invalid JSON body
+    const reqJson = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'application/json',
+      },
+      body: 'not valid json {{{',
+    });
+    const resJson = await postExchange(reqJson);
+    expect(resJson.status).toBe(400);
+
+    // 2. Invalid formData body
+    const reqForm = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'multipart/form-data; boundary=invalid',
+      },
+      body: 'bad boundary content',
+    });
+    const resForm = await postExchange(reqForm);
+    expect(resForm.status).toBe(400);
+  });
+
+  it('authenticates via Authorization Bearer header', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+
+    // 1. Bearer header matching secret length but wrong characters
+    const reqWrongEqualLen = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer wrong-secre!',
+      },
+    });
+    expect((await postExchange(reqWrongEqualLen)).status).toBe(401);
+
+    // 2. Bearer header with different length (timingSafeEqual throws caught error)
+    const reqWrongDiffLen = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer short',
+      },
+    });
+    expect((await postExchange(reqWrongDiffLen)).status).toBe(401);
+
+    // 3. Valid Bearer header
+    const reqValid = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer valid-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    // Missing access token results in 400 instead of 401
+    expect((await postExchange(reqValid)).status).toBe(400);
+
+    // 4. x-token-exchange-secret matching length but wrong characters
+    const reqHeaderEqualLen = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'wrong-secre!',
+      },
+    });
+    expect((await postExchange(reqHeaderEqualLen)).status).toBe(401);
+
+    // 5. x-token-exchange-secret different length
+    const reqHeaderDiffLen = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'short',
+      },
+    });
+    expect((await postExchange(reqHeaderDiffLen)).status).toBe(401);
+  });
 });
+
 
