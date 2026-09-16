@@ -103,6 +103,50 @@ describe('Auth Login Route (/api/auth/login)', () => {
       expect.any(String),
       expect.objectContaining({ maxAge: 1800 })
     );
+    // Non-delegated login does NOT store ephemeral password or set pesu_pending
+    expect(mockCookieStore.set).not.toHaveBeenCalledWith(
+      'pesu_pending',
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+
+  it('stores ephemeral pending credentials and sets pesu_pending cookie for delegated auth flow', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+      profile: {
+        name: 'Delegated Student',
+        prn: 'PES1UG20CS002',
+        srn: 'PES1202000002',
+      },
+      session: {
+        token: 'academy_sess_delegated',
+        accessToken: 'acc_del',
+        userId: 'u_del',
+        expiresAt: null,
+      },
+    } as never);
+
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_delegated_1',
+      name: 'Delegated Student',
+      prn: 'PES1UG20CS002',
+      save: vi.fn().mockResolvedValueOnce(true),
+    } as never);
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'PES1UG20CS002',
+        password: 'vault_delegated_password',
+        returnTo: '/authorize?client_id=cli_1&mode=delegated',
+      }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.redirectTo).toBe('/authorize?client_id=cli_1&mode=delegated');
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'pesu_pending',
       expect.any(String),

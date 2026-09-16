@@ -44,6 +44,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (mode !== 'identity' && mode !== 'delegated') {
+      return NextResponse.json(
+        { error: 'Invalid mode: must be identity or delegated' },
+        { status: 400 }
+      );
+    }
+
     await connectToDatabase();
     const client = await Client.findOne({ client_id: clientId });
     if (!client) {
@@ -61,6 +68,30 @@ export async function POST(request: NextRequest) {
       if (!isOwner && !isTester) {
         return NextResponse.json(
           { error: 'Application in testing mode. Only the owner and designated testers can authorize it.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (action === 'allow') {
+      const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
+      if (!codeChallenge || !PKCE_CHALLENGE_RE.test(codeChallenge)) {
+        return NextResponse.json(
+          { error: 'code_challenge must be a valid BASE64URL (S256) string (43–128 characters)' },
+          { status: 400 }
+        );
+      }
+
+      if (codeChallengeMethod && codeChallengeMethod !== 'S256') {
+        return NextResponse.json(
+          { error: 'Only code_challenge_method=S256 is supported' },
+          { status: 400 }
+        );
+      }
+
+      if (mode === 'delegated' && !client.delegated_allowed) {
+        return NextResponse.json(
+          { error: 'Client is not approved for delegated access' },
           { status: 403 }
         );
       }

@@ -83,6 +83,35 @@ jobs:
       - name: Run unit tests with coverage
         run: pnpm test:coverage
 
+  integration_tests:
+    name: Integration tests
+    needs: [pr_target_checker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pre-pull Mongo image for Testcontainers
+        run: docker pull mongo:7
+
+      - name: Run integration tests (Testcontainers Mongo)
+        run: pnpm test:integration
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock
+
   build_check:
     name: Next.js Production Build
     needs: [pr_target_checker]
@@ -121,6 +150,7 @@ jobs:
       - pr_target_checker
       - package_checks
       - unit_tests
+      - integration_tests
       - build_check
       - pr_image_build
     if: always()
@@ -132,6 +162,7 @@ jobs:
             pr_target_checker=${{ needs.pr_target_checker.result }}
             package_checks=${{ needs.package_checks.result }}
             unit_tests=${{ needs.unit_tests.result }}
+            integration_tests=${{ needs.integration_tests.result }}
             build_check=${{ needs.build_check.result }}
             pr_image_build=${{ needs.pr_image_build.result }}
         run: |

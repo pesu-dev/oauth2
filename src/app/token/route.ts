@@ -157,7 +157,11 @@ export async function POST(request: NextRequest | Request) {
     }
 
     const codeHash = sha256Hex(code);
-    const authCode = await AuthCode.findOne({ code_hash: codeHash });
+    const cutoff = new Date(Date.now() - config.authorizationCodeTtlSeconds * 1000);
+    const authCode = await AuthCode.findOneAndDelete({
+      code_hash: codeHash,
+      created_at: { $gt: cutoff },
+    });
 
     if (!authCode) {
       return tokenResponse(
@@ -192,9 +196,6 @@ export async function POST(request: NextRequest | Request) {
         400
       );
     }
-
-    // One-time use: consume code immediately
-    await AuthCode.deleteOne({ code_hash: codeHash });
 
     const user = await User.findOne({ sub: authCode.sub, deleted_at: null });
     if (!user) {

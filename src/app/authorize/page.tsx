@@ -116,6 +116,26 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
+  // Mode validation
+  const requestedMode = params.mode || 'identity';
+  if (requestedMode !== 'identity' && requestedMode !== 'delegated') {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
+      </div>
+    );
+  }
+
+  if (requestedMode === 'delegated' && !client.delegated_allowed) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        Delegated access not permitted: This client application is not approved for delegated vault access.
+      </div>
+    );
+  }
+
+  const targetMode = requestedMode;
+
   // Check user authentication
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('pesu_session')?.value;
@@ -142,8 +162,20 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     }
   }
 
-  // Mode is determined by client's delegated_allowed permissions
-  const targetMode = client.delegated_allowed ? 'delegated' : 'identity';
+  // If delegated mode is requested, ensure credentials are available or vault exists before proceeding
+  if (targetMode === 'delegated') {
+    const vaultExists = await Vault.findOne({ sub: session.sub });
+    const pendingCookie = cookieStore.get('pesu_pending')?.value;
+    const pendingToken = pendingCookie
+      ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
+      : null;
+    const hasPendingCreds = Boolean(pendingToken?.cred_id && pendingCredentialStore.get(pendingToken.cred_id));
+
+    if (!vaultExists && !hasPendingCreds) {
+      const returnUrl = buildAuthorizeUrl(params);
+      redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
+    }
+  }
 
   // Check existing consent
   const existingConsent = await Consent.findOne({
@@ -160,7 +192,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   // If already consented, reseal fresh credentials if delegated, auto-issue code and redirect
   if (coversScopes && coversMode) {
-    const effectiveMode = client.delegated_allowed && existingConsent.mode === 'delegated' ? 'delegated' : 'identity';
+    const effectiveMode = targetMode;
 
     if (effectiveMode === 'delegated') {
       const vaultExists = await Vault.findOne({ sub: session.sub });

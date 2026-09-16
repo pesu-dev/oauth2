@@ -69,6 +69,25 @@ describe('ClientDetailPage Component', () => {
     });
   });
 
+  it('renders Delegated Access badge when client.delegated_allowed is true', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockClientData,
+        client: {
+          ...mockClientData.client,
+          delegated_allowed: true,
+        },
+      }),
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Delegated Access')).toBeDefined();
+    });
+  });
+
   it('handles adding and saving redirect URIs', async () => {
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (init?.method === 'PATCH') {
@@ -202,6 +221,10 @@ describe('ClientDetailPage Component', () => {
       target: { value: 'This is a campus-wide timetable application.' },
     });
 
+    // Check delegated requested
+    const delegatedCheckbox = screen.getByLabelText(/request delegated credential vault access/i);
+    fireEvent.click(delegatedCheckbox);
+
     // Submit production request
     fireEvent.click(screen.getByRole('button', { name: /submit for review/i }));
 
@@ -213,6 +236,7 @@ describe('ClientDetailPage Component', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             justification: 'This is a campus-wide timetable application.',
+            delegatedRequested: true,
           }),
         }
       );

@@ -220,12 +220,32 @@ describe('Settings API (/api/settings)', () => {
       expect(res.status).toBe(400);
     });
 
+    it('returns 400 when user has no existing vault record to update', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_test',
+        prn: 'PES1202000001',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null);
+
+      const req = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'new_password' }),
+      });
+      const res = await patchSettings(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('No saved credentials to update');
+    });
+
     it('returns 400 when Academy re-authentication fails', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
       vi.spyOn(User, 'findOne').mockResolvedValueOnce({
         sub: 'usr_test',
         prn: 'PES1202000001',
       } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_test' } as never);
 
       vi.mocked(AcademyClient).prototype.login = vi.fn().mockRejectedValueOnce(new Error('Invalid credentials'));
 
@@ -246,6 +266,7 @@ describe('Settings API (/api/settings)', () => {
         sub: 'usr_test',
         prn: 'PES1202000001',
       } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_test' } as never);
 
       vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
         session: { token: 'tok_new', accessToken: 'acc_new', userId: '12345', expiresAt: null },
@@ -267,7 +288,7 @@ describe('Settings API (/api/settings)', () => {
           sub: 'usr_test',
           username: 'PES1202000001',
         }),
-        expect.any(Object)
+        expect.objectContaining({ upsert: false })
       );
     });
   });

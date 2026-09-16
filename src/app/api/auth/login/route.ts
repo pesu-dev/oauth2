@@ -93,28 +93,40 @@ export async function POST(request: NextRequest) {
       maxAge: 1800,
     });
 
-    // Store in-memory ephemeral pending credential (never put raw password in the cookie)
-    const credId = pendingCredentialStore.put({
-      username: username.trim(),
-      password,
-      sessionToken: result.session.token,
-      accessToken: result.session.accessToken,
-      userId: result.session.userId,
-      expiresAt: result.session.expiresAt,
-    });
+    // Store in-memory ephemeral pending credential ONLY for delegated authorization flows
+    let isDelegatedFlow = false;
+    try {
+      const url = new URL(safeRedirect, 'http://localhost');
+      if (url.pathname === '/authorize' && url.searchParams.get('mode') === 'delegated') {
+        isDelegatedFlow = true;
+      }
+    } catch {
+      // ignore
+    }
 
-    const pendingCredToken = await createSessionToken({
-      sub: user.sub,
-      cred_id: credId,
-    }, 600);
+    if (isDelegatedFlow) {
+      const credId = pendingCredentialStore.put({
+        username: username.trim(),
+        password,
+        sessionToken: result.session.token,
+        accessToken: result.session.accessToken,
+        userId: result.session.userId,
+        expiresAt: result.session.expiresAt,
+      });
 
-    cookieStore.set('pesu_pending', pendingCredToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 600,
-    });
+      const pendingCredToken = await createSessionToken({
+        sub: user.sub,
+        cred_id: credId,
+      }, 600);
+
+      cookieStore.set('pesu_pending', pendingCredToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 600,
+      });
+    }
 
     return NextResponse.json({
       success: true,

@@ -33,10 +33,11 @@ pnpm dev
 ## Development
 
 ```bash
-pnpm lint          # Run ESLint
-pnpm typecheck     # TypeScript check without emit
-pnpm test          # Run Vitest test suite
-pnpm build         # Build standalone production bundle
+pnpm lint              # Run ESLint
+pnpm typecheck         # TypeScript check without emit
+pnpm test:unit         # Run Vitest unit test suite
+pnpm test:integration  # Run Testcontainers MongoDB integration suite
+pnpm build             # Build standalone production bundle
 .githooks/install.sh   # once per clone
 ```
 

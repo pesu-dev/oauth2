@@ -182,6 +182,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  const existingVault = await Vault.findOne({ sub: session.sub });
+  if (!existingVault) {
+    return NextResponse.json({ error: 'No saved credentials to update' }, { status: 400 });
+  }
+
   // Validate credentials against Academy
   const academy = new AcademyClient();
   let authResult;
@@ -231,7 +236,7 @@ export async function PATCH(request: NextRequest) {
       key_version: 1,
       updated_at: new Date(),
     },
-    { upsert: true }
+    { upsert: false }
   );
 
   notifySubQuietly({

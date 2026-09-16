@@ -295,6 +295,7 @@ describe('Authorize Page & Consent', () => {
             code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
             code_challenge_method: 'S256',
             scope: 'openid',
+            mode: 'delegated',
           }),
         })
       ).rejects.toThrow(/REDIRECT:https:\/\/app\.pesu\.edu\/callback\?code=/);
@@ -334,6 +335,119 @@ describe('Authorize Page & Consent', () => {
             code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
             code_challenge_method: 'S256',
             scope: 'openid',
+            mode: 'delegated',
+          }),
+        })
+      ).rejects.toThrow(/REDIRECT:\/login\?return_to=/);
+    });
+
+    it('rejects invalid mode values', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: false,
+      } as never);
+
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_test',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: 'openid',
+          mode: 'unsupported_mode',
+        }),
+      });
+      const { container } = render(res as React.ReactElement);
+      expect(container.textContent).toContain('Invalid mode');
+    });
+
+    it('rejects delegated mode when client is not approved for delegated_allowed', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: false,
+      } as never);
+
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_test',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: 'openid',
+          mode: 'delegated',
+        }),
+      });
+      const { container } = render(res as React.ReactElement);
+      expect(container.textContent).toContain('Delegated access not permitted');
+    });
+
+    it('respects requested identity mode even if client is approved for delegated', async () => {
+      mockCookieMap.set('pesu_session', 'mock-session');
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({
+        sub: 'user_123',
+        name: 'John Doe',
+      });
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        name: 'Delegated App',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
+
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_test',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: 'openid',
+          mode: 'identity',
+        }),
+      });
+
+      render(res as React.ReactElement);
+      expect(screen.getByText('Identity Only:')).toBeDefined();
+    });
+
+    it('redirects to login when first-time consent requires delegated mode but user has no vault or pending creds', async () => {
+      mockCookieMap.set('pesu_session', 'mock-session');
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({
+        sub: 'user_123',
+        name: 'John Doe',
+      });
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        name: 'Delegated App',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
+      vi.spyOn(Vault, 'findOne').mockResolvedValue(null);
+
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_test',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+            mode: 'delegated',
           }),
         })
       ).rejects.toThrow(/REDIRECT:\/login\?return_to=/);

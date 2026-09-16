@@ -5,11 +5,14 @@ This repository uses [Vitest](https://vitest.dev/) for unit and smoke testing, w
 ## Running Tests
 
 ```bash
-# Run all unit and smoke tests
-pnpm test
+# Run unit and smoke tests (vitest.unit.config.ts)
+pnpm test:unit
 
-# Run tests in watch mode
-pnpm test:watch
+# Run real MongoDB integration tests (vitest.integration.config.ts; requires Docker / Colima)
+pnpm test:integration
+
+# Run unit tests in interactive watch mode
+pnpm test:unit:watch
 
 # Run test coverage report
 pnpm test:coverage
@@ -20,6 +23,13 @@ pnpm test:coverage
 Tests directly mirror the `src/` directory layout:
 
 - `tests/smoke.test.ts`: Integration/smoke verification (e.g., MongoDB Atlas connection).
+- `tests/integration/`: End-to-end integration tests using real `mongo:7` via [Testcontainers](https://testcontainers.com/):
+  - `mongo-indexes.test.ts`: Real MongoDB compound uniqueness and TTL index enforcement.
+  - `oidc-code-flow.test.ts`: Complete code exchange, S256 PKCE verification, replay defense, and `/userinfo`.
+  - `refresh-token-rotation.test.ts`: Refresh token rotation, compromise detection, and family-wide revocation.
+  - `delegated-exchange.test.ts`: Delegated envelope encryption, vault persistence, and `/oauth/token-exchange`.
+  - `production-gate.test.ts`: Testing mode gates, tester addition, and admin review queue approval.
+  - `settings-lifecycle.test.ts`: Consent revocation, vault credential purging, and account tombstoning.
 - `tests/unit/`:
   - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.
     - `api/admin/`:

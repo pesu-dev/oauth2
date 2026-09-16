@@ -30,7 +30,7 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as unknown as InstanceType<typeof Client>);
 
-      vi.spyOn(AuthCode, 'findOne').mockResolvedValueOnce({
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
         code_hash: codeHash,
         client_id: 'cli_test',
         sub: 'usr_test',
@@ -40,8 +40,6 @@ describe('Token Endpoint (/token)', () => {
         code_challenge: challenge,
         code_challenge_method: 'S256',
       } as unknown as InstanceType<typeof AuthCode>);
-
-      vi.spyOn(AuthCode, 'deleteOne').mockResolvedValueOnce({ acknowledged: true, deletedCount: 1 });
 
       vi.spyOn(User, 'findOne').mockResolvedValueOnce({
         sub: 'usr_test',
@@ -86,7 +84,7 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as unknown as InstanceType<typeof Client>);
 
-      vi.spyOn(AuthCode, 'findOne').mockResolvedValueOnce({
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
         code_hash: codeHash,
         client_id: 'cli_test',
         sub: 'usr_test',
@@ -101,7 +99,7 @@ describe('Token Endpoint (/token)', () => {
       formData.set('client_id', 'cli_test');
       formData.set('code', rawCode);
       formData.set('redirect_uri', 'http://localhost:3000/cb');
-      formData.set('code_verifier', 'wrong_verifier');
+      formData.set('code_verifier', 'wrong_verifier'.padEnd(43, 'x'));
 
       const req = new Request('http://localhost:3000/token', {
         method: 'POST',
@@ -113,6 +111,44 @@ describe('Token Endpoint (/token)', () => {
       expect(resp.status).toBe(400);
       const data = await resp.json();
       expect(data.error).toBe('invalid_grant');
+      expect(data.error_description).toBe('PKCE verification failed');
+    });
+
+    it('rejects expired or already redeemed authorization code', async () => {
+      const rawCode = 'code_already_redeemed';
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as unknown as InstanceType<typeof Client>);
+
+      // findOneAndDelete returns null when code does not exist or expired past TTL cutoff
+      const findAndDeleteSpy = vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce(null);
+
+      const formData = new URLSearchParams();
+      formData.set('grant_type', 'authorization_code');
+      formData.set('client_id', 'cli_test');
+      formData.set('code', rawCode);
+      formData.set('redirect_uri', 'http://localhost:3000/cb');
+      formData.set('code_verifier', 'a'.repeat(43));
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      });
+
+      const resp = await postToken(req);
+      expect(resp.status).toBe(400);
+      const data = await resp.json();
+      expect(data.error).toBe('invalid_grant');
+      expect(data.error_description).toBe('Authorization code is invalid or expired');
+      expect(findAndDeleteSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code_hash: sha256Hex(rawCode),
+          created_at: expect.objectContaining({ $gt: expect.any(Date) }),
+        })
+      );
     });
   });
 
@@ -175,7 +211,7 @@ describe('Token Endpoint (/token)', () => {
         client_secret_hash: secretHash,
         token_endpoint_auth_method: 'client_secret_basic',
       } as unknown as InstanceType<typeof Client>);
-      vi.spyOn(AuthCode, 'findOne').mockResolvedValueOnce(null);
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce(null);
 
       const authVal = Buffer.from(
         `${encodeURIComponent('cli_special')}:${encodeURIComponent(secretWithColon)}`

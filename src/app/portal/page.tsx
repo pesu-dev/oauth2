@@ -33,7 +33,6 @@ export default function PortalPage() {
   // Creation form state
   const [name, setName] = React.useState('');
   const [redirectUris, setRedirectUris] = React.useState('');
-  const [delegatedAllowed, setDelegatedAllowed] = React.useState(false);
   const [createLoading, setCreateLoading] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
 
@@ -77,7 +76,6 @@ export default function PortalPage() {
         body: JSON.stringify({
           name,
           redirectUris: uris,
-          delegatedAllowed,
         }),
       });
 
@@ -93,7 +91,6 @@ export default function PortalPage() {
 
       setName('');
       setRedirectUris('');
-      setDelegatedAllowed(false);
       setIsDrawerOpen(false);
       fetchClients();
     } catch (err: unknown) {
@@ -165,20 +162,8 @@ export default function PortalPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="delegatedAllowed"
-                  checked={delegatedAllowed}
-                  onChange={(e) => setDelegatedAllowed(e.target.checked)}
-                  className="rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                />
-                <label
-                  htmlFor="delegatedAllowed"
-                  className="text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer select-none"
-                >
-                  Allow Delegated Credential Vault (requires user consent to store password)
-                </label>
+              <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-3 text-xs text-zinc-500 dark:text-zinc-400">
+                All applications start with Identity mode in testing. Delegated credential vault access can be requested when submitting for production review.
               </div>
 
               <div className="pt-4 flex gap-3">

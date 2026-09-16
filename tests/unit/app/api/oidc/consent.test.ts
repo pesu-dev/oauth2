@@ -90,6 +90,78 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(data.error).toContain('Application in testing mode');
     });
 
+    it('rejects with 400 when mode is invalid', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'superadmin',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Invalid mode');
+    });
+
+    it('rejects with 403 when delegated mode requested for non-delegated client', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'production',
+        delegated_allowed: false,
+      } as unknown as InstanceType<typeof Client>);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('Client is not approved for delegated access');
+    });
+
+    it('rejects with 400 when codeChallenge is missing or invalid format', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'production',
+      } as unknown as InstanceType<typeof Client>);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          codeChallenge: 'too-short',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('code_challenge must be a valid BASE64URL');
+    });
+
     it('rejects with 400 when delegated consent requested but credentials missing and no vault row', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
@@ -110,6 +182,7 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
           redirectUri: 'https://app.example.com/cb',
           action: 'allow',
           mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
         }),
       });
 
@@ -168,7 +241,7 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
           action: 'allow',
           mode: 'identity',
           scope: 'openid profile',
-          codeChallenge: 'valid-challenge',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
           state: 'abc-state',
         }),
       });
@@ -224,7 +297,7 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
           redirectUri: 'https://app.example.com/cb',
           action: 'allow',
           mode: 'delegated',
-          codeChallenge: 'valid-challenge',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
         }),
       });
 

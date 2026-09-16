@@ -70,6 +70,7 @@ export default function ClientDetailPage() {
   // Production request state
   const [isProdDrawerOpen, setIsProdDrawerOpen] = React.useState(false);
   const [justification, setJustification] = React.useState('');
+  const [delegatedRequested, setDelegatedRequested] = React.useState(false);
   const [prodLoading, setProdLoading] = React.useState(false);
 
   const [copiedId, setCopiedId] = React.useState(false);
@@ -203,10 +204,12 @@ export default function ClientDetailPage() {
       const res = await fetch(`/api/portal/clients/${clientId}/request-production`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ justification }),
+        body: JSON.stringify({ justification, delegatedRequested }),
       });
       if (res.ok) {
         setIsProdDrawerOpen(false);
+        setJustification('');
+        setDelegatedRequested(false);
         fetchData();
       }
     } finally {
@@ -261,6 +264,11 @@ export default function ClientDetailPage() {
               >
                 {client.publishing_status.replace('_', ' ')}
               </Badge>
+              {client.delegated_allowed && (
+                <Badge variant="delegated">
+                  Delegated Access
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2 font-mono text-xs text-zinc-500 mt-2">
               <span>Client ID: {client.client_id}</span>
@@ -303,6 +311,25 @@ export default function ClientDetailPage() {
                       onChange={(e) => setJustification(e.target.value)}
                       required
                     />
+                  </div>
+
+                  <div className="flex items-start gap-2.5 pt-1">
+                    <input
+                      type="checkbox"
+                      id="delegatedRequested"
+                      checked={delegatedRequested}
+                      onChange={(e) => setDelegatedRequested(e.target.checked)}
+                      className="mt-0.5 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <label
+                      htmlFor="delegatedRequested"
+                      className="text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer select-none"
+                    >
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">Request Delegated Credential Vault Access</span>
+                      <p className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5">
+                        Enables token exchange for encrypted Academy student credentials. Requires explicit justification and review.
+                      </p>
+                    </label>
                   </div>
 
                   <div className="pt-2 flex gap-3">

@@ -70,13 +70,13 @@ run_unit_tests() {
     print_action "Running unit tests..."
 
     if [ -f "$REPO_ROOT/package.json" ]; then
-        if grep -q '"test"' "$REPO_ROOT/package.json"; then
-            print_info "Running pnpm test..."
-            if ! pnpm test; then
-                print_error "pnpm test failed"
+        if grep -q '"test:unit"' "$REPO_ROOT/package.json"; then
+            print_info "Running pnpm test:unit..."
+            if ! pnpm test:unit; then
+                print_error "pnpm test:unit failed"
                 return 1
             fi
-            print_success "pnpm test passed"
+            print_success "pnpm test:unit passed"
         fi
         return 0
     else

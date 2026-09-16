@@ -44,7 +44,8 @@ pnpm dev
 # Quality gates (match CI)
 pnpm typecheck
 pnpm lint
-pnpm test
+pnpm test:unit
+pnpm test:integration
 pnpm build
 ```
 
@@ -58,7 +59,8 @@ Use `pnpm …` for all tooling.
 | `src/components/` | Reusable Apple-design UI components |
 | `src/lib/` | Core engines (OIDC protocol, Academy client, crypto envelope, db models) |
 | `src/proxy.ts` | Edge security & auth proxy |
-| `tests/unit/` | Vitest unit test suites |
+| `tests/unit/` | Vitest unit test suites (`vitest.unit.config.ts`) |
+| `tests/integration/` | Real MongoDB Testcontainers suites (`vitest.integration.config.ts`) |
 | `docs/superpowers/` | Approved design spec + migration plan |
 | `docs/plans/` | Historical architecture ADRs + bootstrap tech notes |
 | `.agents/skills/` | Curated agent skills (incl. Apple-design) |
@@ -108,7 +110,7 @@ Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/sup
 1. Change fits the `src/` / `tests/` layout above
 2. `pnpm typecheck` passes with zero errors
 3. `pnpm lint` passes with zero warnings/errors
-4. `pnpm test` passes
+4. `pnpm test:unit` passes
 5. `pnpm build` completes standalone compilation cleanly
 6. No secrets or unrelated files staged
 
