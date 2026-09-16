@@ -74,6 +74,9 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(profile.phone).toBeNull();
       expect(profile.program).toBeNull();
       expect(profile.branch).toBeNull();
+
+      const profileEmpty = mapProfile({}, '', null);
+      expect(profileEmpty.srn).toBeNull();
     });
   });
 
@@ -118,6 +121,54 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(result.profile.srn).toBe('PES1202000001');
       expect(result.session.token).toBe('auth-token-xyz');
       expect(result.session.userId).toBe('12345');
+    });
+
+    it('handles camelCase mobileAppAuthenticationToken header correctly', async () => {
+      const mockPost = vi.fn();
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        headers: {
+          mobileAppAuthenticationToken: 'camel-case-auth-token',
+        },
+        data: {
+          mobileJsonObject: {
+            login: 'SUCCESS',
+            loginId: 'PES1UG20CS001',
+            name: 'Test Student',
+            userId: '12345',
+            accessToken: 'token-abc',
+          },
+        },
+      });
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        data: { MESSAGE: 'SUCCESS' },
+      });
+
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      const result = await client.login('PES1UG20CS001', 'password123');
+      expect(result.session.token).toBe('camel-case-auth-token');
+    });
+
+    it('handles response without headers or token falling back to empty string', async () => {
+      const mockPost = vi.fn();
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        headers: undefined,
+        data: {
+          mobileJsonObject: {
+            login: 'SUCCESS',
+            loginId: 'PES1UG20CS001',
+            name: 'Test Student',
+            userId: '12345',
+            accessToken: 'token-abc',
+          },
+        },
+      });
+
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      const result = await client.login('PES1UG20CS001', 'password123');
+      expect(result.session.token).toBe('');
     });
 
     it('throws AcademyAuthError on invalid credentials with custom or default message', async () => {

@@ -167,6 +167,54 @@ describe('OIDC JWT & JWKS Operations', () => {
       resetKeyHolder();
     });
 
+    it('handles getConfig throwing during getKeyPair initialization', async () => {
+      const configHelper = await import('@/lib/config');
+      const spy = vi.spyOn(configHelper, 'getConfig').mockImplementation(() => {
+        throw new Error('Config failed');
+      });
+
+      const { resetKeyHolder, getKeyPair } = await import('@/lib/oidc/jwt');
+      const originalPem = process.env.TOKEN_SIGNING_KEY_PEM;
+      delete process.env.TOKEN_SIGNING_KEY_PEM;
+      resetKeyHolder();
+
+      const keyPair = await getKeyPair();
+      expect(keyPair.kid).toBe('pesu-key-default');
+
+      if (originalPem) {
+        process.env.TOKEN_SIGNING_KEY_PEM = originalPem;
+      }
+      spy.mockRestore();
+      resetKeyHolder();
+    });
+
+    it('uses TOKEN_SIGNING_KEY_PEM directly when provided in process.env', async () => {
+      const crypto = await import('node:crypto');
+      const { generateKeyPairSync } = crypto;
+      const { privateKey } = generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      });
+
+      const { resetKeyHolder, getKeyPair } = await import('@/lib/oidc/jwt');
+      const originalPem = process.env.TOKEN_SIGNING_KEY_PEM;
+      process.env.TOKEN_SIGNING_KEY_PEM = privateKey;
+      process.env.TOKEN_SIGNING_KEY_ID = 'test-direct-kid';
+      resetKeyHolder();
+
+      const keyPair = await getKeyPair();
+      expect(keyPair.kid).toBe('test-direct-kid');
+
+      if (originalPem) {
+        process.env.TOKEN_SIGNING_KEY_PEM = originalPem;
+      } else {
+        delete process.env.TOKEN_SIGNING_KEY_PEM;
+      }
+      delete process.env.TOKEN_SIGNING_KEY_ID;
+      resetKeyHolder();
+    });
+
     it('extracts client_id from string aud or array aud when client_id is omitted', async () => {
       const { getKeyPair } = await import('@/lib/oidc/jwt');
       const { SignJWT } = await import('jose');

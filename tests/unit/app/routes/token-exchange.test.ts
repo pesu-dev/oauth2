@@ -591,6 +591,136 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     const data = await res.json();
     expect(data.error_description).toBe('access_token is required');
   });
+
+  it('handles token extraction edge cases: no Content-Type, formData error/empty, json error/empty', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+
+    // 1. Missing Content-Type
+    const req1 = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: { 'x-token-exchange-secret': 'valid-secret' },
+      body: 'access_token=token1',
+    });
+    // Will fail at invalid token or later, but extractAccessToken succeeds
+    expect((await postExchange(req1)).status).toBe(401);
+
+    // 2. FormData without access_token
+    const fd = new FormData();
+    fd.set('other', 'value');
+    const req2 = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: { 'x-token-exchange-secret': 'valid-secret' },
+      body: fd,
+    });
+    expect((await postExchange(req2)).status).toBe(400);
+
+    // 3. FormData throwing
+    const brokenFdReq = {
+      headers: new Headers({
+        'x-token-exchange-secret': 'valid-secret',
+        'content-type': 'multipart/form-data',
+      }),
+      formData: vi.fn().mockRejectedValueOnce(new Error('Parse error')),
+    } as unknown as Request;
+    expect((await postExchange(brokenFdReq)).status).toBe(400);
+
+    // 4. JSON throwing
+    const brokenJsonReq = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'content-type': 'application/json',
+      },
+      body: 'not a json',
+    });
+    expect((await postExchange(brokenJsonReq)).status).toBe(400);
+
+    // 5. JSON without access_token
+    const emptyJsonReq = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ other: 'val' }),
+    });
+    expect((await postExchange(emptyJsonReq)).status).toBe(400);
+  });
+
+  it('refreshes session using user.srn when username and prn are missing, and handles authResult.session.expiresAt', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+    process.env.FIRST_PARTY_API_CLIENT_ID = 'cli_pesu_api';
+    process.env.VAULT_MASTER_KEY = 'vkey-32-chars-long-test-key-here!';
+
+    vi.spyOn(jwtHelper, 'verifyAccessToken').mockResolvedValueOnce({
+      sub: 'usr_srn_only',
+      client_id: 'cli_pesu_api',
+      scope: 'openid',
+    });
+
+    vi.spyOn(Consent, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_srn_only',
+      client_id: 'cli_pesu_api',
+      scopes: ['openid'],
+      mode: 'delegated',
+    } as never);
+
+    const mockSave = vi.fn().mockResolvedValue(true);
+    vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_srn_only',
+      username: undefined,
+      encrypted_password: 'enc_password',
+      password_nonce: 'nonce',
+      password_wrap_nonce: 'wrap',
+      password_wrapped_dek: 'dek',
+      encrypted_session: undefined,
+      save: mockSave,
+    } as never);
+
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_srn_only',
+      prn: undefined,
+      srn: 'PES1202099999',
+      deleted_at: null,
+    } as never);
+
+    mockEnvelopeOpen.mockReturnValue(Buffer.from('decrypted_pass', 'utf-8'));
+    mockAcademyLogin.mockResolvedValueOnce({
+      session: {
+        token: 'new_tok',
+        accessToken: 'new_acc',
+        userId: 'usr_srn',
+        expiresAt: undefined,
+      },
+    });
+
+    const req = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ access_token: 'valid_token' }),
+    });
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(200);
+    expect(mockAcademyLogin).toHaveBeenCalledWith('PES1202099999', 'decrypted_pass');
+  });
+
+  it('extracts access_token from multipart/form-data request', async () => {
+    const formData = new FormData();
+    formData.set('access_token', 'token_from_multipart');
+    const req = {
+      headers: new Headers({
+        'content-type': 'multipart/form-data; boundary=something',
+      }),
+      formData: vi.fn().mockResolvedValue(formData),
+    } as unknown as Request;
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(401);
+  });
 });
 
 

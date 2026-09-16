@@ -49,10 +49,11 @@ describe('Settings API (/api/settings)', () => {
       } as never);
       vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
         sub: 'usr_test',
-        updated_at: new Date('2026-01-01'),
+        updated_at: undefined,
       } as never);
       vi.spyOn(Consent, 'find').mockResolvedValueOnce([
         { client_id: 'cli_1', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
+        { client_id: 'cli_unknown', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
       ] as never);
       vi.spyOn(Client, 'find').mockResolvedValueOnce([
         { client_id: 'cli_1', name: 'My App' },
@@ -66,7 +67,9 @@ describe('Settings API (/api/settings)', () => {
       const data = await res.json();
       expect(data.user.name).toBe('Student Name');
       expect(data.hasVault).toBe(true);
+      expect(data.vaultUpdatedAt).toBeNull();
       expect(data.consents[0].client_name).toBe('My App');
+      expect(data.consents[1].client_name).toBe('cli_unknown');
     });
   });
 
@@ -332,6 +335,117 @@ describe('Settings API (/api/settings)', () => {
       expect(res.status).toBe(500);
       const data = await res.json();
       expect(data.error).toBe('Vault master key not configured');
+    });
+
+    it('handles srn fallback, non-Error exception, empty session token, and partial session fields in PATCH', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_srn' });
+
+      // 1. Academy throws non-Error
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_srn',
+        prn: undefined,
+        srn: 'PES1202099999',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_srn' } as never);
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockRejectedValueOnce('Network error string');
+
+      const req1 = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'pwd' }),
+      });
+      const res1 = await patchSettings(req1);
+      expect(res1.status).toBe(400);
+      const data1 = await res1.json();
+      expect(data1.error).toBe('Invalid Academy password');
+
+      // 2. Token empty, accessToken undefined, userId undefined, expiresAt provided
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_srn',
+        prn: undefined,
+        srn: 'PES1202099999',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_srn' } as never);
+      const expiresAt = new Date(Date.now() + 50000);
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+        session: { token: 'tok_active', accessToken: undefined, userId: undefined, expiresAt },
+        profile: { prn: undefined, srn: 'PES1202099999' },
+      } as never);
+
+      const vaultUpsertSpy = vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+
+      const req2 = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'pwd' }),
+      });
+      const res2 = await patchSettings(req2);
+      expect(res2.status).toBe(200);
+      expect(vaultUpsertSpy).toHaveBeenCalledWith(
+        { sub: 'usr_srn' },
+        expect.objectContaining({
+          username: 'PES1202099999',
+          session_expires_at: expiresAt,
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('handles DELETE account with confirm in searchParams, broken json, and missing client in consent revoke', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_test' });
+
+      // 1. Revoke consent for unknown client
+      vi.spyOn(Consent, 'deleteOne').mockResolvedValueOnce({} as never);
+      vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+      vi.spyOn(Consent, 'countDocuments').mockResolvedValueOnce(0 as never);
+      vi.spyOn(Vault, 'deleteOne').mockResolvedValueOnce({} as never);
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
+
+      const req1 = new NextRequest('http://localhost:3000/api/settings?action=consent&client_id=cli_missing', {
+        method: 'DELETE',
+        headers: { cookie: 'pesu_session=valid' },
+      });
+      const res1 = await deleteSettings(req1);
+      expect(res1.status).toBe(200);
+
+      // 2. Delete account with confirm in searchParams
+      vi.spyOn(User, 'updateOne').mockResolvedValueOnce({} as never);
+      vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+      vi.spyOn(Consent, 'deleteMany').mockResolvedValueOnce({} as never);
+      vi.spyOn(Vault, 'deleteOne').mockResolvedValueOnce({} as never);
+
+      const req2 = new NextRequest('http://localhost:3000/api/settings?action=account&confirm=DELETE', {
+        method: 'DELETE',
+        headers: { cookie: 'pesu_session=valid' },
+      });
+      const res2 = await deleteSettings(req2);
+      expect(res2.status).toBe(200);
+
+      // 3. Delete account with malformed JSON body
+      const req3 = new NextRequest('http://localhost:3000/api/settings?action=account', {
+        method: 'DELETE',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: 'invalid-json',
+      });
+      const res3 = await deleteSettings(req3);
+      expect(res3.status).toBe(400);
+    });
+
+    it('consent revocation does not delete vault when remaining delegated consents exist', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_remaining_del' });
+      vi.spyOn(Consent, 'deleteOne').mockResolvedValueOnce({ acknowledged: true, deletedCount: 1 } as never);
+      vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+      vi.spyOn(Consent, 'countDocuments').mockResolvedValueOnce(2 as never); // 2 remaining!
+      const deleteVaultSpy = vi.spyOn(Vault, 'deleteOne');
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ client_id: 'cli_remaining', name: 'Remaining App' } as never);
+
+      const req = new NextRequest('http://localhost:3000/api/settings?action=consent&client_id=cli_remaining', {
+        method: 'DELETE',
+        headers: { cookie: 'pesu_session=valid' },
+      });
+      const res = await deleteSettings(req);
+      expect(res.status).toBe(200);
+      expect(deleteVaultSpy).not.toHaveBeenCalled();
     });
   });
 });

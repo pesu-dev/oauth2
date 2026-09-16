@@ -37,11 +37,19 @@ describe('SlidingWindowRateLimiter', () => {
     expect(getClientIp(req1)).toBe('203.0.113.195');
 
     const req2 = new Request('http://localhost', {
-      headers: { 'x-forwarded-for': '' },
+      headers: { 'x-forwarded-for': ' , 70.41.3.18' },
     });
     expect(getClientIp(req2)).toBe('127.0.0.1');
 
     const req3 = new Request('http://localhost');
     expect(getClientIp(req3)).toBe('127.0.0.1');
+  });
+
+  it('resets hit counter', () => {
+    const limiter = new SlidingWindowRateLimiter({ limit: 1, windowSeconds: 60 });
+    expect(limiter.allow('ip-1')).toBe(true);
+    expect(limiter.allow('ip-1')).toBe(false);
+    limiter.reset();
+    expect(limiter.allow('ip-1')).toBe(true);
   });
 });

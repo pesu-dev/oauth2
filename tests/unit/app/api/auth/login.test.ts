@@ -224,4 +224,122 @@ describe('Auth Login Route (/api/auth/login)', () => {
     const data = await res.json();
     expect(data.error).toBe('Authentication failed');
   });
+
+  it('creates new user when profile has no PRN or SRN (fallback to username and empty fields)', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+      profile: {
+        name: 'Anonymous',
+        prn: null,
+        srn: null,
+        program: null,
+        branch: null,
+        semester: null,
+        section: null,
+        campus: null,
+        email: null,
+        phone: null,
+      },
+      session: {
+        token: 'sess_token',
+      },
+    } as never);
+
+    const createSpy = vi.spyOn(User, 'create').mockResolvedValueOnce({
+      sub: 'usr_anon_1',
+      name: 'Anonymous',
+      prn: 'anon_user',
+    } as never);
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'anon_user', password: 'password' }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(200);
+    expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
+      prn: 'anon_user',
+      srn: 'anon_user',
+      program: '',
+      email: undefined,
+    }));
+  });
+
+  it('updates existing user when profile has empty/falsy optional fields', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+      profile: {
+        name: '', // Empty name falls back to user.name
+        prn: null,
+        srn: 'PES1202099999',
+        program: null,
+        branch: null,
+        semester: null,
+        section: null,
+        campus: null,
+        email: null,
+        phone: null,
+      },
+      session: {
+        token: 'sess_token',
+      },
+    } as never);
+
+    const mockUser = {
+      sub: 'usr_existing_empty_fields',
+      name: 'Existing Name',
+      prn: 'PES1UG20CS999',
+      srn: 'PES1202099999',
+      save: vi.fn().mockResolvedValue(true),
+    };
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce(mockUser as never);
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'PES1UG20CS999', password: 'password' }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(200);
+    expect(mockUser.name).toBe('Existing Name');
+    expect(mockUser.save).toHaveBeenCalled();
+  });
+
+  it('handles /authorize without delegated mode, malformed returnTo, and production cookies', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    try {
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValue({
+        profile: { name: 'User', prn: 'PRN1', srn: 'SRN1' },
+        session: { token: 't1' },
+      } as never);
+      vi.spyOn(User, 'findOne').mockResolvedValue({
+        sub: 'usr_prod',
+        name: 'User',
+        prn: 'PRN1',
+        save: vi.fn().mockResolvedValue(true),
+      } as never);
+
+      // 1. /authorize with non-delegated mode (e.g. mode=identity)
+      const req1 = new NextRequest('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'PRN1',
+          password: 'pwd',
+          returnTo: '/authorize?client_id=c1&mode=identity',
+        }),
+      });
+      const res1 = await postLogin(req1);
+      expect(res1.status).toBe(200);
+      expect(mockCookieStore.set).toHaveBeenCalledWith(
+        'pesu_session',
+        expect.any(String),
+        expect.objectContaining({ secure: true })
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

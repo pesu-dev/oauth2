@@ -268,6 +268,48 @@ describe('Transactional Mailer Service', () => {
         })
       ).rejects.toThrow('TLS connection lost');
     });
+
+    it('ignores unrecognized response code < 400 without crashing', async () => {
+      const mockSocket = new EventEmitter() as unknown as EventEmitter & {
+        write: ReturnType<typeof vi.fn>;
+        end: ReturnType<typeof vi.fn>;
+      };
+      mockSocket.write = vi.fn();
+      mockSocket.end = vi.fn();
+
+      vi.spyOn(tls, 'connect').mockImplementation((...args: unknown[]) => {
+        const connectListener = typeof args[1] === 'function' ? (args[1] as () => void) : typeof args[0] === 'function' ? (args[0] as () => void) : null;
+        if (connectListener) {
+          setTimeout(() => {
+            connectListener();
+            // Emit an unhandled code < 400 first
+            mockSocket.emit('data', Buffer.from('211 System Status Ignored\r\n'));
+            // Then normal sequence
+            mockSocket.emit('data', Buffer.from('220 smtp.gmail.com Ready\r\n'));
+            mockSocket.emit('data', Buffer.from('250 AUTH PLAIN\r\n'));
+            mockSocket.emit('data', Buffer.from('235 Accepted\r\n'));
+            mockSocket.emit('data', Buffer.from('250 OK\r\n'));
+            mockSocket.emit('data', Buffer.from('250 OK\r\n'));
+            mockSocket.emit('data', Buffer.from('354 Go ahead\r\n'));
+            mockSocket.emit('data', Buffer.from('250 OK queued\r\n'));
+          }, 5);
+        }
+        return mockSocket as never;
+      });
+
+      const smtp = new SmtpMailer({
+        username: 'user@pesu.edu',
+        password: 'pass',
+      });
+
+      await expect(
+        smtp.send({
+          to: 'target@pesu.edu',
+          subject: 'Test',
+          body: 'Msg',
+        })
+      ).resolves.toBeUndefined();
+    });
   });
 });
 

@@ -572,5 +572,141 @@ describe('Authorize Page & Consent', () => {
         expect(screen.getByText('Consent denied by user')).toBeDefined();
       });
     });
+
+    it('handles missing redirectTo, error without message, and non-Error throw in ConsentClient', async () => {
+      // 1. redirectTo missing in success response
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+      const { unmount: u1 } = render(<ConsentClient {...defaultProps} requestedScopes={['email']} />);
+      fireEvent.click(screen.getByRole('button', { name: /allow/i }));
+      u1();
+
+      // 2. error without error field
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({}),
+      });
+      const { unmount: u2 } = render(<ConsentClient {...defaultProps} requestedScopes={['email']} />);
+      fireEvent.click(screen.getByRole('button', { name: /allow/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Failed to process consent')).toBeDefined();
+      });
+      u2();
+
+      // 3. fetch throwing string
+      global.fetch = vi.fn().mockRejectedValueOnce('Network failed');
+      render(<ConsentClient {...defaultProps} requestedScopes={['email']} />);
+      fireEvent.click(screen.getByRole('button', { name: /allow/i }));
+      await waitFor(() => {
+        expect(screen.getByText('An error occurred')).toBeDefined();
+      });
+    });
+  });
+
+  describe('AuthorizePage additional branch coverage', () => {
+    it('handles owner access to testing app, undefined scope, and delegated auto-consent resealing', async () => {
+      // Owner authorizing testing app
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test_owner',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'testing',
+        owner_sub: 'usr_owner',
+        delegated_allowed: true,
+      } as never);
+
+      // Existing consent with delegated mode
+      vi.spyOn(Consent, 'findOne').mockResolvedValue({
+        sub: 'usr_owner',
+        client_id: 'cli_test_owner',
+        scopes: ['openid'],
+        mode: 'delegated',
+      } as never);
+
+      // Set cookies
+      mockCookieMap.set('pesu_session', 'valid_session_cookie');
+      mockCookieMap.set('pesu_pending', 'valid_pending_cookie');
+      const credId = pendingCredentialStore.put({
+        username: 'usr_owner',
+        password: 'pwd',
+        sessionToken: 'sess_tok',
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'valid_pending_cookie') {
+          return { sub: 'usr_owner', cred_id: credId };
+        }
+        return { sub: 'usr_owner', name: 'Owner' };
+      });
+
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+      vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+
+      const searchParams = Promise.resolve({
+        client_id: 'cli_test_owner',
+        redirect_uri: 'https://app.pesu.edu/callback',
+        response_type: 'code',
+        code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+        code_challenge_method: 'S256',
+        scope: 'openid',
+        mode: 'delegated',
+      });
+
+      await expect(AuthorizePage({ searchParams })).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+    });
+
+    it('handles delegated auto-consent when pesu_pending cookie is missing and vault exists', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test_delegated_novault',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue({
+        sub: 'usr_user1',
+        client_id: 'cli_test_delegated_novault',
+        scopes: ['openid'],
+        mode: 'delegated',
+      } as never);
+
+      vi.spyOn(Vault, 'findOne').mockResolvedValue({ sub: 'usr_user1' } as never);
+      mockCookieMap.set('pesu_session', 'valid_session_cookie');
+      mockCookieMap.delete('pesu_pending');
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_user1', name: 'User 1' });
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+
+      const searchParams = Promise.resolve({
+        client_id: 'cli_test_delegated_novault',
+        redirect_uri: 'https://app.pesu.edu/callback',
+        response_type: 'code',
+        code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+        code_challenge_method: 'S256',
+        scope: 'openid',
+        mode: 'delegated',
+      });
+
+      await expect(AuthorizePage({ searchParams })).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+    });
+
+    it('returns error when scope is completely omitted', async () => {
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_test',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: undefined,
+        }),
+      });
+      const { container } = render(res as React.ReactElement);
+      expect(container.textContent).toContain('A valid openid scope is required');
+    });
   });
 });

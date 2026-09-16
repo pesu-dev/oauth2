@@ -242,4 +242,108 @@ describe('Revocation Endpoint (/revoke)', () => {
     const res = await postRevoke(req);
     expect(res.status).toBe(200);
   });
+
+  it('handles request without Content-Type header', async () => {
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli_test',
+      token_endpoint_auth_method: 'none',
+    } as never);
+    vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+      token_hash: sha256Hex('rt_no_ct'),
+      client_id: 'cli_test',
+    } as never);
+    vi.spyOn(RefreshToken, 'updateOne').mockResolvedValueOnce({} as never);
+
+    const req = {
+      headers: new Headers(),
+      text: vi.fn().mockResolvedValue('client_id=cli_test&token=rt_no_ct'),
+    } as unknown as Request;
+
+    const res = await postRevoke(req);
+    expect(res.status).toBe(200);
+  });
+
+  it('handles formData with non-string value', async () => {
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli_test',
+      token_endpoint_auth_method: 'none',
+    } as never);
+    vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce(null);
+
+    const formDataMock = new Map<string, unknown>([
+      ['client_id', 'cli_test'],
+      ['token', 'rt_blob_token'],
+      ['file', new Blob(['test'])],
+    ]);
+
+    const req = {
+      headers: new Headers({ 'content-type': 'multipart/form-data' }),
+      formData: vi.fn().mockResolvedValue(formDataMock),
+    } as unknown as Request;
+
+    const res = await postRevoke(req);
+    expect(res.status).toBe(200);
+  });
+
+  it('handles Basic auth variations: no colon, malformed URI, and existing body params', async () => {
+    // 1. Basic auth without colon
+    const noColon = Buffer.from('justusername').toString('base64');
+    const req1 = {
+      headers: new Headers({
+        authorization: `Basic ${noColon}`,
+        'content-type': 'application/json',
+      }),
+      json: vi.fn().mockResolvedValue({ token: 't1' }),
+    } as unknown as Request;
+    const res1 = await postRevoke(req1);
+    expect(res1.status).toBe(401); // missing client_id
+
+    // 2. Basic auth with invalid URL-encoding (%ZZ)
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli%ZZ',
+      token_endpoint_auth_method: 'none',
+    } as never);
+    vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce(null);
+    const badUri = Buffer.from('cli%ZZ:sec%ZZ').toString('base64');
+    const req2 = {
+      headers: new Headers({
+        authorization: `Basic ${badUri}`,
+        'content-type': 'application/json',
+      }),
+      json: vi.fn().mockResolvedValue({ token: 't2' }),
+    } as unknown as Request;
+    const res2 = await postRevoke(req2);
+    expect(res2.status).toBe(200);
+
+    // 3. Basic auth when client_id and client_secret are already in body
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli_body',
+      token_endpoint_auth_method: 'none',
+    } as never);
+    vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce(null);
+    const validBasic = Buffer.from('cli_header:sec_header').toString('base64');
+    const req3 = {
+      headers: new Headers({
+        authorization: `Basic ${validBasic}`,
+        'content-type': 'application/json',
+      }),
+      json: vi.fn().mockResolvedValue({
+        client_id: 'cli_body',
+        client_secret: 'sec_body',
+        token: 't3',
+      }),
+    } as unknown as Request;
+    const res3 = await postRevoke(req3);
+    expect(res3.status).toBe(200);
+  });
+
+  it('handles request text() throwing in parseParams fallback', async () => {
+    const brokenReq = {
+      headers: new Headers(),
+      text: vi.fn().mockRejectedValueOnce(new Error('Cannot read stream')),
+    } as unknown as Request;
+
+    const res = await postRevoke(brokenReq);
+    expect(res.status).toBe(401);
+  });
 });

@@ -72,5 +72,13 @@ describe('PendingCredentialStore', () => {
     expect(store.get(id1)).toBeNull();
     expect(store.get(id2)).toBeNull();
   });
+
+  it('preserves existing globalThis.__pendingCredentialStore when module initializes', async () => {
+    const existingStore = new PendingCredentialStore(60);
+    globalThis.__pendingCredentialStore = existingStore;
+    vi.resetModules();
+    const mod = await import('@/lib/session/pending-credentials');
+    expect(mod.pendingCredentialStore).toBe(existingStore);
+  });
 });
 

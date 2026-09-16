@@ -314,5 +314,126 @@ describe('SettingsPage Component', () => {
       expect(screen.getByText('Type DELETE to confirm account deletion')).toBeDefined();
     });
   });
+
+  it('handles N/A program/branch fallbacks, delegated consent badge, and error string fallbacks', async () => {
+    const dataWithFallbacks = {
+      user: {
+        name: 'Jane Doe',
+        prn: 'PES1UG20CS999',
+        srn: 'PES1202001999',
+        program: '',
+        branch: '',
+        semester: '6',
+        section: 'A',
+        campus: 'RR',
+      },
+      hasVault: true,
+      consents: [
+        {
+          client_id: 'cli_delegated_app',
+          client_name: 'Delegated App',
+          scopes: ['openid'],
+          mode: 'delegated',
+          granted_at: new Date().toISOString(),
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE' && url.includes('action=account')) {
+        return { ok: false, json: async () => ({}) }; // no error string
+      }
+      if (init?.method === 'DELETE' && url.includes('action=consent')) {
+        return { ok: false, json: async () => ({}) }; // no error string
+      }
+      if (init?.method === 'PATCH') {
+        return { ok: false, json: async () => ({}) }; // no error string
+      }
+      return { ok: true, json: async () => dataWithFallbacks };
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('N/A').length).toBe(2);
+      expect(screen.getByText('delegated')).toBeDefined();
+    });
+
+    // 1. Delete account fails without error string -> 'Failed to delete account'
+    const input = screen.getByPlaceholderText('DELETE');
+    fireEvent.change(input, { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Account Permanently' }));
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete account')).toBeDefined();
+    });
+
+    // 2. Delete account throws non-Error
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE' && url.includes('action=account')) {
+        throw 'network crash';
+      }
+      return { ok: true, json: async () => dataWithFallbacks };
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Account Permanently' }));
+    await waitFor(() => {
+      expect(screen.getByText('Error deleting account')).toBeDefined();
+    });
+
+    // 3. Password update fails without error string -> 'Failed to update credentials'
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        return { ok: false, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => dataWithFallbacks };
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Password' }));
+    const pwdInput = screen.getByLabelText('New Academy Password');
+    fireEvent.change(pwdInput, { target: { value: 'pass123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Vault' }));
+    await waitFor(() => {
+      expect(screen.getByText('Failed to update credentials')).toBeDefined();
+    });
+
+    // 4. Password update throws non-Error -> 'Error updating password'
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        throw 'patch crash';
+      }
+      return { ok: true, json: async () => dataWithFallbacks };
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Vault' }));
+    await waitFor(() => {
+      expect(screen.getByText('Error updating password')).toBeDefined();
+    });
+  });
+
+  it('handles initial fetchSettings failure with ok: false', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Unauthorized' }),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Account & Privacy Settings')).toBeDefined();
+    });
+  });
+
+  it('handles delete vault failure gracefully with ok: false', async () => {
+    window.confirm = vi.fn().mockReturnValue(true);
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE' && url.includes('action=vault')) {
+        return { ok: false, json: async () => ({ error: 'Delete failed' }) };
+      }
+      return { ok: true, json: async () => mockSettingsData };
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Delete Vault')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Delete Vault'));
+  });
 });
 

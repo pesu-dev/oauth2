@@ -87,4 +87,13 @@ describe('Database Connection Singleton', () => {
     expect(res1).toBe(mockMongoose);
     expect(res2).toBe(mockMongoose);
   });
+
+  it('preserves existing global.mongooseCache when module initializes', async () => {
+    const existingCache = { conn: null, promise: null };
+    global.mongooseCache = existingCache;
+    vi.resetModules();
+    const { connectToDatabase: freshConnect } = await import('@/lib/db/connection');
+    expect(freshConnect).toBeDefined();
+    expect(global.mongooseCache).toBe(existingCache);
+  });
 });

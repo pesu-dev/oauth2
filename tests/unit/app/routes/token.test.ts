@@ -114,6 +114,52 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error_description).toBe('PKCE verification failed');
     });
 
+    it('verifies PKCE with default S256 when authCode.code_challenge_method is omitted', async () => {
+      const verifier = 'my-secret-code-verifier-43-characters-long-valid';
+      const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+      const rawCode = 'code_default_method1234567890123456789';
+      const codeHash = sha256Hex(rawCode);
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        publishing_status: 'testing',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: codeHash,
+        client_id: 'cli_test',
+        sub: 'usr_test',
+        scopes: [],
+        redirect_uri: 'http://localhost:3000/cb',
+        code_challenge: challenge,
+        code_challenge_method: undefined,
+      } as never);
+
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_test',
+        name: 'Test Student',
+        prn: 'PES1UG20CS001',
+        srn: 'PES1202000001',
+      } as never);
+
+      const formData = new URLSearchParams();
+      formData.set('grant_type', 'authorization_code');
+      formData.set('client_id', 'cli_test');
+      formData.set('code', rawCode);
+      formData.set('redirect_uri', 'http://localhost:3000/cb');
+      formData.set('code_verifier', verifier);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      });
+
+      const resp = await postToken(req);
+      expect(resp.status).toBe(200);
+    });
+
     it('rejects expired or already redeemed authorization code', async () => {
       const rawCode = 'code_already_redeemed';
 
@@ -748,6 +794,199 @@ describe('Token Endpoint (/token)', () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error_description).toBe('Code was issued to a different client');
+    });
+
+    it('handles authorization_code without openid and without offline_access, and with undefined scopes', async () => {
+      const verifier = 'code-verifier-string-1234567890-test-pkce-valid';
+      const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(User, 'findOne').mockResolvedValue({
+        sub: 'usr_test',
+        name: 'Test Student',
+      } as never);
+
+      // 1. Scopes without openid and without offline_access (profile only)
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: 'h1',
+        client_id: 'cli_test',
+        sub: 'usr_test',
+        scopes: ['profile'],
+        redirect_uri: 'http://localhost:3000/callback',
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      } as never);
+
+      const req1 = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'c1',
+          redirect_uri: 'http://localhost:3000/callback',
+          code_verifier: verifier,
+        }),
+      });
+
+      const res1 = await postToken(req1);
+      expect(res1.status).toBe(200);
+      const data1 = await res1.json();
+      expect(data1.id_token).toBeUndefined();
+      expect(data1.refresh_token).toBeUndefined();
+
+      // 2. Scopes undefined (falls back to [])
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: 'h2',
+        client_id: 'cli_test',
+        sub: 'usr_test',
+        scopes: undefined,
+        redirect_uri: 'http://localhost:3000/callback',
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      } as never);
+
+      const req2 = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'c2',
+          redirect_uri: 'http://localhost:3000/callback',
+          code_verifier: verifier,
+        }),
+      });
+
+      const res2 = await postToken(req2);
+      expect(res2.status).toBe(200);
+    });
+
+    it('handles refresh_token grant without openid and with undefined scopes', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(User, 'findOne').mockResolvedValue({
+        sub: 'usr_test',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'create').mockResolvedValue({} as never);
+      vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValue(1 as never);
+
+      // 1. Scopes without openid
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_1'),
+        client_id: 'cli_test',
+        family_id: 'fam_1',
+        sub: 'usr_test',
+        scopes: ['profile'],
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
+
+      const req1 = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_test',
+          refresh_token: 'rt_1',
+        }),
+      });
+
+      const res1 = await postToken(req1);
+      expect(res1.status).toBe(200);
+      const data1 = await res1.json();
+      expect(data1.id_token).toBeUndefined();
+
+      // 2. Scopes undefined (falls back to [])
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_2'),
+        client_id: 'cli_test',
+        family_id: 'fam_2',
+        sub: 'usr_test',
+        scopes: undefined,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
+
+      const req2 = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_test',
+          refresh_token: 'rt_2',
+        }),
+      });
+
+      const res2 = await postToken(req2);
+      expect(res2.status).toBe(200);
+    });
+
+    it('handles parseParams branches: missing Content-Type, FormData with non-string, Basic auth edge cases, text stream error', async () => {
+      // 1. Missing Content-Type
+      const req1 = {
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue('grant_type=invalid'),
+      } as unknown as Request;
+      expect((await postToken(req1)).status).toBe(401);
+
+      // 2. FormData with Blob
+      const formDataMock = new Map<string, unknown>([
+        ['grant_type', 'invalid'],
+        ['file', new Blob(['xyz'])],
+      ]);
+      const req2 = {
+        headers: new Headers({ 'content-type': 'multipart/form-data' }),
+        formData: vi.fn().mockResolvedValue(formDataMock),
+      } as unknown as Request;
+      expect((await postToken(req2)).status).toBe(401);
+
+      // 3. Basic auth without colon
+      const req3 = {
+        headers: new Headers({
+          authorization: `Basic ${Buffer.from('nocolon').toString('base64')}`,
+          'content-type': 'application/json',
+        }),
+        json: vi.fn().mockResolvedValue({ grant_type: 'invalid' }),
+      } as unknown as Request;
+      expect((await postToken(req3)).status).toBe(401);
+
+      // 4. Basic auth with %ZZ decodeURIComponent throwing
+      const req4 = {
+        headers: new Headers({
+          authorization: `Basic ${Buffer.from('cli%ZZ:sec%ZZ').toString('base64')}`,
+          'content-type': 'application/json',
+        }),
+        json: vi.fn().mockResolvedValue({ grant_type: 'invalid' }),
+      } as unknown as Request;
+      expect((await postToken(req4)).status).toBe(400);
+
+      // 5. Basic auth when client_id/secret already in body
+      const req5 = {
+        headers: new Headers({
+          authorization: `Basic ${Buffer.from('h_cli:h_sec').toString('base64')}`,
+          'content-type': 'application/json',
+        }),
+        json: vi.fn().mockResolvedValue({
+          client_id: 'b_cli',
+          client_secret: 'b_sec',
+          grant_type: 'invalid',
+        }),
+      } as unknown as Request;
+      expect((await postToken(req5)).status).toBe(400);
+
+      // 6. Text read stream error
+      const brokenReq = {
+        headers: new Headers(),
+        text: vi.fn().mockRejectedValueOnce(new Error('Stream failed')),
+      } as unknown as Request;
+      expect((await postToken(brokenReq)).status).toBe(401);
     });
   });
 });

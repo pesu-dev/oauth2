@@ -103,4 +103,39 @@ describe('LoginPage', () => {
       expect(screen.getByText('Network error')).toBeDefined();
     });
   });
+
+  it('handles res.ok without redirectTo (fallback to returnTo), res.error default, and non-Error throw', async () => {
+    // 1. Success without redirectTo (should push fallback /portal)
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    render(<LoginPage />);
+    fireEvent.change(screen.getByLabelText('PRN or SRN'), { target: { value: 'PES1UG20CS001' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'pass' } });
+    fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/portal');
+    });
+
+    // 2. Error response without data.error (should throw 'Authentication failed')
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Authentication failed')).toBeDefined();
+    });
+
+    // 3. Rejection with non-Error (should display 'Invalid credentials')
+    global.fetch = vi.fn().mockRejectedValueOnce('string error');
+    fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Invalid credentials')).toBeDefined();
+    });
+  });
 });

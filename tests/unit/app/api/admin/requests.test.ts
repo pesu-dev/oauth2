@@ -177,5 +177,106 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
         expect.any(Object)
       );
     });
+
+    it('handles requests with missing client details, fallback owner_sub, and empty justification in GET', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_admin' });
+      vi.spyOn(Admin, 'findOne').mockResolvedValueOnce({ sub: 'usr_admin' } as never);
+
+      vi.spyOn(ProductionRequest, 'find').mockReturnValueOnce({
+        sort: vi.fn().mockResolvedValueOnce([
+          {
+            request_id: 'req_fallback_1',
+            client_id: 'cli_unknown',
+            requested_by_sub: undefined,
+            owner_sub: 'usr_owner_field',
+            status: 'pending',
+            delegated_requested: false,
+            justification: undefined,
+            created_at: new Date('2026-01-01'),
+          },
+          {
+            request_id: 'req_fallback_2',
+            client_id: 'cli_client_owner',
+            requested_by_sub: undefined,
+            owner_sub: undefined,
+            status: 'pending',
+            delegated_requested: false,
+            justification: undefined,
+            created_at: new Date('2026-01-01'),
+          },
+          {
+            request_id: 'req_fallback_3',
+            client_id: 'cli_no_owner',
+            requested_by_sub: undefined,
+            owner_sub: undefined,
+            status: 'pending',
+            delegated_requested: false,
+            justification: undefined,
+            created_at: new Date('2026-01-01'),
+          },
+        ]),
+      } as never);
+
+      vi.spyOn(Client, 'find').mockResolvedValueOnce([
+        { client_id: 'cli_client_owner', name: 'App With Owner', owner_sub: 'usr_client_owner' },
+        { client_id: 'cli_no_owner', name: 'App No Owner', owner_sub: undefined },
+      ] as never);
+
+      const req = new NextRequest('http://localhost:3000/api/admin/requests', {
+        headers: { cookie: 'pesu_session=valid' },
+      });
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.requests[0].client_name).toBe('cli_unknown');
+      expect(data.requests[0].owner_sub).toBe('usr_owner_field');
+      expect(data.requests[0].justification).toBe('');
+      expect(data.requests[1].owner_sub).toBe('usr_client_owner');
+      expect(data.requests[2].owner_sub).toBe('Unknown');
+    });
+
+    it('handles approval without delegated mode, null client on update, and fallback owner_sub in POST', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_admin' });
+      vi.spyOn(Admin, 'findOne').mockResolvedValue({ sub: 'usr_admin' } as never);
+
+      // 1. Approve without allowDelegated
+      vi.spyOn(ProductionRequest, 'findOneAndUpdate').mockResolvedValueOnce({
+        request_id: 'req_no_delegated',
+        client_id: 'cli_1',
+        status: 'approved',
+        requested_by_sub: 'usr_fallback',
+      } as never);
+
+      vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValueOnce({
+        client_id: 'cli_1',
+        name: 'My App',
+        owner_sub: undefined, // test fallback to prodReq.requested_by_sub
+      } as never);
+
+      const req1 = new NextRequest('http://localhost:3000/api/admin/requests', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: 'req_no_delegated', action: 'approve' }),
+      });
+      const res1 = await POST(req1);
+      expect(res1.status).toBe(200);
+
+      // 2. Client not found during update (null client)
+      vi.spyOn(ProductionRequest, 'findOneAndUpdate').mockResolvedValueOnce({
+        request_id: 'req_client_gone',
+        client_id: 'cli_gone',
+        status: 'approved',
+      } as never);
+
+      vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValueOnce(null);
+
+      const req2 = new NextRequest('http://localhost:3000/api/admin/requests', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: 'req_client_gone', action: 'approve' }),
+      });
+      const res2 = await POST(req2);
+      expect(res2.status).toBe(200);
+    });
   });
 });

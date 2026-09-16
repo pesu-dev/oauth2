@@ -225,12 +225,13 @@ describe('DocsPage & DocsClient', () => {
       });
 
       render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-
-      // Click Copy Issuer in Overview
       const copyIssuerBtn = screen.getByRole('button', { name: /copy issuer/i });
-      fireEvent.click(copyIssuerBtn);
-      await Promise.resolve();
+      await act(async () => {
+        fireEvent.click(copyIssuerBtn);
+        await Promise.resolve();
+      });
       expect(writeTextMock).toHaveBeenCalledWith('https://auth.pesu.edu');
+      expect(screen.getByText('Copied')).toBeDefined();
 
       // Advance timers to trigger setTimeout on line 116
       act(() => {
@@ -244,8 +245,10 @@ describe('DocsPage & DocsClient', () => {
 
       // Click Copy endpoint path
       const copyPathBtn = screen.getByTitle('Copy endpoint path');
-      fireEvent.click(copyPathBtn);
-      await Promise.resolve();
+      await act(async () => {
+        fireEvent.click(copyPathBtn);
+        await Promise.resolve();
+      });
       expect(writeTextMock).toHaveBeenCalledWith('/jwks.json');
       expect(copyPathBtn.querySelector('svg.text-emerald-500')).toBeDefined();
 
@@ -335,5 +338,48 @@ describe('DocsPage & DocsClient', () => {
       spy.mockRestore();
     }
   });
-});
 
+  it('renders with default issuerUrl, handles unknown hash, NextAuth copy button, and endpoint path copy button', async () => {
+    // 1. Render without issuerUrl
+    render(<DocsClient />);
+    expect(screen.getByText('Getting Started with Sign in with PESU')).toBeDefined();
+
+    // 2. Hash change with unknown hash
+    act(() => {
+      window.location.hash = '#unknown_hash';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+
+    // 3. Navigate to nextauth guide
+    const nextauthBtn = screen.getByRole('button', { name: 'NextAuth.js Integration' });
+    fireEvent.click(nextauthBtn);
+    expect(screen.getByText('NextAuth.js / Auth.js Integration')).toBeDefined();
+
+    const copyNextAuthBtn = screen.getByRole('button', { name: 'Copy' });
+    fireEvent.click(copyNextAuthBtn);
+    await waitFor(() => {
+      expect(screen.getByText('Copied')).toBeDefined();
+    });
+
+    // 4. Navigate to token endpoint and click copy endpoint path
+    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    fireEvent.click(tokenButton!);
+
+    const copyPathBtn = screen.getByTitle('Copy endpoint path');
+    fireEvent.click(copyPathBtn);
+
+    // 5. Test copiedId timeout where current !== id
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(copyPathBtn);
+      // Change copiedId to something else before timer expires
+      const copyLlmBtn = screen.getByRole('button', { name: /^copy for llm$/i });
+      fireEvent.click(copyLlmBtn);
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

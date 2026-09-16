@@ -492,5 +492,182 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(data.redirectTo).toContain('error=access_denied');
       expect(popSpy).toHaveBeenCalledWith('pcred_deny123');
     });
+
+    it('allows owner to authorize application in testing status', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_owner' });
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        owner_sub: 'usr_owner',
+        publishing_status: 'testing',
+        redirect_uris: ['https://app.example.com/cb'],
+      } as never);
+      vi.spyOn(ClientTester, 'findOne').mockResolvedValueOnce(null);
+      vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64KA344_3_T1234567890',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+    });
+
+    it('handles pending credentials with null accessToken, userId, expiresAt, and username', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_user1' }) // session
+        .mockResolvedValueOnce({ sub: 'usr_user1', cred_id: 'pcred_partial' }); // pending
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        publishing_status: 'production',
+        redirect_uris: ['https://app.example.com/cb'],
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(pendingCredentialStore, 'pop').mockReturnValueOnce({
+        username: '',
+        password: 'pass',
+        sessionToken: 'sess_only',
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      });
+
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null);
+      const vaultUpsertSpy = vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid; pesu_pending=pending', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64KA344_3_T1234567890',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+      expect(vaultUpsertSpy).toHaveBeenCalledWith(
+        { sub: 'usr_user1' },
+        expect.objectContaining({ username: undefined }),
+        { upsert: true }
+      );
+    });
+
+    it('handles pending credentials without password', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_user1' }) // session
+        .mockResolvedValueOnce({ sub: 'usr_user1', cred_id: 'pcred_nopwd' }); // pending
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        publishing_status: 'production',
+        redirect_uris: ['https://app.example.com/cb'],
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(pendingCredentialStore, 'pop').mockReturnValueOnce({
+        username: 'user1',
+        password: '',
+        sessionToken: '',
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      });
+
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_user1' } as never);
+      vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid; pesu_pending=pending', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64KA344_3_T1234567890',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+    });
+
+    it('handles pending credentials with password but without sessionToken', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_user1' }) // session
+        .mockResolvedValueOnce({ sub: 'usr_user1', cred_id: 'pcred_nosess' }); // pending
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        publishing_status: 'production',
+        redirect_uris: ['https://app.example.com/cb'],
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(pendingCredentialStore, 'pop').mockReturnValueOnce({
+        username: 'user1',
+        password: 'valid_password',
+        sessionToken: '',
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      });
+
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_user1' } as never);
+      vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid; pesu_pending=pending', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64KA344_3_T1234567890',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+    });
+
+    it('handles non-Error exceptions in catch block', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
+      vi.spyOn(Client, 'findOne').mockRejectedValueOnce('Database crashed');
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('Consent processing failed');
+    });
   });
 });

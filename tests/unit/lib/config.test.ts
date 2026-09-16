@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'node:fs';
 import { getConfig } from '@/lib/config';
 
 describe('Config', () => {
@@ -78,6 +79,54 @@ describe('Config', () => {
 
     const config = getConfig();
     expect(config.tokenSigningKeyPem).toBeUndefined();
+  });
+
+  it('falls back to scratch/mongo-dev.pem and scratch/token-signing.pem when they exist', () => {
+    const spy = vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      if (typeof p === 'string' && (p.includes('scratch/mongo-dev.pem') || p.includes('scratch/token-signing.pem'))) {
+        return true;
+      }
+      return false;
+    });
+
+    delete process.env.MONGO_X509_CERT_PATH;
+    delete process.env.TOKEN_SIGNING_KEY_PATH;
+    delete process.env.TOKEN_SIGNING_KEY_PEM;
+
+    const config = getConfig();
+    expect(config.mongoX509CertPath).toContain('scratch/mongo-dev.pem');
+    expect(config.tokenSigningKeyPath).toContain('scratch/token-signing.pem');
+
+    spy.mockRestore();
+  });
+
+  it('returns undefined for defaultCertPath and defaultKeyPath when scratch pem files do not exist', () => {
+    const spy = vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+    delete process.env.MONGO_X509_CERT_PATH;
+    delete process.env.TOKEN_SIGNING_KEY_PATH;
+    delete process.env.TOKEN_SIGNING_KEY_PEM;
+
+    const config = getConfig();
+    expect(config.mongoX509CertPath).toBeUndefined();
+    expect(config.tokenSigningKeyPath).toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('reports missing VAULT_MASTER_KEY, TOKEN_EXCHANGE_SECRET, and SESSION_SECRET in prod', () => {
+    process.env.APP_ENV = 'prod';
+    delete process.env.VAULT_MASTER_KEY;
+    process.env.TOKEN_EXCHANGE_SECRET = 'exchange';
+    process.env.SESSION_SECRET = 'session-secret-at-least-32-chars!';
+    process.env.TOKEN_SIGNING_KEY_PEM = 'pem';
+    expect(() => getConfig()).toThrow(/VAULT_MASTER_KEY/);
+
+    process.env.VAULT_MASTER_KEY = 'vkey-32-chars-long-test-key-here!';
+    delete process.env.TOKEN_EXCHANGE_SECRET;
+    expect(() => getConfig()).toThrow(/TOKEN_EXCHANGE_SECRET/);
+
+    process.env.TOKEN_EXCHANGE_SECRET = 'exchange';
+    delete process.env.SESSION_SECRET;
+    expect(() => getConfig()).toThrow(/SESSION_SECRET/);
   });
 });
 

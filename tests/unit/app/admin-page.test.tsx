@@ -101,4 +101,58 @@ describe('AdminPage Component', () => {
       });
     });
   });
+
+  it('handles empty requests array fallback, default error string, identity-only without justification, and action failure/throw', async () => {
+    // 1. ok response without requests field (falls back to [])
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.getByText('No Pending Requests')).toBeDefined();
+    });
+
+    // 2. error response without data.error
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    });
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Access restricted to administrators')).toBeDefined();
+    });
+
+    // 3. request item with delegated_requested=false and empty justification
+    const item = {
+      request_id: 'req_identity',
+      client_id: 'cli_id',
+      client_name: 'Identity App',
+      owner_sub: 'usr_owner',
+      status: 'pending',
+      delegated_requested: false,
+      justification: '',
+      created_at: new Date().toISOString(),
+    };
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        // fail POST response
+        return { ok: false, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ requests: [item] }) };
+    });
+
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Identity Only')).toBeDefined();
+      expect(screen.getByText('None provided')).toBeDefined();
+    });
+
+    // 4. Click approve when POST returns ok: false
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+
+    // 5. Click reject when fetch throws
+    global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network error'));
+    fireEvent.click(screen.getByRole('button', { name: /reject/i }));
+  });
 });
