@@ -262,6 +262,63 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       );
     });
 
+    it('defaults to delegated mode when mode is omitted and client has delegated_allowed=true', async () => {
+      const credId = pendingCredentialStore.put({
+        username: 'student1',
+        password: 'password_in_memory',
+        sessionToken: 'academy_token',
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_user1' }) // session
+        .mockResolvedValueOnce({ sub: 'usr_user1', cred_id: credId }); // pending cookie
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_delegated_test',
+        name: 'Delegated App',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      const consentSpy = vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      const authCodeSpy = vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null);
+      vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: {
+          cookie: 'pesu_session=valid; pesu_pending=pending_val',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId: 'cli_delegated_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          // mode is omitted!
+          scope: 'openid profile',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
+          state: 'delegated-state',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+      expect(consentSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ mode: 'delegated' }),
+        expect.anything()
+      );
+      expect(authCodeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client_id: 'cli_delegated_test',
+          sub: 'usr_user1',
+          mode: 'delegated',
+        })
+      );
+    });
+
     it('grants delegated consent with pending credentials and stores sealed vault row', async () => {
       const credId = pendingCredentialStore.put({
         username: 'student1',

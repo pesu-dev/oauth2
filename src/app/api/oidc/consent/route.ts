@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       nonce,
       codeChallenge,
       codeChallengeMethod,
-      mode = 'identity',
+      mode,
       action, // 'allow' | 'deny'
     } = body;
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (mode !== 'identity' && mode !== 'delegated') {
+    if (mode !== undefined && mode !== null && mode !== 'identity' && mode !== 'delegated') {
       return NextResponse.json(
         { error: 'Invalid mode: must be identity or delegated' },
         { status: 400 }
@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
+
+    const targetMode = mode || (client.delegated_allowed ? 'delegated' : 'identity');
 
     if (!client.redirect_uris || !client.redirect_uris.includes(redirectUri)) {
       return NextResponse.json({ error: 'Invalid redirect URI' }, { status: 400 });
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (mode === 'delegated' && !client.delegated_allowed) {
+      if (targetMode === 'delegated' && !client.delegated_allowed) {
         return NextResponse.json(
           { error: 'Client is not approved for delegated access' },
           { status: 403 }
@@ -123,14 +125,14 @@ export async function POST(request: NextRequest) {
         sub: session.sub,
         client_id: clientId,
         scopes,
-        mode: mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity',
+        mode: targetMode,
         granted_at: new Date(),
       },
       { upsert: true }
     );
 
     // If delegated mode, process vault storage using pending credentials
-    if (mode === 'delegated' && client.delegated_allowed) {
+    if (targetMode === 'delegated') {
       // Retrieve ephemeral credentials from memory store (or fallback to legacy token fields for backwards compatibility in tests)
       const pending = pendingToken?.cred_id
         ? pendingCredentialStore.pop(pendingToken.cred_id)
@@ -208,7 +210,7 @@ export async function POST(request: NextRequest) {
       client_id: clientId,
       sub: session.sub,
       scopes,
-      mode: mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity',
+      mode: targetMode,
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod || 'S256',
@@ -216,7 +218,7 @@ export async function POST(request: NextRequest) {
       expires_at: new Date(Date.now() + config.authorizationCodeTtlSeconds * 1000),
     });
 
-    const effectiveMode = mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity';
+    const effectiveMode = targetMode;
     notifySubQuietly({
       sub: session.sub,
       subject: `Access granted to ${client.name}`,

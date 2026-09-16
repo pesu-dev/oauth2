@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
-import { User } from '@/lib/db/models';
+import { Client, User } from '@/lib/db/models';
 import { AcademyClient } from '@/lib/academy/client';
 import { createSessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
@@ -97,8 +97,17 @@ export async function POST(request: NextRequest) {
     let isDelegatedFlow = false;
     try {
       const url = new URL(safeRedirect, 'http://localhost');
-      if (url.pathname === '/authorize' && url.searchParams.get('mode') === 'delegated') {
-        isDelegatedFlow = true;
+      if (url.pathname === '/authorize') {
+        const modeParam = url.searchParams.get('mode');
+        const clientIdParam = url.searchParams.get('client_id');
+        if (modeParam === 'delegated') {
+          isDelegatedFlow = true;
+        } else if (modeParam !== 'identity' && clientIdParam) {
+          const client = await Client.findOne({ client_id: clientIdParam });
+          if (client?.delegated_allowed) {
+            isDelegatedFlow = true;
+          }
+        }
       }
     } catch {
       // ignore

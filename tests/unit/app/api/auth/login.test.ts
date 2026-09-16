@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as postLogin } from '@/app/api/auth/login/route';
-import { User } from '@/lib/db/models';
+import { User, Client } from '@/lib/db/models';
 import { NextRequest } from 'next/server';
 import { AcademyClient } from '@/lib/academy/client';
 
@@ -22,6 +22,7 @@ vi.mock('next/headers', () => ({
 describe('Auth Login Route (/api/auth/login)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Client, 'findOne').mockResolvedValue(null);
   });
 
   it('returns 400 when username or password is missing', async () => {
@@ -147,6 +148,54 @@ describe('Auth Login Route (/api/auth/login)', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.redirectTo).toBe('/authorize?client_id=cli_1&mode=delegated');
+    expect(mockCookieStore.set).toHaveBeenCalledWith(
+      'pesu_pending',
+      expect.any(String),
+      expect.objectContaining({ maxAge: 600 })
+    );
+  });
+
+  it('stores ephemeral pending credentials when returnTo lacks &mode=delegated but client has delegated_allowed', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+      profile: {
+        name: 'Implicit Delegated Student',
+        prn: 'PES1UG20CS003',
+        srn: 'PES1202000003',
+      },
+      session: {
+        token: 'academy_sess_implicit',
+        accessToken: 'acc_imp',
+        userId: 'u_imp',
+        expiresAt: null,
+      },
+    } as never);
+
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_delegated_2',
+      name: 'Implicit Delegated Student',
+      prn: 'PES1UG20CS003',
+      save: vi.fn().mockResolvedValueOnce(true),
+    } as never);
+
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+      client_id: 'cli_delegated_app',
+      delegated_allowed: true,
+    } as never);
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'PES1UG20CS003',
+        password: 'vault_implicit_password',
+        returnTo: '/authorize?client_id=cli_delegated_app&response_type=code',
+      }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.redirectTo).toBe('/authorize?client_id=cli_delegated_app&response_type=code');
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'pesu_pending',
       expect.any(String),

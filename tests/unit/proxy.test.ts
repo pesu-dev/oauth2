@@ -217,5 +217,43 @@ describe('Next.js Proxy', () => {
       // Status 200 indicates proxy allowed it through
       expect(res.status).toBe(200);
     });
+
+    it('allows mutating API request when origin matches x-forwarded-host behind reverse proxy', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          origin: 'https://auth.pesu.dev',
+          host: '0.0.0.0:8080',
+          'x-forwarded-host': 'auth.pesu.dev',
+          cookie: 'pesu_session=valid',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'My App', redirectUris: ['https://app.com/cb'] }),
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(200);
+    });
+
+    it('blocks mutating API request when origin does not match x-forwarded-host', async () => {
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          origin: 'https://evil.com',
+          host: '0.0.0.0:8080',
+          'x-forwarded-host': 'auth.pesu.dev',
+          cookie: 'pesu_session=valid',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'My App', redirectUris: ['https://app.com/cb'] }),
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('cross-origin requests are not allowed');
+    });
   });
 });

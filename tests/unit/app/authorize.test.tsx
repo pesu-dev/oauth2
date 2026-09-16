@@ -453,6 +453,73 @@ describe('Authorize Page & Consent', () => {
       ).rejects.toThrow(/REDIRECT:\/login\?return_to=/);
     });
 
+    it('defaults to delegated mode and redirects to login when mode is omitted for delegated client without vault', async () => {
+      mockCookieMap.set('pesu_session', 'mock-session');
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({
+        sub: 'user_123',
+        name: 'John Doe',
+      });
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        name: 'Delegated App',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
+      vi.spyOn(Vault, 'findOne').mockResolvedValue(null);
+
+      // mode is omitted in searchParams
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_test',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+          }),
+        })
+      ).rejects.toThrow(/mode%3Ddelegated/);
+    });
+
+    it('defaults to delegated mode and shows delegated consent when mode is omitted for delegated client with vault', async () => {
+      mockCookieMap.set('pesu_session', 'mock-session');
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({
+        sub: 'user_123',
+        name: 'John Doe',
+      });
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test',
+        name: 'Delegated App',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
+      vi.spyOn(Vault, 'findOne').mockResolvedValue({ sub: 'user_123' } as never);
+
+      // mode is omitted in searchParams
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_test',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: 'openid',
+        }),
+      });
+
+      render(res as React.ReactElement);
+      expect(screen.getByText('Delegated Credential Vault:')).toBeDefined();
+    });
+
     it('renders ConsentClient when user is authenticated but consent is not yet granted', async () => {
       mockCookieMap.set('pesu_session', 'mock-session');
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({

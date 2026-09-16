@@ -121,25 +121,27 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
-  // Mode validation
-  const requestedMode = params.mode || 'identity';
-  if (requestedMode !== 'identity' && requestedMode !== 'delegated') {
-    return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
-        Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
-      </div>
-    );
+  // Mode validation & derivation
+  let targetMode: 'identity' | 'delegated';
+  if (params.mode) {
+    if (params.mode !== 'identity' && params.mode !== 'delegated') {
+      return (
+        <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+          Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
+        </div>
+      );
+    }
+    if (params.mode === 'delegated' && !client.delegated_allowed) {
+      return (
+        <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+          Delegated access not permitted: This client application is not approved for delegated vault access.
+        </div>
+      );
+    }
+    targetMode = params.mode;
+  } else {
+    targetMode = client.delegated_allowed ? 'delegated' : 'identity';
   }
-
-  if (requestedMode === 'delegated' && !client.delegated_allowed) {
-    return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
-        Delegated access not permitted: This client application is not approved for delegated vault access.
-      </div>
-    );
-  }
-
-  const targetMode = requestedMode;
 
   // Check user authentication
   const cookieStore = await cookies();
@@ -147,7 +149,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   const session = sessionCookie ? await verifySessionToken<{ sub: string; name: string }>(sessionCookie) : null;
 
   if (!session?.sub) {
-    const returnUrl = buildAuthorizeUrl(params);
+    const returnUrl = buildAuthorizeUrl({ ...params, mode: targetMode });
     redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
   }
 
@@ -177,7 +179,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     const hasPendingCreds = Boolean(pendingToken?.cred_id && pendingCredentialStore.get(pendingToken.cred_id));
 
     if (!vaultExists && !hasPendingCreds) {
-      const returnUrl = buildAuthorizeUrl(params);
+      const returnUrl = buildAuthorizeUrl({ ...params, mode: targetMode });
       redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
     }
   }

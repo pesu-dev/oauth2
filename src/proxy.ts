@@ -65,7 +65,7 @@ export async function proxy(request: NextRequest) {
   const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
   if (MUTATING_METHODS.includes(request.method) && pathname.startsWith('/api/')) {
     const origin = request.headers.get('origin');
-    const host = request.headers.get('host');
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
     const secFetchSite = request.headers.get('sec-fetch-site');
 
     if (secFetchSite === 'cross-site') {
