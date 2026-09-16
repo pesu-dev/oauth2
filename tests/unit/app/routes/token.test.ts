@@ -516,5 +516,238 @@ describe('Token Endpoint (/token)', () => {
       const data = await res.json();
       expect(data.error).toBe('unsupported_grant_type');
     });
+
+    it('rejects authorization code when redirect_uri does not match', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: 'hash',
+        client_id: 'cli_test',
+        sub: 'usr_test',
+        scopes: ['openid'],
+        redirect_uri: 'https://registered.com/cb',
+        code_challenge: 'chal',
+        code_challenge_method: 'S256',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'code_123',
+          redirect_uri: 'https://different.com/cb',
+          code_verifier: 'verifier_string_at_least_43_chars_long_12345678',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('redirect_uri mismatch');
+    });
+
+    it('rejects authorization code when user is not found or deleted', async () => {
+      const verifier = 'code-verifier-string-1234567890-test-pkce-valid';
+      const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: 'hash',
+        client_id: 'cli_test',
+        sub: 'usr_deleted',
+        scopes: ['openid'],
+        redirect_uri: 'https://registered.com/cb',
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      } as never);
+
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'code_123',
+          redirect_uri: 'https://registered.com/cb',
+          code_verifier: verifier,
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('User not found or deleted');
+    });
+
+    it('rejects refresh token when existing token was issued to a different client', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_requesting',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: 'hash',
+        client_id: 'cli_different',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_requesting',
+          refresh_token: 'rft_12345',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('Token was issued to a different client');
+    });
+
+    it('rejects refresh token with fallback invalid or reused message', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_requesting',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: 'hash',
+        client_id: 'cli_requesting',
+        revoked_at: null,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          client_id: 'cli_requesting',
+          refresh_token: 'rft_12345',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('Invalid or reused refresh token');
+    });
+
+    it('rejects with 401 when client is not found in database', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_unknown',
+          code: 'code123',
+          redirect_uri: 'https://app.com/cb',
+          code_verifier: 'code-verifier-string-1234567890-test-pkce-valid',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe('invalid_client');
+      expect(data.error_description).toBe('Client not found');
+    });
+
+    it('rejects authorization_code with 400 when missing required parameters', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'code123',
+          // missing redirect_uri and code_verifier
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('Missing code, redirect_uri, or code_verifier');
+    });
+
+    it('rejects authorization_code with 400 when code_verifier fails regex validation', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'code123',
+          redirect_uri: 'https://app.com/cb',
+          code_verifier: 'too-short',
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('code_verifier must be 43-128 unreserved ASCII characters');
+    });
+
+    it('rejects authorization_code when code was issued to a different client', async () => {
+      const verifier = 'code-verifier-string-1234567890-test-pkce-valid';
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        token_endpoint_auth_method: 'none',
+      } as never);
+
+      vi.spyOn(AuthCode, 'findOneAndDelete').mockResolvedValueOnce({
+        code_hash: 'hash',
+        client_id: 'cli_different',
+        sub: 'usr_1',
+        scopes: ['openid'],
+        redirect_uri: 'https://app.com/cb',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: 'cli_test',
+          code: 'code123',
+          redirect_uri: 'https://app.com/cb',
+          code_verifier: verifier,
+        }),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error_description).toBe('Code was issued to a different client');
+    });
   });
 });

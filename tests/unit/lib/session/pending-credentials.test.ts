@@ -63,4 +63,14 @@ describe('PendingCredentialStore', () => {
       vi.useRealTimers();
     }
   });
+
+  it('clears all items when reset is called', () => {
+    const store = new PendingCredentialStore(60);
+    const id1 = store.put({ username: 'u1', password: 'p1' });
+    const id2 = store.put({ username: 'u2', password: 'p2' });
+    store.reset();
+    expect(store.get(id1)).toBeNull();
+    expect(store.get(id2)).toBeNull();
+  });
 });
+

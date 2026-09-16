@@ -58,6 +58,30 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(md).toContain('## Request Example (Python / requests)');
   });
 
+  it('handles optional fields without default or examples in generateEndpointMarkdownForLlm', () => {
+    const customEp = {
+      id: 'custom',
+      title: 'Custom Endpoint',
+      method: 'GET' as const,
+      path: '/custom',
+      auth: 'None',
+      summary: 'Custom',
+      description: 'Custom desc',
+      category: 'Authentication & Tokens' as const,
+      headers: [{ name: 'X-Optional', location: 'header' as const, type: 'string', required: false, description: 'Optional header' }],
+      params: [{ name: 'opt_param', location: 'query' as const, type: 'string', required: false, description: 'Optional param' }],
+      responses: [],
+      curlSample: 'curl ...',
+      fetchSample: 'fetch ...',
+      pythonSample: 'requests ...',
+    };
+
+    const md = generateEndpointMarkdownForLlm(customEp);
+    expect(md).toContain('No');
+    expect(md).toContain('-');
+  });
+
+
   it('formats the full API reference markdown for LLM export', () => {
     const fullMd = generateFullApiReferenceMarkdown();
     expect(fullMd).toContain('# PESU OAuth2 / OpenID Connect Complete API Reference');

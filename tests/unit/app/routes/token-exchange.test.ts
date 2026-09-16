@@ -550,6 +550,47 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     });
     expect((await postExchange(reqHeaderDiffLen)).status).toBe(401);
   });
+
+  it('rejects when token payload has missing/undefined client_id', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+    process.env.FIRST_PARTY_API_CLIENT_ID = 'cli_pesu_api';
+
+    vi.spyOn(jwtHelper, 'verifyAccessToken').mockResolvedValueOnce({
+      sub: 'usr_1',
+      scope: 'openid',
+    } as never);
+
+    const req = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ access_token: 'valid_jwt' }),
+    });
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.error_description).toContain('first-party API client');
+  });
+
+  it('handles request body stream failure when extracting access token', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+
+    const brokenReq = {
+      headers: new Headers({
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'text/plain',
+      }),
+      text: vi.fn().mockRejectedValueOnce(new Error('Stream read failed')),
+    } as unknown as Request;
+
+    const res = await postExchange(brokenReq);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error_description).toBe('access_token is required');
+  });
 });
 
 

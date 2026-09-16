@@ -168,6 +168,22 @@ describe('Next.js Proxy', () => {
       expect(data.error).toContain('cross-origin requests are not allowed');
     });
 
+    it('blocks mutating API request when origin is malformed/invalid URL', async () => {
+      const req = new NextRequest('http://localhost:3000/api/settings?action=vault', {
+        method: 'DELETE',
+        headers: {
+          origin: '://',
+          host: 'localhost:3000',
+          cookie: 'pesu_session=valid',
+        },
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('invalid origin header');
+    });
+
     it('allows mutating API request from same origin', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
 

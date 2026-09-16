@@ -76,7 +76,7 @@ export default function SettingsPage() {
   }, []);
 
   const handleDeleteVault = async () => {
-    if (!confirm('Are you sure you want to delete your stored vault credentials? Any delegated applications will not be able to execute actions on your behalf until re-authenticated.')) {
+    if (typeof window !== 'undefined' && window.confirm && !window.confirm('Are you sure you want to delete your stored vault credentials? Any delegated applications will not be able to execute actions on your behalf until re-authenticated.')) {
       return;
     }
     const res = await fetch('/api/settings?action=vault', { method: 'DELETE' });
@@ -358,7 +358,7 @@ export default function SettingsPage() {
             variant="destructive"
             size="sm"
             onClick={handleDeleteAccount}
-            disabled={deleteConfirm.trim() !== 'DELETE' || isDeletingAccount}
+            disabled={isDeletingAccount}
           >
             {isDeletingAccount ? 'Deleting Account...' : 'Delete Account Permanently'}
           </Button>

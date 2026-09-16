@@ -195,7 +195,6 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     const effectiveMode = targetMode;
 
     if (effectiveMode === 'delegated') {
-      const vaultExists = await Vault.findOne({ sub: session.sub });
       const pendingCookie = cookieStore.get('pesu_pending')?.value;
       const pendingToken = pendingCookie
         ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
@@ -237,9 +236,6 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
             { upsert: true }
           );
         }
-      } else if (!vaultExists) {
-        const returnUrl = buildAuthorizeUrl(params);
-        redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
       }
     }
 

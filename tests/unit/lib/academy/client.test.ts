@@ -12,6 +12,7 @@ describe('PESU Academy Client & Profile Mapping', () => {
     it('maps campus from PRN correctly', () => {
       expect(campusFromPrn('PES1UG20CS001')).toBe('RR');
       expect(campusFromPrn('PES2UG20CS001')).toBe('EC');
+      expect(campusFromPrn('PES3UG20CS001')).toBeNull();
       expect(campusFromPrn('OTHER123')).toBeNull();
       expect(campusFromPrn(undefined)).toBeNull();
     });
@@ -20,6 +21,7 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(semesterFromClass('Sem-6', undefined)).toBe('Sem-6');
       expect(semesterFromClass(undefined, 'Semester 4')).toBe('Sem-4');
       expect(semesterFromClass('6th Sem', undefined)).toBe('Sem-6');
+      expect(semesterFromClass('Batch 5', undefined)).toBe('Sem-5');
       expect(semesterFromClass('unknown', undefined)).toBeNull();
     });
 
@@ -49,6 +51,29 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(profile.campus).toBe('RR');
       expect(profile.email).toBe('john@pesu.pes.edu');
       expect(profile.phone).toBe('9876543210');
+    });
+
+    it('falls back to raw program and branch when not present in mapping table', () => {
+      const mobileObj = {
+        loginId: 'PES1UG20CS001',
+        name: 'John Doe',
+        program: 'Quantum Computing',
+        branch: 'Astrophysics',
+      };
+      const profile = mapProfile(mobileObj, 'PES1202000001', null);
+      expect(profile.program).toBe('Quantum Computing');
+      expect(profile.branch).toBe('Astrophysics');
+    });
+
+    it('maps empty profile with total fallbacks to username and nulls', () => {
+      const profile = mapProfile({}, 'fallback_usr', null);
+      expect(profile.prn).toBeNull();
+      expect(profile.srn).toBe('fallback_usr');
+      expect(profile.name).toBe('');
+      expect(profile.email).toBeNull();
+      expect(profile.phone).toBeNull();
+      expect(profile.program).toBeNull();
+      expect(profile.branch).toBeNull();
     });
   });
 
@@ -95,21 +120,46 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(result.session.userId).toBe('12345');
     });
 
-    it('throws AcademyAuthError on invalid credentials', async () => {
+    it('throws AcademyAuthError on invalid credentials with custom or default message', async () => {
       const mockPost = vi.fn();
 
+      // Custom errorMessage
       mockPost.mockResolvedValueOnce({
         status: 200,
         headers: {},
         data: {
           mobileJsonObject: {
             login: 'FAILURE',
-            errorMessage: 'Invalid username or password',
+            errorMessage: 'Account temporarily locked',
           },
         },
       });
 
       const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+      await expect(client.login('PES1UG20CS001', 'wrong')).rejects.toThrow(
+        'Account temporarily locked'
+      );
+
+      // Default error message when errorMessage is undefined
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        data: {
+          mobileJsonObject: {
+            login: 'FAILURE',
+          },
+        },
+      });
+      await expect(client.login('PES1UG20CS001', 'wrong')).rejects.toThrow(
+        'Invalid username or password'
+      );
+
+      // Missing mobileJsonObject entirely
+      mockPost.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        data: {},
+      });
       await expect(client.login('PES1UG20CS001', 'wrong')).rejects.toThrow(
         'Invalid username or password'
       );
@@ -214,7 +264,6 @@ describe('PESU Academy Client & Profile Mapping', () => {
               loginId: 'PES1UG20CS001',
               name: 'Test Student',
               userId: '123',
-              accessToken: 'acc',
             },
           },
         })
@@ -222,6 +271,121 @@ describe('PESU Academy Client & Profile Mapping', () => {
 
       const res3 = await client.login('PES1UG20CS001', 'pass');
       expect(res3.profile.name).toBe('Test Student');
+    });
+
+    it('handles non-Error rejection and non-200 HTTP status', async () => {
+      const mockPost = vi.fn();
+      const client = new AcademyClient({ post: mockPost } as unknown as AxiosInstance);
+
+      // Non-Error rejection
+      mockPost.mockRejectedValueOnce('raw-network-error');
+      await expect(client.login('PES1UG20CS001', 'pass')).rejects.toThrow('Connection failed: raw-network-error');
+
+      // Error rejection
+      mockPost.mockRejectedValueOnce(new Error('Connection timed out'));
+      await expect(client.login('PES1UG20CS001', 'pass')).rejects.toThrow('Connection failed: Connection timed out');
+
+      // Non-200 HTTP status
+      mockPost.mockResolvedValueOnce({ status: 502, data: {} });
+      await expect(client.login('PES1UG20CS001', 'pass')).rejects.toThrow('Authentication failed: HTTP 502');
+
+      // Dispatcher returns data with MESSAGE !== SUCCESS
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { MESSAGE: 'FAILURE_RECORD_NOT_FOUND' },
+        });
+
+      const res = await client.login('PES1UG20CS001', 'pass');
+      expect(res.profile.name).toBe('Test Student');
+
+      // Dispatcher post rejects with error, hitting outer catch block
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockRejectedValueOnce(new Error('Dispatcher network timeout'));
+
+      const resCatch = await client.login('PES1UG20CS001', 'pass');
+      expect(resCatch.profile.name).toBe('Test Student');
+
+      // Dispatcher returns status !== 200 (e.g. 500)
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            accessToken: 'top-level-token',
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 500,
+          data: {},
+        });
+
+      const resStatus500 = await client.login('PES1UG20CS001', 'pass');
+      expect(resStatus500.session.accessToken).toBe('top-level-token');
+      expect(resStatus500.profile.name).toBe('Test Student');
+
+      // Dispatcher returns SUCCESS but STUDENT_PHOTO is falsy
+      mockPost
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'tok' },
+          data: {
+            mobileJsonObject: {
+              login: 'SUCCESS',
+              loginId: 'PES1UG20CS001',
+              name: 'Test Student',
+              userId: '123',
+              accessToken: 'acc',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            MESSAGE: 'SUCCESS',
+            STUDENT_PHOTO: null,
+          },
+        });
+
+      const resNullPhoto = await client.login('PES1UG20CS001', 'pass');
+      expect(resNullPhoto.profile.name).toBe('Test Student');
+    });
+
+    it('initializes with default CookieJar and AxiosInstance when no client is passed', () => {
+      const client = new AcademyClient();
+      expect(client).toBeInstanceOf(AcademyClient);
     });
   });
 });

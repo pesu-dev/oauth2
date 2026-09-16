@@ -80,4 +80,26 @@ describe('Userinfo Endpoint (/userinfo)', () => {
     const data = await resp.json();
     expect(data.error_description).toBe('User not found');
   });
+
+  it('handles token without scope claim', async () => {
+    const token = await mintAccessToken({
+      issuer: 'http://localhost:3000',
+      sub: 'usr_no_scope',
+      clientId: 'cli_test',
+      scopes: [],
+    });
+
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_no_scope',
+      name: 'No Scope User',
+    } as never);
+
+    const req = new Request('http://localhost:3000/userinfo', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const resp = await getUserInfo(req);
+    expect(resp.status).toBe(200);
+    const data = await resp.json();
+    expect(data.sub).toBe('usr_no_scope');
+  });
 });

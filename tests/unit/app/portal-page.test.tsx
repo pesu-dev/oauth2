@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import PortalPage from '@/app/portal/page';
 
@@ -31,6 +31,22 @@ describe('PortalPage Component', () => {
       name: 'PESU Study Timetable',
       publishing_status: 'testing' as const,
       redirect_uris: ['https://timetable.pesu.edu/callback'],
+      delegated_allowed: false,
+      created_at: new Date().toISOString(),
+    },
+    {
+      client_id: 'cli_portal_2',
+      name: 'PESU Campus Nav',
+      publishing_status: 'production' as const,
+      redirect_uris: ['https://nav.pesu.edu/callback'],
+      delegated_allowed: true,
+      created_at: new Date().toISOString(),
+    },
+    {
+      client_id: 'cli_portal_3',
+      name: 'PESU Event Hub',
+      publishing_status: 'pending_production' as const,
+      redirect_uris: ['https://events.pesu.edu/callback'],
       delegated_allowed: false,
       created_at: new Date().toISOString(),
     },
@@ -114,12 +130,62 @@ describe('PortalPage Component', () => {
       expect(screen.getByText('sec_very_secret_key_123')).toBeDefined();
     });
 
+    // Copy client id
+    const clientIdSpan = screen.getByText('cli_new_app');
+    const clientIdCopyBtn = clientIdSpan.parentElement?.querySelector('button');
+    expect(clientIdCopyBtn).toBeDefined();
+    fireEvent.click(clientIdCopyBtn!);
+    expect(writeTextMock).toHaveBeenCalledWith('cli_new_app');
+
     // Copy secret
-    const secretSpan = screen.getByText('sec_very_secret_key_123');
-    const secretCopyBtn = secretSpan.parentElement?.querySelector('button');
-    expect(secretCopyBtn).toBeDefined();
-    fireEvent.click(secretCopyBtn!);
-    expect(writeTextMock).toHaveBeenCalledWith('sec_very_secret_key_123');
+    vi.useFakeTimers();
+    try {
+      const secretSpan = screen.getByText('sec_very_secret_key_123');
+      const secretCopyBtn = secretSpan.parentElement?.querySelector('button');
+      expect(secretCopyBtn).toBeDefined();
+      fireEvent.click(secretCopyBtn!);
+      expect(writeTextMock).toHaveBeenCalledWith('sec_very_secret_key_123');
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // Dismiss secret callout
+    fireEvent.click(screen.getByText('I have saved the secret'));
+    expect(screen.queryByText('Save your Client Secret immediately')).toBeNull();
+  });
+
+  it('can cancel the application registration drawer', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ clients: mockClients }),
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Register Application')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Register Application'));
+    expect(screen.getByText('Cancel')).toBeDefined();
+    fireEvent.click(screen.getByText('Cancel'));
+  });
+
+  it('can open drawer from empty state button', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ clients: [] }),
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Register your first app')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Register your first app'));
+    expect(screen.getByText('Create Application')).toBeDefined();
   });
 
   it('displays creation error message when API returns failure', async () => {
@@ -152,6 +218,57 @@ describe('PortalPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Redirect URI invalid')).toBeDefined();
+    });
+  });
+
+  it('handles failed initial clients fetch without crashing', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Server error' }),
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Developer Portal')).toBeDefined();
+    });
+  });
+
+  it('displays default error message when error field is empty or non-Error is thrown', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return {
+          ok: false,
+          json: async () => ({}),
+        };
+      }
+      return { ok: true, json: async () => ({ clients: [] }) };
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Register your first app')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Register your first app'));
+    fireEvent.change(screen.getByLabelText(/application name/i), { target: { value: 'App' } });
+    fireEvent.change(screen.getByPlaceholderText(/example\.com/i), { target: { value: 'https://a.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /^create application$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to create application')).toBeDefined();
+    });
+
+    // Test non-Error thrown
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        throw 'network-string-failure';
+      }
+      return { ok: true, json: async () => ({ clients: [] }) };
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^create application$/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Error creating app')).toBeDefined();
     });
   });
 });

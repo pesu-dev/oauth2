@@ -262,5 +262,39 @@ describe('UI Primitives & Navigation', () => {
       currentPathname = '/docs';
       rerender(<Navbar />);
     });
+
+    it('handles /api/auth/status returning non-ok response', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+      } as Response);
+
+      await React.act(async () => {
+        render(<Navbar />);
+      });
+
+      expect(screen.getAllByText('Sign In').length).toBeGreaterThan(0);
+    });
+
+    it('handles logout network error by redirecting to home', async () => {
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url === '/api/auth/status') {
+          return { ok: true, json: async () => ({ authenticated: true }) } as Response;
+        }
+        if (url === '/api/auth/logout') {
+          throw new Error('Network error');
+        }
+        return { ok: false } as Response;
+      });
+
+      await React.act(async () => {
+        render(<Navbar />);
+      });
+
+      await React.act(async () => {
+        fireEvent.click(screen.getByText('Sign Out'));
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
   });
 });

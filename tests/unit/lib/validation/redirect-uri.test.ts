@@ -48,5 +48,6 @@ describe('Redirect URI Validation', () => {
   it('rejects empty arrays or arrays with only empty strings', () => {
     expect(parseAndValidateRedirectUris([]).valid).toBe(false);
     expect(parseAndValidateRedirectUris(['   ']).valid).toBe(false);
+    expect(parseAndValidateRedirectUris([null as never, 123 as never]).valid).toBe(false);
   });
 });

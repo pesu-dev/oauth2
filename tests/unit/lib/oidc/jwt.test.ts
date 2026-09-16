@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getPublicJwks,
   mintAccessToken,
@@ -142,4 +142,65 @@ describe('OIDC JWT & JWKS Operations', () => {
       expect(payload.jti?.length).toBeGreaterThan(10);
     });
   });
+
+  describe('Key Holder Reset and Fallback Key Pair', () => {
+    it('generates fallback key pair when no PEM is configured', async () => {
+      const configHelper = await import('@/lib/config');
+      const spy = vi.spyOn(configHelper, 'getConfig').mockReturnValue({
+        tokenSigningKeyPem: undefined,
+      } as ReturnType<typeof configHelper.getConfig>);
+
+      const { resetKeyHolder, getKeyPair } = await import('@/lib/oidc/jwt');
+      const originalPem = process.env.TOKEN_SIGNING_KEY_PEM;
+      delete process.env.TOKEN_SIGNING_KEY_PEM;
+      resetKeyHolder();
+
+      const keyPair = await getKeyPair();
+      expect(keyPair.kid).toBe('pesu-key-default');
+      expect(keyPair.privateKey).toBeDefined();
+      expect(keyPair.publicKey).toBeDefined();
+
+      if (originalPem) {
+        process.env.TOKEN_SIGNING_KEY_PEM = originalPem;
+      }
+      spy.mockRestore();
+      resetKeyHolder();
+    });
+
+    it('extracts client_id from string aud or array aud when client_id is omitted', async () => {
+      const { getKeyPair } = await import('@/lib/oidc/jwt');
+      const { SignJWT } = await import('jose');
+      const { privateKey, kid } = await getKeyPair();
+
+      // Test string aud
+      const token1 = await new SignJWT({ sub: 'u1' })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuer('http://localhost:3000')
+        .setAudience('cli_from_string_aud')
+        .sign(privateKey);
+
+      const res1 = await verifyAccessToken(token1, 'http://localhost:3000');
+      expect(res1.client_id).toBe('cli_from_string_aud');
+
+      // Test array aud
+      const token2 = await new SignJWT({ sub: 'u2' })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuer('http://localhost:3000')
+        .setAudience(['cli_from_array_aud', 'other'])
+        .sign(privateKey);
+
+      const res2 = await verifyAccessToken(token2, 'http://localhost:3000');
+      expect(res2.client_id).toBe('cli_from_array_aud');
+
+      // Test no aud and no client_id
+      const token3 = await new SignJWT({ sub: 'u3' })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuer('http://localhost:3000')
+        .sign(privateKey);
+
+      const res3 = await verifyAccessToken(token3, 'http://localhost:3000');
+      expect(res3.client_id).toBe('');
+    });
+  });
 });
+

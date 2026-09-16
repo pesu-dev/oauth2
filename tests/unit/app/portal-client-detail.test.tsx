@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import ClientDetailPage from '@/app/portal/[clientId]/page';
 
@@ -104,12 +104,28 @@ describe('ClientDetailPage Component', () => {
 
     // Add a redirect URI using quick add
     const addInput = screen.getByPlaceholderText(/Enter new URI/i);
+    const quickAddForm = addInput.closest('form');
+
+    // Test empty input ignored
+    fireEvent.change(addInput, { target: { value: '   ' } });
+    fireEvent.submit(quickAddForm!);
+
+    // Test valid quick add
     fireEvent.change(addInput, { target: { value: 'https://other.pesu.edu/callback' } });
-    const addButtons = screen.getAllByRole('button', { name: /add/i });
-    fireEvent.click(addButtons[0]);
+    fireEvent.submit(quickAddForm!);
+
+    // Test duplicate quick add ignored
+    fireEvent.change(addInput, { target: { value: 'https://other.pesu.edu/callback' } });
+    fireEvent.submit(quickAddForm!);
 
     // Save changes
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+      await vi.advanceTimersByTimeAsync(2600);
+    } finally {
+      vi.useRealTimers();
+    }
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/portal/clients/cli_portal_1', {
@@ -198,6 +214,94 @@ describe('ClientDetailPage Component', () => {
     });
   });
 
+  it('handles error when rotating client secret fails', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && url.includes('/rotate-secret')) {
+        return {
+          ok: false,
+          json: async () => ({ error: 'Rotation disallowed' }),
+        };
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Rotate Secret')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Rotate Secret'));
+    fireEvent.click(screen.getByRole('button', { name: /yes, rotate secret/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Rotation disallowed')).toBeDefined();
+    });
+  });
+
+  it('handles rotate secret failure with fallback message and non-Error rejection', async () => {
+    // 1. Fallback message when error is missing
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && url.includes('/rotate-secret')) {
+        return {
+          ok: false,
+          json: async () => ({}),
+        };
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    const { unmount } = render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Rotate Secret')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Rotate Secret'));
+    fireEvent.click(screen.getByRole('button', { name: /yes, rotate secret/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to rotate client secret')).toBeDefined();
+    });
+    unmount();
+
+    // 2. Non-Error throw
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && url.includes('/rotate-secret')) {
+        return Promise.reject('Raw network drop');
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Rotate Secret')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Rotate Secret'));
+    fireEvent.click(screen.getByRole('button', { name: /yes, rotate secret/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Error rotating secret')).toBeDefined();
+    });
+  });
+
+  it('ignores add tester when input is empty or whitespace', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockClientData,
+    });
+
+    render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Timetable App')).toBeDefined();
+    });
+
+    const addButtons = screen.getAllByRole('button', { name: /add/i });
+    const testerAddBtn = addButtons[addButtons.length - 1];
+    fireEvent.click(testerAddBtn);
+  });
+
+
   it('handles requesting production in drawer', async () => {
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (init?.method === 'POST' && url.includes('/request-production')) {
@@ -243,6 +347,78 @@ describe('ClientDetailPage Component', () => {
     });
   });
 
+  it('handles request production failure gracefully when response is not ok', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && url.includes('/request-production')) {
+        return { ok: false, json: async () => ({ error: 'Production request failed' }) };
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Request Production')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Request Production'));
+    const textarea = screen.getByPlaceholderText(/explain your app's purpose/i);
+    fireEvent.change(textarea, { target: { value: 'Test justification' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit for review/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/portal/clients/cli_portal_1/request-production',
+        expect.any(Object)
+      );
+    });
+  });
+
+  it('handles client data with missing testers and missing redirect_uris fallback to empty arrays', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        client: {
+          client_id: 'cli_empty_arrays',
+          name: 'Empty Arrays App',
+          createdAt: new Date().toISOString(),
+          status: 'development',
+          publishing_status: 'development',
+        },
+      }),
+    });
+
+    render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Empty Arrays App')).toBeDefined();
+    });
+  });
+
+  it('handles add tester response failure when ok is false', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && url.includes('/testers')) {
+        return { ok: false, json: async () => ({ error: 'Cannot add tester' }) };
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    render(<ClientDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('usr_tester_1')).toBeDefined();
+    });
+
+    const testerInput = screen.getByPlaceholderText(/PRN or SRN/i);
+    fireEvent.change(testerInput, { target: { value: 'PES1UG20CS999' } });
+    const addButtons = screen.getAllByRole('button', { name: /add/i });
+    fireEvent.click(addButtons[addButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/portal/clients/cli_portal_1/testers',
+        expect.any(Object)
+      );
+    });
+  });
+
   it('handles copying client ID, copying rotated secret, and dismissing rotated banner', async () => {
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {
@@ -268,9 +444,17 @@ describe('ClientDetailPage Component', () => {
     });
 
     // Copy Client ID
-    const copyIdBtn = screen.getByTitle('Copy Client ID');
-    fireEvent.click(copyIdBtn);
-    expect(writeTextMock).toHaveBeenCalledWith('cli_portal_1');
+    vi.useFakeTimers();
+    try {
+      const copyIdBtn = screen.getByTitle('Copy Client ID');
+      fireEvent.click(copyIdBtn);
+      expect(writeTextMock).toHaveBeenCalledWith('cli_portal_1');
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
 
     // Rotate secret to show banner
     fireEvent.click(screen.getByText('Rotate Secret'));
@@ -281,9 +465,19 @@ describe('ClientDetailPage Component', () => {
     });
 
     // Copy Rotated Secret
-    const copySecretBtn = screen.getByRole('button', { name: /copy secret/i });
-    fireEvent.click(copySecretBtn);
-    expect(writeTextMock).toHaveBeenCalledWith('sec_new_rotated_123');
+    vi.useFakeTimers();
+    try {
+      const copySecretBtn = screen.getByRole('button', { name: /copy secret/i });
+      fireEvent.click(copySecretBtn);
+      expect(writeTextMock).toHaveBeenCalledWith('sec_new_rotated_123');
+      expect(screen.getByText('Copied!')).toBeDefined();
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+      expect(screen.queryByText('Copied!')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
 
     // Dismiss banner
     fireEvent.click(screen.getByText('Dismiss'));
@@ -418,6 +612,79 @@ describe('ClientDetailPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/application not found/i)).toBeDefined();
+    });
+  });
+
+  it('includes pending new URI input when saving URIs directly', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => mockClientData };
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Timetable App')).toBeDefined();
+    });
+
+    const addInput = screen.getByPlaceholderText(/Enter new URI/i);
+    fireEvent.change(addInput, { target: { value: 'https://app.pesu.edu/extra-callback' } });
+
+    // Directly click Save Changes without clicking Add
+    fireEvent.click(screen.getByRole('button', { name: /^save changes$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Saved!')).toBeDefined();
+    });
+  });
+
+  it('renders empty testers state and production badge when app is in production', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        client: {
+          client_id: 'cli_portal_prod',
+          name: 'Prod Timetable App',
+          publishing_status: 'production',
+          redirect_uris: ['https://app.pesu.edu/callback'],
+          delegated_allowed: true,
+        },
+        testers: [],
+      }),
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Prod Timetable App')).toBeDefined();
+      expect(screen.getByText('Delegated Access')).toBeDefined();
+      expect(screen.getByText('No external testers added yet (owner is always authorized).')).toBeDefined();
+      expect(screen.queryByText('Request Production')).toBeNull();
+    });
+  });
+
+  it('renders pending production badge when app status is pending_production', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        client: {
+          client_id: 'cli_portal_pending',
+          name: 'Pending App',
+          publishing_status: 'pending_production',
+          redirect_uris: ['https://app.pesu.edu/callback'],
+          delegated_allowed: false,
+        },
+        testers: [],
+      }),
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Pending App')).toBeDefined();
+      expect(screen.getByText('pending production')).toBeDefined();
     });
   });
 });

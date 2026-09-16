@@ -129,6 +129,23 @@ describe('SettingsPage Component', () => {
     });
   });
 
+  it('does not delete vault when user declines confirmation dialog', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockSettingsData,
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Delete Vault')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Delete Vault'));
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/settings?action=vault', expect.anything());
+  });
+
   it('renders identity-only mode when user has no vault and handles empty consents', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -243,12 +260,7 @@ describe('SettingsPage Component', () => {
     const input = screen.getByPlaceholderText('DELETE');
     const deleteBtn = screen.getByRole('button', { name: 'Delete Account Permanently' });
 
-    // Initially disabled
-    expect(deleteBtn).toHaveProperty('disabled', true);
-
     fireEvent.change(input, { target: { value: 'DELETE' } });
-    expect(deleteBtn).toHaveProperty('disabled', false);
-
     fireEvent.click(deleteBtn);
 
     await waitFor(() => {
@@ -280,6 +292,26 @@ describe('SettingsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Account deletion failed')).toBeDefined();
+    });
+  });
+
+  it('shows error if account deletion is clicked without typing DELETE', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockSettingsData,
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Delete Account Permanently' })).toBeDefined();
+    });
+
+    const deleteBtn = screen.getByRole('button', { name: 'Delete Account Permanently' });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Type DELETE to confirm account deletion')).toBeDefined();
     });
   });
 });

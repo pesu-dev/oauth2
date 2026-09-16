@@ -128,6 +128,50 @@ describe('Portal Clients API', () => {
         })
       );
     });
+
+    it('returns 400 when Client.create throws an error', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_dev_1' });
+      vi.spyOn(Client, 'create').mockRejectedValueOnce(new Error('Duplicate client ID'));
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'pesu_session=valid_token',
+        },
+        body: JSON.stringify({
+          name: 'Exploit Client',
+          redirectUris: ['https://valid.com/cb'],
+        }),
+      });
+
+      const res = await postClient(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('Duplicate client ID');
+    });
+
+    it('returns 400 with fallback message when Client.create throws non-Error', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_dev_1' });
+      vi.spyOn(Client, 'create').mockRejectedValueOnce('raw db error');
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'pesu_session=valid_token',
+        },
+        body: JSON.stringify({
+          name: 'Exploit Client',
+          redirectUris: ['https://valid.com/cb'],
+        }),
+      });
+
+      const res = await postClient(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('Failed to create client');
+    });
   });
 
   describe('GET /api/portal/clients/[clientId]', () => {

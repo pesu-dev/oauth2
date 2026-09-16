@@ -4,6 +4,7 @@ import { GET as getSettings, DELETE as deleteSettings, PATCH as patchSettings } 
 import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';
+import { getConfig } from '@/lib/config';
 
 vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
@@ -290,6 +291,47 @@ describe('Settings API (/api/settings)', () => {
         }),
         expect.objectContaining({ upsert: false })
       );
+    });
+
+    it('returns 404 when user record does not exist on PATCH', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_missing' });
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+
+      const req = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'new_password' }),
+      });
+      const res = await patchSettings(req);
+      expect(res.status).toBe(404);
+      const data = await res.json();
+      expect(data.error).toBe('User not found');
+    });
+
+    it('returns 500 when vaultMasterKey is not configured on PATCH', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_test',
+        prn: 'PES1202000001',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_test' } as never);
+
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+        session: { token: 'tok_new', accessToken: 'acc_new', userId: '12345', expiresAt: null },
+        profile: { prn: 'PES1202000001', srn: 'PES1202000001', name: 'Student', email: 's@p.edu' },
+      } as never);
+
+      vi.mocked(getConfig).mockReturnValueOnce({ vaultMasterKey: undefined } as never);
+
+      const req = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'correct_new_password' }),
+      });
+      const res = await patchSettings(req);
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.error).toBe('Vault master key not configured');
     });
   });
 });

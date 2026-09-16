@@ -45,4 +45,11 @@ describe('Theme Components', () => {
     fireEvent.click(button);
     expect(mockSetTheme).toHaveBeenCalledWith('light');
   });
+
+  it('renders placeholder skeleton in SSR via renderToString', async () => {
+    const { renderToString } = await import('react-dom/server');
+    const html = renderToString(<ThemeToggle />);
+    expect(html).toContain('w-9 h-9 rounded-full');
+    expect(html).not.toContain('<button');
+  });
 });

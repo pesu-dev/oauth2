@@ -161,6 +161,12 @@ describe('Auth Login Route (/api/auth/login)', () => {
         prn: 'PES1UG20CS001',
         srn: 'PES1202000001',
         email: 'updated@pes.edu',
+        phone: '9876543210',
+        program: 'B.Tech',
+        branch: 'CSE',
+        semester: 'Sem-6',
+        section: 'B',
+        campus: 'RR',
       },
       session: {
         token: 'academy_sess_456',
@@ -171,6 +177,14 @@ describe('Auth Login Route (/api/auth/login)', () => {
       sub: 'usr_existing_1',
       name: 'Old Name',
       prn: 'PES1UG20CS001',
+      srn: '',
+      email: '',
+      phone: '',
+      program: '',
+      branch: '',
+      semester: '',
+      section: '',
+      campus: '',
       save: vi.fn().mockResolvedValueOnce(true),
     };
 
@@ -192,5 +206,22 @@ describe('Auth Login Route (/api/auth/login)', () => {
     // Sanitized fallback to /portal
     expect(data.redirectTo).toBe('/portal');
     expect(mockExistingUser.save).toHaveBeenCalled();
+    expect(mockExistingUser.phone).toBe('9876543210');
+    expect(mockExistingUser.branch).toBe('CSE');
+  });
+
+  it('handles non-Error exceptions gracefully in catch block', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockRejectedValueOnce('string error');
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'PES1UG20CS001', password: 'password' }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('Authentication failed');
   });
 });

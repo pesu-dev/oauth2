@@ -104,6 +104,39 @@ describe('Transactional Mailer Service', () => {
       expect(getMailer()).toBe(custom);
     });
 
+    it('getMailer falls back to LogMailer when getConfig throws', async () => {
+      const configHelper = vi.mocked(await import('@/lib/config'));
+      configHelper.getConfig.mockImplementationOnce(() => {
+        throw new Error('Config missing');
+      });
+
+      const mailer = getMailer();
+      expect(mailer).toBeInstanceOf(LogMailer);
+    });
+
+    it('notifySubQuietly uses default getMailer when no mailer argument is provided', async () => {
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_real2',
+        email: 'real2@pesu.edu',
+      } as never);
+
+      const custom = new LogMailer();
+      const sendSpy = vi.spyOn(custom, 'send').mockResolvedValueOnce();
+      setMailer(custom);
+
+      await notifySubQuietly({
+        sub: 'usr_real2',
+        subject: 'Default Mailer Test',
+        body: 'Testing default mailer',
+      });
+
+      expect(sendSpy).toHaveBeenCalledWith({
+        to: 'real2@pesu.edu',
+        subject: 'Default Mailer Test',
+        body: 'Testing default mailer',
+      });
+    });
+
     it('notifySubQuietly catches DB or retrieval errors without throwing', async () => {
       vi.spyOn(User, 'findOne').mockRejectedValueOnce(new Error('DB read error'));
       await expect(
@@ -202,5 +235,39 @@ describe('Transactional Mailer Service', () => {
       ).rejects.toThrow('SMTP error (550)');
       expect(mockSocket.end).toHaveBeenCalled();
     });
+
+    it('rejects on socket error before or during connection', async () => {
+      const mockSocket = new EventEmitter() as unknown as EventEmitter & {
+        write: ReturnType<typeof vi.fn>;
+        end: ReturnType<typeof vi.fn>;
+      };
+      mockSocket.write = vi.fn();
+      mockSocket.end = vi.fn();
+
+      vi.spyOn(tls, 'connect').mockImplementation((...args: unknown[]) => {
+        const connectListener = typeof args[1] === 'function' ? (args[1] as () => void) : typeof args[0] === 'function' ? (args[0] as () => void) : null;
+        if (connectListener) {
+          setTimeout(() => {
+            connectListener();
+            mockSocket.emit('error', new Error('TLS connection lost'));
+          }, 5);
+        }
+        return mockSocket as never;
+      });
+
+      const smtp = new SmtpMailer({
+        username: 'user@pesu.edu',
+        password: 'pass',
+      });
+
+      await expect(
+        smtp.send({
+          to: 'target@pesu.edu',
+          subject: 'Test Subject',
+          body: 'Hello',
+        })
+      ).rejects.toThrow('TLS connection lost');
+    });
   });
 });
+
