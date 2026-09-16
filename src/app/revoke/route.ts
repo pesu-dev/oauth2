@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import { connectToDatabase } from '@/lib/db/connection';
 import { Client, RefreshToken } from '@/lib/db/models';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { sha256Hex, verifyClientSecret } from '@/lib/crypto/hash';
 
 async function parseParams(request: Request): Promise<Record<string, string>> {
   const contentType = request.headers.get('content-type') || '';
@@ -92,13 +91,8 @@ export async function POST(request: NextRequest | Request) {
         { status: 401 }
       );
     }
-    const computedHash = sha256Hex(clientSecret);
-    const hashBuf = Buffer.from(computedHash);
-    const storedBuf = Buffer.from(client.client_secret_hash);
-    if (
-      hashBuf.length !== storedBuf.length ||
-      !crypto.timingSafeEqual(hashBuf, storedBuf)
-    ) {
+    const secretMatches = await verifyClientSecret(clientSecret, client.client_secret_hash);
+    if (!secretMatches) {
       return NextResponse.json(
         { error: 'invalid_client', error_description: 'Invalid client credentials' },
         { status: 401 }

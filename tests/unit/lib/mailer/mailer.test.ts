@@ -269,6 +269,39 @@ describe('Transactional Mailer Service', () => {
       ).rejects.toThrow('TLS connection lost');
     });
 
+    it('rejects with timeout error when socket emits timeout event', async () => {
+      const mockSocket = new EventEmitter() as unknown as EventEmitter & {
+        write: ReturnType<typeof vi.fn>;
+        end: ReturnType<typeof vi.fn>;
+        destroy: ReturnType<typeof vi.fn>;
+        setTimeout: ReturnType<typeof vi.fn>;
+      };
+      mockSocket.write = vi.fn();
+      mockSocket.end = vi.fn();
+      mockSocket.destroy = vi.fn();
+      mockSocket.setTimeout = vi.fn(() => {
+        setTimeout(() => {
+          mockSocket.emit('timeout');
+        }, 5);
+      });
+
+      vi.spyOn(tls, 'connect').mockReturnValue(mockSocket as never);
+
+      const smtp = new SmtpMailer({
+        username: 'user@pesu.edu',
+        password: 'pass',
+      });
+
+      await expect(
+        smtp.send({
+          to: 'target@pesu.edu',
+          subject: 'Test Subject',
+          body: 'Hello',
+        })
+      ).rejects.toThrow('SMTP connection timed out');
+      expect(mockSocket.destroy).toHaveBeenCalled();
+    });
+
     it('ignores unrecognized response code < 400 without crashing', async () => {
       const mockSocket = new EventEmitter() as unknown as EventEmitter & {
         write: ReturnType<typeof vi.fn>;

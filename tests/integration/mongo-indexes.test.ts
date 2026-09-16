@@ -97,10 +97,10 @@ describe('MongoDB Real Indexes and Uniqueness Constraints', () => {
   it('verifies TTL indexes exist on auth_codes and refresh_tokens', async () => {
     const authCodeIndexes = await AuthCode.collection.indexes();
     const ttlIndex = authCodeIndexes.find(
-      (idx) => idx.key && 'created_at' in idx.key && typeof idx.expireAfterSeconds === 'number'
+      (idx) => idx.key && 'expires_at' in idx.key && typeof idx.expireAfterSeconds === 'number'
     );
     expect(ttlIndex).toBeDefined();
-    expect(ttlIndex?.expireAfterSeconds).toBe(600);
+    expect(ttlIndex?.expireAfterSeconds).toBe(0);
 
     const refreshTokenIndexes = await RefreshToken.collection.indexes();
     const familyIndex = refreshTokenIndexes.find(

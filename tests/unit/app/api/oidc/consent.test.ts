@@ -562,7 +562,7 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(res.status).toBe(200);
       expect(vaultUpsertSpy).toHaveBeenCalledWith(
         { sub: 'usr_user1' },
-        expect.objectContaining({ username: undefined }),
+        expect.objectContaining({ sub: 'usr_user1', key_version: 1 }),
         { upsert: true }
       );
     });

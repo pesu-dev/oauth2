@@ -19,6 +19,33 @@ export interface SealedBlob {
   keyVersion: number;
 }
 
+export interface VaultPlaintext {
+  username: string;
+  password: string;
+  session?: {
+    token: string;
+    access_token?: string | null;
+    user_id?: string | null;
+  } | null;
+}
+
+export function packVaultPlaintext(data: VaultPlaintext): Buffer {
+  return Buffer.from(JSON.stringify(data), 'utf-8');
+}
+
+export function unpackVaultPlaintext(buf: Buffer): VaultPlaintext {
+  const parsed = JSON.parse(buf.toString('utf-8'));
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    typeof parsed.username !== 'string' ||
+    typeof parsed.password !== 'string'
+  ) {
+    throw new VaultCryptoError('invalid vault plaintext payload');
+  }
+  return parsed as VaultPlaintext;
+}
+
 export function masterKeyFromSecret(secret: string): Buffer {
   return crypto.createHash('sha256').update(secret, 'utf-8').digest();
 }

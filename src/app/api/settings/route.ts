@@ -4,7 +4,7 @@ import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
+import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
 
 export async function GET(request: NextRequest) {
@@ -203,37 +203,30 @@ export async function PATCH(request: NextRequest) {
   }
 
   const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-  const passBlob = seal(masterKey, Buffer.from(newPassword, 'utf-8'), 1);
+  const plaintext: VaultPlaintext = {
+    username: user.prn || user.srn,
+    password: newPassword,
+    session: authResult.session.token
+      ? {
+          token: authResult.session.token,
+          access_token: authResult.session.accessToken || null,
+          user_id: authResult.session.userId || null,
+        }
+      : null,
+  };
 
-  let sessionBlob;
-  if (authResult.session.token) {
-    const sessionData = {
-      token: authResult.session.token,
-      access_token: authResult.session.accessToken || null,
-      user_id: authResult.session.userId || null,
-    };
-    sessionBlob = seal(
-      masterKey,
-      Buffer.from(JSON.stringify(sessionData), 'utf-8'),
-      1
-    );
-  }
+  const sealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
 
   await Vault.findOneAndUpdate(
     { sub: session.sub },
     {
       sub: session.sub,
-      username: user.prn || user.srn,
-      encrypted_password: passBlob.ciphertext.toString('base64'),
-      password_nonce: passBlob.nonce.toString('base64'),
-      password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
-      password_wrapped_dek: passBlob.wrappedDek.toString('base64'),
-      encrypted_session: sessionBlob?.ciphertext.toString('base64'),
-      session_nonce: sessionBlob?.nonce.toString('base64'),
-      session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
-      session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
-      session_expires_at: authResult.session.expiresAt || new Date(Date.now() + 24 * 3600 * 1000),
-      key_version: 1,
+      nonce: sealed.nonce,
+      ciphertext: sealed.ciphertext,
+      wrap_nonce: sealed.wrapNonce,
+      wrapped_dek: sealed.wrappedDek,
+      key_version: sealed.keyVersion,
+      session_expires_at: authResult.session.expiresAt || null,
       updated_at: new Date(),
     },
     { upsert: false }

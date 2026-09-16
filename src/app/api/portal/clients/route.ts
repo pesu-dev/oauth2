@@ -3,7 +3,7 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { Client } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newClientId, newClientSecret } from '@/lib/id/nanoid';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { hashClientSecret } from '@/lib/crypto/hash';
 import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
 
 export async function GET(request: NextRequest) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const clientId = newClientId();
     const rawSecret = newClientSecret();
-    const secretHash = sha256Hex(rawSecret);
+    const secretHash = await hashClientSecret(rawSecret);
 
     const client = await Client.create({
       client_id: clientId,

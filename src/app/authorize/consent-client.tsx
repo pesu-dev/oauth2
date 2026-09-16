@@ -12,6 +12,7 @@ interface ConsentClientProps {
     name: string;
     publishingStatus: 'testing' | 'pending_production' | 'production';
     delegatedAllowed: boolean;
+    ownerSub?: string;
   };
   userName: string;
   requestedScopes: string[];
@@ -87,6 +88,11 @@ export function ConsentClient({
             <CardDescription className="text-xs mt-1">
               Signed in as <span className="font-medium text-zinc-900 dark:text-zinc-100">{userName}</span>
             </CardDescription>
+            {client.ownerSub ? (
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                Developer: <span className="font-mono text-zinc-700 dark:text-zinc-300">{client.ownerSub}</span>
+              </div>
+            ) : null}
           </div>
           <Badge
             variant={
@@ -193,6 +199,12 @@ export function ConsentClient({
                 </div>
               </>
             )}
+          </div>
+
+          {/* Redirect URI notice */}
+          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 break-all">
+            <span>Redirects to:</span>
+            <span className="font-mono text-zinc-700 dark:text-zinc-300">{redirectUri}</span>
           </div>
         </div>
 

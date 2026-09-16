@@ -63,8 +63,13 @@ export async function POST(
     created_at: new Date(),
   });
 
-  client.publishing_status = 'pending_production';
-  await client.save();
+  try {
+    client.publishing_status = 'pending_production';
+    await client.save();
+  } catch (err) {
+    await ProductionRequest.deleteOne({ request_id: prodRequest.request_id });
+    throw err;
+  }
 
   notifySubQuietly({
     sub: session.sub,

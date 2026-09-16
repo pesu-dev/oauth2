@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as postRevoke } from '@/app/revoke/route';
 import { Client, RefreshToken } from '@/lib/db/models';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { sha256Hex, hashClientSecret } from '@/lib/crypto/hash';
 
 vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
@@ -66,7 +66,7 @@ describe('Revocation Endpoint (/revoke)', () => {
   });
 
   it('decodes Basic authentication header for client credentials', async () => {
-    const secretHash = sha256Hex('secret123');
+    const secretHash = await hashClientSecret('secret123');
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
       client_id: 'cli_basic',
       client_secret_hash: secretHash,
@@ -120,7 +120,7 @@ describe('Revocation Endpoint (/revoke)', () => {
   it('rejects when confidential client is missing client_secret with 401', async () => {
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
       client_id: 'cli_conf',
-      client_secret_hash: sha256Hex('secret'),
+      client_secret_hash: await hashClientSecret('secret'),
       token_endpoint_auth_method: 'client_secret_post',
     } as never);
 
@@ -198,7 +198,7 @@ describe('Revocation Endpoint (/revoke)', () => {
 
   it('validates client secret with timing safety', async () => {
     const correctSecret = 'sec_valid_12345';
-    const secretHash = sha256Hex(correctSecret);
+    const secretHash = await hashClientSecret(correctSecret);
 
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
       client_id: 'cli_test',

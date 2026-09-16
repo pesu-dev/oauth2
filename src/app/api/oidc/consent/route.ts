@@ -12,11 +12,12 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
+import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
 
 export async function POST(request: NextRequest) {
   try {
+    const config = getConfig();
     const sessionCookie = request.cookies.get('pesu_session')?.value;
     const session = sessionCookie ? await verifySessionToken<{ sub: string }>(sessionCookie) : null;
 
@@ -130,7 +131,6 @@ export async function POST(request: NextRequest) {
 
     // If delegated mode, process vault storage using pending credentials
     if (mode === 'delegated' && client.delegated_allowed) {
-      const config = getConfig();
       // Retrieve ephemeral credentials from memory store (or fallback to legacy token fields for backwards compatibility in tests)
       const pending = pendingToken?.cred_id
         ? pendingCredentialStore.pop(pendingToken.cred_id)
@@ -158,42 +158,37 @@ export async function POST(request: NextRequest) {
             { status: 503 }
           );
         }
-        const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-        const passBlob = seal(masterKey, Buffer.from(pending.password, 'utf-8'), 1);
+        const username = pending.username || session.sub;
 
-        let sessionBlob;
-        let sessionExpiresAt: Date | undefined;
-        if (pending.sessionToken) {
-          const sessionData = {
-            token: pending.sessionToken,
-            access_token: pending.accessToken || null,
-            user_id: pending.userId || null,
-          };
-          sessionBlob = seal(
-            masterKey,
-            Buffer.from(JSON.stringify(sessionData), 'utf-8'),
-            1
-          );
-          sessionExpiresAt = pending.expiresAt
-            ? new Date(pending.expiresAt)
-            : new Date(Date.now() + 24 * 3600 * 1000);
-        }
+        const sessionExpiresAt: Date | undefined = pending.expiresAt
+          ? new Date(pending.expiresAt)
+          : undefined;
+
+        const plaintext: VaultPlaintext = {
+          username,
+          password: pending.password,
+          session: pending.sessionToken
+            ? {
+                token: pending.sessionToken,
+                access_token: pending.accessToken || null,
+                user_id: pending.userId || null,
+              }
+            : null,
+        };
+
+        const masterKey = masterKeyFromSecret(config.vaultMasterKey);
+        const sealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
 
         await Vault.findOneAndUpdate(
           { sub: session.sub },
           {
             sub: session.sub,
-            username: pending.username || undefined,
-            encrypted_password: passBlob.ciphertext.toString('base64'),
-            password_nonce: passBlob.nonce.toString('base64'),
-            password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
-            password_wrapped_dek: passBlob.wrappedDek.toString('base64'),
-            encrypted_session: sessionBlob?.ciphertext.toString('base64'),
-            session_nonce: sessionBlob?.nonce.toString('base64'),
-            session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
-            session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
+            nonce: sealed.nonce,
+            ciphertext: sealed.ciphertext,
+            wrap_nonce: sealed.wrapNonce,
+            wrapped_dek: sealed.wrappedDek,
+            key_version: sealed.keyVersion,
             session_expires_at: sessionExpiresAt,
-            key_version: 1,
             updated_at: new Date(),
           },
           { upsert: true }
@@ -218,6 +213,7 @@ export async function POST(request: NextRequest) {
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod || 'S256',
       nonce,
+      expires_at: new Date(Date.now() + config.authorizationCodeTtlSeconds * 1000),
     });
 
     const effectiveMode = mode === 'delegated' && client.delegated_allowed ? 'delegated' : 'identity';

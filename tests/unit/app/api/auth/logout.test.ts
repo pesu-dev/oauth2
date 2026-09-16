@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as postLogout, GET as getLogout } from '@/app/api/auth/logout/route';
+import { POST as postLogout } from '@/app/api/auth/logout/route';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import * as cookieHelper from '@/lib/session/cookie';
 
@@ -64,28 +64,30 @@ describe('Auth Logout Route (/api/auth/logout)', () => {
     expect(pendingCredentialStore.get(credId)).toBeNull();
   });
 
-  it('GET performs redirect to safe returnTo URL', async () => {
+  it('POST returns safe returnTo URL in JSON response', async () => {
     mockCookieStore.get.mockReturnValue(undefined);
 
     const req = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=/login', {
-      method: 'GET',
+      method: 'POST',
     });
 
-    const res = await getLogout(req);
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('http://localhost:3000/login');
+    const res = await postLogout(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.redirectTo).toBe('/login');
   });
 
-  it('GET ignores open redirect in returnTo and falls back to /', async () => {
+  it('POST ignores open redirect in returnTo and falls back to /', async () => {
     mockCookieStore.get.mockReturnValue(undefined);
 
     const req = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=https://evil.com', {
-      method: 'GET',
+      method: 'POST',
     });
 
-    const res = await getLogout(req);
-    expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toBe('http://localhost:3000/');
+    const res = await postLogout(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.redirectTo).toBe('/');
   });
 
   it('handles token without cred_id or verification error gracefully', async () => {
@@ -107,13 +109,13 @@ describe('Auth Logout Route (/api/auth/logout)', () => {
   it('rejects protocol-relative and scheme-containing paths in returnTo', async () => {
     mockCookieStore.get.mockReturnValue(undefined);
 
-    const req1 = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=//evil.com', { method: 'GET' });
-    const res1 = await getLogout(req1);
-    expect(res1.headers.get('location')).toBe('http://localhost:3000/');
+    const req1 = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=//evil.com', { method: 'POST' });
+    const res1 = await postLogout(req1);
+    expect((await res1.json()).redirectTo).toBe('/');
 
-    const req2 = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=/test://bad', { method: 'GET' });
-    const res2 = await getLogout(req2);
-    expect(res2.headers.get('location')).toBe('http://localhost:3000/');
+    const req2 = new NextRequest('http://localhost:3000/api/auth/logout?returnTo=/test://bad', { method: 'POST' });
+    const res2 = await postLogout(req2);
+    expect((await res2.json()).redirectTo).toBe('/');
   });
 
   it('sets secure cookies in production environment', async () => {

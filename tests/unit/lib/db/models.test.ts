@@ -74,6 +74,7 @@ describe('Mongoose Models Schema Validation', () => {
       mode: 'identity',
       redirect_uri: 'http://localhost:3000/cb',
       code_challenge: 'chal',
+      expires_at: new Date(Date.now() + 600000),
     });
     await expect(code.validate()).resolves.toBeUndefined();
     expect(code.code_challenge_method).toBe('S256');
@@ -97,10 +98,11 @@ describe('Mongoose Models Schema Validation', () => {
   it('validates Vault, RefreshToken, ProductionRequest, and Admin', async () => {
     const vault = new Vault({
       sub: 'usr_1',
-      encrypted_password: 'enc',
-      password_nonce: 'n',
-      password_wrap_nonce: 'wn',
-      password_wrapped_dek: 'wd',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
+      key_version: 1,
     });
     await expect(vault.validate()).resolves.toBeUndefined();
 

@@ -25,7 +25,7 @@ const CORS_HEADERS = {
 };
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const pathname = request.nextUrl.pathname.replace(/\/+$/, '') || '/';
   const ip = getClientIp(request);
 
   // 1. OIDC CORS preflight (OPTIONS)

@@ -278,5 +278,39 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
       const res2 = await POST(req2);
       expect(res2.status).toBe(200);
     });
+
+    it('reverts production request to pending when client update fails', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_admin' });
+      vi.spyOn(Admin, 'findOne').mockResolvedValueOnce({ sub: 'usr_admin' } as never);
+
+      vi.spyOn(ProductionRequest, 'findOneAndUpdate').mockResolvedValueOnce({
+        request_id: 'req_1',
+        client_id: 'cli_1',
+        status: 'approved',
+      } as never);
+
+      const rollbackSpy = vi.spyOn(ProductionRequest, 'updateOne').mockResolvedValueOnce({} as never);
+      vi.spyOn(Client, 'findOneAndUpdate').mockRejectedValueOnce(new Error('Database write error'));
+
+      const req = new NextRequest('http://localhost:3000/api/admin/requests', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: 'req_1', action: 'approve' }),
+      });
+
+      await expect(POST(req)).rejects.toThrow('Database write error');
+      expect(rollbackSpy).toHaveBeenCalledWith(
+        { request_id: 'req_1' },
+        {
+          $set: {
+            status: 'pending',
+            resolved_at: null,
+            resolved_by_sub: null,
+            reviewed_at: null,
+            reviewer_sub: null,
+          },
+        }
+      );
+    });
   });
 });

@@ -65,11 +65,10 @@ describe('Settings Lifecycle & Account Tombstoning (Integration)', () => {
 
     await Vault.create({
       sub: user.sub,
-      username: user.prn,
-      encrypted_password: 'fake_ciphertext',
-      password_nonce: 'fake_nonce',
-      password_wrap_nonce: 'fake_wrap_nonce',
-      password_wrapped_dek: 'fake_dek',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       key_version: 1,
       updated_at: new Date(),
     });

@@ -97,5 +97,46 @@ describe('Crypto utilities', () => {
 
       expect(() => open(masterKey, sealed)).toThrow(VaultCryptoError);
     });
+
+    it('packs and unpacks VaultPlaintext correctly', async () => {
+      const { packVaultPlaintext, unpackVaultPlaintext } = await import('@/lib/crypto/envelope');
+      const payload = {
+        username: 'student1',
+        password: 'secretpassword',
+        session: { token: 'tok123' },
+      };
+      const packed = packVaultPlaintext(payload);
+      const unpacked = unpackVaultPlaintext(packed);
+      expect(unpacked).toEqual(payload);
+    });
+
+    it('throws VaultCryptoError when unpacking invalid VaultPlaintext', async () => {
+      const { unpackVaultPlaintext } = await import('@/lib/crypto/envelope');
+      expect(() => unpackVaultPlaintext(Buffer.from(JSON.stringify({ only: 'something' })))).toThrow(
+        VaultCryptoError
+      );
+      expect(() => unpackVaultPlaintext(Buffer.from(JSON.stringify(null)))).toThrow(
+        VaultCryptoError
+      );
+    });
+  });
+
+  describe('Argon2id Client Secret Hashing', () => {
+    it('hashes and verifies client secret successfully', async () => {
+      const { hashClientSecret, verifyClientSecret } = await import('@/lib/crypto/hash');
+      const secret = 'my_super_secret_client_key_123';
+      const hashed = await hashClientSecret(secret);
+
+      expect(hashed).toMatch(/^\$argon2id\$/);
+      expect(await verifyClientSecret(secret, hashed)).toBe(true);
+      expect(await verifyClientSecret('wrong_secret', hashed)).toBe(false);
+    });
+
+    it('returns false on empty inputs or malformed hash string', async () => {
+      const { verifyClientSecret } = await import('@/lib/crypto/hash');
+      expect(await verifyClientSecret('', 'hash')).toBe(false);
+      expect(await verifyClientSecret('secret', '')).toBe(false);
+      expect(await verifyClientSecret('secret', 'invalid-argon2-malformed-hash')).toBe(false);
+    });
   });
 });

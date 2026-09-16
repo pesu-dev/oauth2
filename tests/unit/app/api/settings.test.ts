@@ -290,7 +290,7 @@ describe('Settings API (/api/settings)', () => {
         { sub: 'usr_test' },
         expect.objectContaining({
           sub: 'usr_test',
-          username: 'PES1202000001',
+          key_version: 1,
         }),
         expect.objectContaining({ upsert: false })
       );
@@ -384,7 +384,7 @@ describe('Settings API (/api/settings)', () => {
       expect(vaultUpsertSpy).toHaveBeenCalledWith(
         { sub: 'usr_srn' },
         expect.objectContaining({
-          username: 'PES1202099999',
+          sub: 'usr_srn',
           session_expires_at: expiresAt,
         }),
         expect.any(Object)

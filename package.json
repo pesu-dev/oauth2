@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --config vitest.unit.config.ts --coverage"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.1",
     "axios": "^1.20.0",
     "axios-cookiejar-support": "^7.0.0",
     "clsx": "^2.1.1",

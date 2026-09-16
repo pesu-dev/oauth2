@@ -107,6 +107,21 @@ describe('Next.js Proxy', () => {
       const data = await res.json();
       expect(data.error).toBe('temporarily_unavailable');
     });
+
+    it('enforces rate limit on POST /token/ with trailing slash and returns RFC 429', async () => {
+      for (let i = 0; i < 60; i++) {
+        tokenLimiter.allow('token:192.168.1.65');
+      }
+
+      const req = new NextRequest('http://localhost:3000/token/', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '192.168.1.65' },
+      });
+      const res = await proxy(req);
+      expect(res.status).toBe(429);
+      const data = await res.json();
+      expect(data.error).toBe('temporarily_unavailable');
+    });
   });
 
   describe('OIDC CORS & Preflight', () => {

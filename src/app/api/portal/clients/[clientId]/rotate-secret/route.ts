@@ -3,7 +3,7 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { Client } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newClientSecret } from '@/lib/id/nanoid';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { hashClientSecret } from '@/lib/crypto/hash';
 
 export async function POST(
   request: NextRequest,
@@ -19,7 +19,7 @@ export async function POST(
 
   await connectToDatabase();
   const rawSecret = newClientSecret();
-  const secretHash = sha256Hex(rawSecret);
+  const secretHash = await hashClientSecret(rawSecret);
 
   const client = await Client.findOneAndUpdate(
     { client_id: clientId, owner_sub: session.sub },

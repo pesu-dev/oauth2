@@ -47,8 +47,3 @@ export async function POST(request: NextRequest) {
   const { safeRedirect } = await performLogout(request);
   return NextResponse.json({ success: true, redirectTo: safeRedirect });
 }
-
-export async function GET(request: NextRequest) {
-  const { safeRedirect } = await performLogout(request);
-  return NextResponse.redirect(new URL(safeRedirect, request.url));
-}

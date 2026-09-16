@@ -119,6 +119,14 @@ export class SmtpMailer implements Mailer {
         }
       );
 
+      if (typeof socket.setTimeout === 'function') {
+        socket.setTimeout(10000);
+        socket.on('timeout', () => {
+          socket.destroy();
+          reject(new Error('SMTP connection timed out'));
+        });
+      }
+
       socket.on('error', (err) => reject(err));
     });
   }

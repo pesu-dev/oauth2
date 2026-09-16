@@ -84,17 +84,34 @@ export async function POST(request: NextRequest) {
   const isApprove = action === 'approve';
   const shouldAllowDelegated = isApprove && Boolean(allowDelegated);
 
-  const client = await Client.findOneAndUpdate(
-    { client_id: prodReq.client_id },
-    {
-      $set: {
-        publishing_status: isApprove ? 'production' : 'testing',
-        delegated_allowed: shouldAllowDelegated,
-        updated_at: now,
+  let client;
+  try {
+    client = await Client.findOneAndUpdate(
+      { client_id: prodReq.client_id },
+      {
+        $set: {
+          publishing_status: isApprove ? 'production' : 'testing',
+          delegated_allowed: shouldAllowDelegated,
+          updated_at: now,
+        },
       },
-    },
-    { returnDocument: 'after' }
-  );
+      { returnDocument: 'after' }
+    );
+  } catch (err) {
+    await ProductionRequest.updateOne(
+      { request_id: requestId },
+      {
+        $set: {
+          status: 'pending',
+          resolved_at: null,
+          resolved_by_sub: null,
+          reviewed_at: null,
+          reviewer_sub: null,
+        },
+      }
+    );
+    throw err;
+  }
 
   if (client) {
     const ownerSub = client.owner_sub || prodReq.requested_by_sub;

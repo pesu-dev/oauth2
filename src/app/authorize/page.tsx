@@ -7,12 +7,16 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal } from '@/lib/crypto/envelope';
+import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
 import { ConsentClient } from './consent-client';
 
 const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
 
 const KNOWN_SCOPES = new Set(['openid', 'profile', 'email', 'phone', 'offline_access']);
+
+function computeExpiresAt(ttlSeconds: number): Date {
+  return new Date(Date.now() + ttlSeconds * 1000);
+}
 
 function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
@@ -40,6 +44,7 @@ interface AuthorizePageProps {
 }
 
 export default async function AuthorizePage({ searchParams }: AuthorizePageProps) {
+  const config = getConfig();
   const params = await searchParams;
   const {
     client_id: clientId,
@@ -201,36 +206,37 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         : null;
       if (pendingToken?.cred_id) {
         const pending = pendingCredentialStore.pop(pendingToken.cred_id);
-        const config = getConfig();
         if (pending?.password && config.vaultMasterKey) {
+          const username = pending.username || session.sub;
+          const sessionExpiresAt: Date | undefined = pending.expiresAt
+            ? new Date(pending.expiresAt)
+            : undefined;
+
+          const plaintext: VaultPlaintext = {
+            username,
+            password: pending.password,
+            session: pending.sessionToken
+              ? {
+                  token: pending.sessionToken,
+                  access_token: pending.accessToken || null,
+                  user_id: pending.userId || null,
+                }
+              : null,
+          };
+
           const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-          const passBlob = seal(masterKey, Buffer.from(pending.password, 'utf-8'), 1);
-          let sessionBlob;
-          let sessionExpiresAt: Date | undefined;
-          if (pending.sessionToken) {
-            const sessionData = {
-              token: pending.sessionToken,
-              access_token: pending.accessToken || null,
-              user_id: pending.userId || null,
-            };
-            sessionBlob = seal(masterKey, Buffer.from(JSON.stringify(sessionData), 'utf-8'), 1);
-            sessionExpiresAt = pending.expiresAt ? new Date(pending.expiresAt) : undefined;
-          }
+          const sealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
+
           await Vault.findOneAndUpdate(
             { sub: session.sub },
             {
               sub: session.sub,
-              username: pending.username,
-              encrypted_password: passBlob.ciphertext.toString('base64'),
-              password_nonce: passBlob.nonce.toString('base64'),
-              password_wrap_nonce: passBlob.wrapNonce.toString('base64'),
-              password_wrapped_dek: passBlob.wrappedDek.toString('base64'),
-              encrypted_session: sessionBlob?.ciphertext.toString('base64'),
-              session_nonce: sessionBlob?.nonce.toString('base64'),
-              session_wrap_nonce: sessionBlob?.wrapNonce.toString('base64'),
-              session_wrapped_dek: sessionBlob?.wrappedDek.toString('base64'),
+              nonce: sealed.nonce,
+              ciphertext: sealed.ciphertext,
+              wrap_nonce: sealed.wrapNonce,
+              wrapped_dek: sealed.wrappedDek,
+              key_version: sealed.keyVersion,
               session_expires_at: sessionExpiresAt,
-              key_version: 1,
               updated_at: new Date(),
             },
             { upsert: true }
@@ -250,6 +256,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,
       nonce,
+      expires_at: computeExpiresAt(config.authorizationCodeTtlSeconds),
     });
 
     const targetUrl = new URL(redirectUri);
@@ -265,6 +272,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         name: client.name,
         publishingStatus: client.publishing_status,
         delegatedAllowed: client.delegated_allowed,
+        ownerSub: client.owner_sub,
       }}
       userName={session.name}
       requestedScopes={requestedScopes}

@@ -509,10 +509,17 @@ describe('Authorize Page & Consent', () => {
     };
 
     it('renders delegated warning when mode is delegated and client allowed', () => {
-      render(<ConsentClient {...defaultProps} />);
+      render(
+        <ConsentClient
+          {...defaultProps}
+          client={{ ...defaultProps.client, ownerSub: 'usr_dev_publisher' }}
+        />
+      );
       expect(screen.getByText('Student Portal Client')).toBeDefined();
       expect(screen.getByText('Delegated Credential Vault:')).toBeDefined();
       expect(screen.getByText('testing')).toBeDefined();
+      expect(screen.getByText('usr_dev_publisher')).toBeDefined();
+      expect(screen.getByText('https://portal.pesu.edu/callback')).toBeDefined();
     });
 
     it('renders identity note when mode is identity', () => {

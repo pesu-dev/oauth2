@@ -83,10 +83,10 @@ describe('Delegated Credential Vault & Token Exchange (Integration)', () => {
     const vaultDoc = await Vault.findOne({ sub: user.sub });
     expect(vaultDoc).not.toBeNull();
     expect(vaultDoc?.key_version).toBe(1);
-    expect(vaultDoc?.encrypted_password).toBeDefined();
-    expect(vaultDoc?.encrypted_password).not.toContain('super_secret_raw_password_123');
-    expect(vaultDoc?.password_nonce).toBeDefined();
-    expect(vaultDoc?.password_wrapped_dek).toBeDefined();
+    expect(vaultDoc?.ciphertext).toBeDefined();
+    expect(vaultDoc?.ciphertext.toString('utf-8')).not.toContain('super_secret_raw_password_123');
+    expect(vaultDoc?.nonce).toBeDefined();
+    expect(vaultDoc?.wrapped_dek).toBeDefined();
 
     // 3. Exchange authorization code for delegated access token
     const tokenParams = new URLSearchParams();

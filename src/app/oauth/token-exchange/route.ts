@@ -4,7 +4,15 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { Consent, User, Vault } from '@/lib/db/models';
 import { getConfig } from '@/lib/config';
 import { verifyAccessToken } from '@/lib/oidc/jwt';
-import { masterKeyFromSecret, open, seal, SealedBlob } from '@/lib/crypto/envelope';
+import {
+  masterKeyFromSecret,
+  open,
+  seal,
+  SealedBlob,
+  packVaultPlaintext,
+  unpackVaultPlaintext,
+  VaultPlaintext,
+} from '@/lib/crypto/envelope';
 import { AcademyClient } from '@/lib/academy/client';
 
 function checkExchangeSecret(request: Request, configuredSecret?: string): boolean {
@@ -162,54 +170,33 @@ export async function POST(request: NextRequest | Request) {
   }
 
   const masterKey = masterKeyFromSecret(config.vaultMasterKey);
+  const sealedBlob: SealedBlob = {
+    nonce: vaultDoc.nonce,
+    ciphertext: vaultDoc.ciphertext,
+    wrapNonce: vaultDoc.wrap_nonce,
+    wrappedDek: vaultDoc.wrapped_dek,
+    keyVersion: vaultDoc.key_version,
+  };
 
-  // Check cached session validity (at least 60s remaining)
-  const now = Date.now();
-  if (
-    vaultDoc.encrypted_session &&
-    vaultDoc.session_nonce &&
-    vaultDoc.session_wrap_nonce &&
-    vaultDoc.session_wrapped_dek &&
-    vaultDoc.session_expires_at &&
-    vaultDoc.session_expires_at.getTime() > now + 60000
-  ) {
-    try {
-      const sessionBlob: SealedBlob = {
-        nonce: Buffer.from(vaultDoc.session_nonce, 'base64'),
-        ciphertext: Buffer.from(vaultDoc.encrypted_session, 'base64'),
-        wrapNonce: Buffer.from(vaultDoc.session_wrap_nonce, 'base64'),
-        wrappedDek: Buffer.from(vaultDoc.session_wrapped_dek, 'base64'),
-        keyVersion: vaultDoc.key_version,
-      };
-      const sessionDecrypted = open(masterKey, sessionBlob).toString('utf-8');
-      let sessionData: { token: string; access_token?: string | null; user_id?: string | null };
-      try {
-        sessionData = JSON.parse(sessionDecrypted);
-      } catch {
-        sessionData = { token: sessionDecrypted };
-      }
-      return sessionResponse(sessionData);
-    } catch {
-      // If decryption fails, fall through to refresh with Academy
-    }
-  }
-
-  // Decrypt user password from vault
-  let decryptedPassword = '';
+  let plaintext: VaultPlaintext;
   try {
-    const passwordBlob: SealedBlob = {
-      nonce: Buffer.from(vaultDoc.password_nonce, 'base64'),
-      ciphertext: Buffer.from(vaultDoc.encrypted_password, 'base64'),
-      wrapNonce: Buffer.from(vaultDoc.password_wrap_nonce, 'base64'),
-      wrappedDek: Buffer.from(vaultDoc.password_wrapped_dek, 'base64'),
-      keyVersion: vaultDoc.key_version,
-    };
-    decryptedPassword = open(masterKey, passwordBlob).toString('utf-8');
+    const decrypted = open(masterKey, sealedBlob);
+    plaintext = unpackVaultPlaintext(decrypted);
   } catch {
     return NextResponse.json(
       { error: 'forbidden', error_description: 'Vault credentials unreadable' },
       { status: 403 }
     );
+  }
+
+  // Check cached session validity (at least 60s remaining)
+  const now = Date.now();
+  if (
+    plaintext.session?.token &&
+    vaultDoc.session_expires_at &&
+    vaultDoc.session_expires_at.getTime() > now + 60000
+  ) {
+    return sessionResponse(plaintext.session);
   }
 
   const user = await User.findOne({ sub, deleted_at: null });
@@ -221,28 +208,26 @@ export async function POST(request: NextRequest | Request) {
   }
 
   // Refresh Academy session using stored username if available
-  const loginIdentifier = vaultDoc.username || user.prn || user.srn;
+  const loginIdentifier = plaintext.username || user.prn || user.srn;
   const academy = new AcademyClient();
   try {
-    const authResult = await academy.login(loginIdentifier, decryptedPassword);
+    const authResult = await academy.login(loginIdentifier, plaintext.password);
 
     const sessionData = {
       token: authResult.session.token,
-      access_token: authResult.session.accessToken,
-      user_id: authResult.session.userId,
+      access_token: authResult.session.accessToken || null,
+      user_id: authResult.session.userId || null,
     };
 
-    const sessionBlob = seal(
-      masterKey,
-      Buffer.from(JSON.stringify(sessionData), 'utf-8'),
-      1
-    );
+    plaintext.session = sessionData;
+    const newSealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
 
-    vaultDoc.encrypted_session = sessionBlob.ciphertext.toString('base64');
-    vaultDoc.session_nonce = sessionBlob.nonce.toString('base64');
-    vaultDoc.session_wrap_nonce = sessionBlob.wrapNonce.toString('base64');
-    vaultDoc.session_wrapped_dek = sessionBlob.wrappedDek.toString('base64');
-    vaultDoc.session_expires_at = authResult.session.expiresAt || new Date(Date.now() + 24 * 3600 * 1000);
+    vaultDoc.nonce = newSealed.nonce;
+    vaultDoc.ciphertext = newSealed.ciphertext;
+    vaultDoc.wrap_nonce = newSealed.wrapNonce;
+    vaultDoc.wrapped_dek = newSealed.wrappedDek;
+    vaultDoc.key_version = newSealed.keyVersion;
+    vaultDoc.session_expires_at = authResult.session.expiresAt || null;
     vaultDoc.updated_at = new Date();
     await vaultDoc.save();
 

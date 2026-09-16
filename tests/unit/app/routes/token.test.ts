@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as postToken } from '@/app/token/route';
 import { AuthCode, Client, RefreshToken, User } from '@/lib/db/models';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { sha256Hex, hashClientSecret } from '@/lib/crypto/hash';
 import crypto from 'node:crypto';
 
 vi.mock('@/lib/db/connection', () => ({
@@ -192,7 +192,7 @@ describe('Token Endpoint (/token)', () => {
       expect(findAndDeleteSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           code_hash: sha256Hex(rawCode),
-          created_at: expect.objectContaining({ $gt: expect.any(Date) }),
+          expires_at: expect.objectContaining({ $gt: expect.any(Date) }),
         })
       );
     });
@@ -228,7 +228,7 @@ describe('Token Endpoint (/token)', () => {
     it('returns 401 when confidential client credentials are wrong', async () => {
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_conf',
-        client_secret_hash: sha256Hex('correct_secret'),
+        client_secret_hash: await hashClientSecret('correct_secret'),
         token_endpoint_auth_method: 'client_secret_post',
       } as never);
 
@@ -250,7 +250,7 @@ describe('Token Endpoint (/token)', () => {
 
     it('decodes URL-encoded basic auth credentials with colon in secret', async () => {
       const secretWithColon = 'secret:with:colons%26special!';
-      const secretHash = sha256Hex(secretWithColon);
+      const secretHash = await hashClientSecret(secretWithColon);
 
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_special',
@@ -500,11 +500,13 @@ describe('Token Endpoint (/token)', () => {
 
   describe('Client Authentication & Unsupported Grants', () => {
     it('verifies confidential client secret mismatch and missing secret', async () => {
+      const hashedSecret = await hashClientSecret('secret123');
+
       // 1. Missing secret
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_confidential',
         token_endpoint_auth_method: 'client_secret_post',
-        client_secret_hash: sha256Hex('secret123'),
+        client_secret_hash: hashedSecret,
       } as never);
 
       let req = new Request('http://localhost:3000/token', {
@@ -524,7 +526,7 @@ describe('Token Endpoint (/token)', () => {
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_confidential',
         token_endpoint_auth_method: 'client_secret_post',
-        client_secret_hash: sha256Hex('secret123'),
+        client_secret_hash: hashedSecret,
       } as never);
 
       req = new Request('http://localhost:3000/token', {

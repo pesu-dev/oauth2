@@ -106,15 +106,23 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     } as unknown as InstanceType<typeof Consent>);
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
       sub: 'usr_sub',
-      encrypted_session: 'YWJj',
-      session_nonce: 'bm9uY2U=',
-      session_wrap_nonce: 'd3JhcA==',
-      session_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       session_expires_at: new Date(Date.now() + 3600000),
       key_version: 1,
     } as unknown as InstanceType<typeof Vault>);
 
-    mockEnvelopeOpen.mockReturnValue(Buffer.from(JSON.stringify({ token: 'sess_tok_123' })));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS001',
+          password: 'pass',
+          session: { token: 'sess_tok_123' },
+        })
+      )
+    );
 
     const req = new Request('http://localhost:3000/oauth/token-exchange', {
       method: 'POST',
@@ -251,10 +259,10 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     } as unknown as InstanceType<typeof Consent>);
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
       sub: 'usr_sub',
-      encrypted_password: 'YWJj',
-      password_nonce: 'bm9uY2U=',
-      password_wrap_nonce: 'd3JhcA==',
-      password_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       key_version: 1,
     } as unknown as InstanceType<typeof Vault>);
 
@@ -294,15 +302,22 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     } as unknown as InstanceType<typeof Consent>);
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
       sub: 'usr_sub',
-      encrypted_password: 'YWJj',
-      password_nonce: 'bm9uY2U=',
-      password_wrap_nonce: 'd3JhcA==',
-      password_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       key_version: 1,
       session_expires_at: new Date(Date.now() - 10000), // Expired!
     } as unknown as InstanceType<typeof Vault>);
 
-    mockEnvelopeOpen.mockReturnValue(Buffer.from('UserPassword123'));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS001',
+          password: 'UserPassword123',
+        })
+      )
+    );
     vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
 
     const req = new Request('http://localhost:3000/oauth/token-exchange', {
@@ -338,18 +353,24 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
 
     const mockVaultDoc = {
       sub: 'usr_sub',
-      username: 'PES1UG20CS001',
-      encrypted_password: 'YWJj',
-      password_nonce: 'bm9uY2U=',
-      password_wrap_nonce: 'd3JhcA==',
-      password_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       key_version: 1,
       session_expires_at: new Date(Date.now() - 10000),
       save: vi.fn().mockResolvedValue(true),
     };
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(mockVaultDoc as unknown as InstanceType<typeof Vault>);
 
-    mockEnvelopeOpen.mockReturnValue(Buffer.from('UserPassword123'));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS001',
+          password: 'UserPassword123',
+        })
+      )
+    );
     vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_sub' } as unknown as InstanceType<typeof User>);
 
     mockAcademyLogin.mockResolvedValueOnce({
@@ -397,18 +418,24 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
 
     const mockVaultDoc = {
       sub: 'usr_sub',
-      username: 'PES1UG20CS001',
-      encrypted_password: 'YWJj',
-      password_nonce: 'bm9uY2U=',
-      password_wrap_nonce: 'd3JhcA==',
-      password_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       key_version: 1,
       session_expires_at: new Date(Date.now() - 10000),
       save: vi.fn(),
     };
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(mockVaultDoc as unknown as InstanceType<typeof Vault>);
 
-    mockEnvelopeOpen.mockReturnValue(Buffer.from('UserPassword123'));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS001',
+          password: 'UserPassword123',
+        })
+      )
+    );
     vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_sub' } as unknown as InstanceType<typeof User>);
 
     mockAcademyLogin.mockRejectedValueOnce(new Error('Academy down'));
@@ -428,7 +455,7 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     expect(data.error).toBe('academy_unavailable');
   });
 
-  it('handles non-JSON decrypted session by falling back to { token: sessionDecrypted }', async () => {
+  it('returns valid cached session from single-envelope vault', async () => {
     process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
     process.env.FIRST_PARTY_API_CLIENT_ID = 'cli_pesu_api';
     process.env.VAULT_MASTER_KEY = 'valid-vault-master-key-that-is-long-enough-for-hkdf';
@@ -445,16 +472,23 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     } as unknown as InstanceType<typeof Consent>);
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
       sub: 'usr_sub',
-      encrypted_session: 'YWJj',
-      session_nonce: 'bm9uY2U=',
-      session_wrap_nonce: 'd3JhcA==',
-      session_wrapped_dek: 'ZGVr',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
       session_expires_at: new Date(Date.now() + 3600000),
       key_version: 1,
     } as unknown as InstanceType<typeof Vault>);
 
-    // Return non-JSON raw string
-    mockEnvelopeOpen.mockReturnValue(Buffer.from('raw_plain_session_cookie'));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS001',
+          password: 'pass',
+          session: { token: 'raw_plain_session_cookie' },
+        })
+      )
+    );
 
     const req = new Request('http://localhost:3000/oauth/token-exchange', {
       method: 'POST',
@@ -668,12 +702,11 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     const mockSave = vi.fn().mockResolvedValue(true);
     vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({
       sub: 'usr_srn_only',
-      username: undefined,
-      encrypted_password: 'enc_password',
-      password_nonce: 'nonce',
-      password_wrap_nonce: 'wrap',
-      password_wrapped_dek: 'dek',
-      encrypted_session: undefined,
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
+      key_version: 1,
       save: mockSave,
     } as never);
 
@@ -684,7 +717,14 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
       deleted_at: null,
     } as never);
 
-    mockEnvelopeOpen.mockReturnValue(Buffer.from('decrypted_pass', 'utf-8'));
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: '',
+          password: 'decrypted_pass',
+        })
+      )
+    );
     mockAcademyLogin.mockResolvedValueOnce({
       session: {
         token: 'new_tok',

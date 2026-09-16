@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import { connectToDatabase } from '@/lib/db/connection';
 import {
   AuthCode,
@@ -7,7 +6,7 @@ import {
   RefreshToken,
   User,
 } from '@/lib/db/models';
-import { sha256Hex } from '@/lib/crypto/hash';
+import { sha256Hex, verifyClientSecret } from '@/lib/crypto/hash';
 import { verifyPkce } from '@/lib/crypto/pkce';
 import { mintAccessToken, mintIdToken } from '@/lib/oidc/jwt';
 import { getConfig } from '@/lib/config';
@@ -120,13 +119,8 @@ export async function POST(request: NextRequest | Request) {
         401
       );
     }
-    const computedHash = sha256Hex(clientSecret);
-    const hashBuf = Buffer.from(computedHash);
-    const storedBuf = Buffer.from(client.client_secret_hash);
-    if (
-      hashBuf.length !== storedBuf.length ||
-      !crypto.timingSafeEqual(hashBuf, storedBuf)
-    ) {
+    const secretMatches = await verifyClientSecret(clientSecret, client.client_secret_hash);
+    if (!secretMatches) {
       return tokenResponse(
         { error: 'invalid_client', error_description: 'Invalid client credentials' },
         401
@@ -157,10 +151,9 @@ export async function POST(request: NextRequest | Request) {
     }
 
     const codeHash = sha256Hex(code);
-    const cutoff = new Date(Date.now() - config.authorizationCodeTtlSeconds * 1000);
     const authCode = await AuthCode.findOneAndDelete({
       code_hash: codeHash,
-      created_at: { $gt: cutoff },
+      expires_at: { $gt: new Date() },
     });
 
     if (!authCode) {
