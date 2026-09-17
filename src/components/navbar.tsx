@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Shield, Menu, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function Navbar() {
   const pathname = usePathname();
@@ -85,13 +86,14 @@ export function Navbar() {
           </Link>
         )}
         {isAuthenticated ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleLogout}
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+            className="h-auto p-0 font-normal text-sm hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-transparent"
           >
             Sign Out
-          </button>
+          </Button>
         ) : (
           <Link
             href="/login"
@@ -104,14 +106,15 @@ export function Navbar() {
 
       {/* Mobile Menu Trigger */}
       <div className="flex sm:hidden items-center">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          className="h-8 w-8 p-0 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
           aria-label="Toggle navigation menu"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        </Button>
       </div>
 
       {/* Mobile Menu Dropdown */}
@@ -156,16 +159,17 @@ export function Navbar() {
             </Link>
           )}
           {isAuthenticated ? (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleLogout();
-              }}
-              className="text-left text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1 cursor-pointer"
-            >
-              Sign Out
-            </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              handleLogout();
+            }}
+            className="h-auto p-0 py-1 font-normal text-sm text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-transparent justify-start"
+          >
+            Sign Out
+          </Button>
           ) : (
             <Link
               href="/login"

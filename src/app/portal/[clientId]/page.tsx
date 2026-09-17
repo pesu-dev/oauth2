@@ -272,14 +272,15 @@ export default function ClientDetailPage() {
             </div>
             <div className="flex items-center gap-2 font-mono text-xs text-zinc-500 mt-2">
               <span>Client ID: {client.client_id}</span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={copyClientId}
-                className="hover:text-zinc-900 dark:hover:text-zinc-100 p-0.5"
+                className="h-6 w-6 p-0 hover:text-zinc-900 dark:hover:text-zinc-100"
                 title="Copy Client ID"
               >
                 {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -360,13 +361,14 @@ export default function ClientDetailPage() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>New Client Secret Generated</span>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setRotatedSecret(null)}
-              className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium"
+              className="h-auto p-0 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-transparent"
             >
               Dismiss
-            </button>
+            </Button>
           </div>
           <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80">
             Please copy your new secret now. For security reasons, it will not be displayed again.
@@ -621,13 +623,14 @@ export default function ClientDetailPage() {
                   className="flex items-center justify-between p-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 text-xs font-mono"
                 >
                   <span>{t.sub}</span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRemoveTester(t.sub)}
-                    className="text-red-500 hover:text-red-600 p-1"
+                    className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                 </div>
               ))
             )}

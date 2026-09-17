@@ -200,23 +200,25 @@ export default function PortalPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div className="p-3 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-xs break-all flex items-center justify-between">
               <span>{createdSecret.clientId}</span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => copyToClipboard(createdSecret.clientId)}
-                className="ml-2 hover:opacity-70"
+                className="ml-2 h-7 w-7 p-0 hover:opacity-70"
               >
                 <Copy className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </div>
             <div className="p-3 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-xs break-all flex items-center justify-between">
               <span>{createdSecret.secret}</span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => copyToClipboard(createdSecret.secret)}
-                className="ml-2 hover:opacity-70"
+                className="ml-2 h-7 w-7 p-0 hover:opacity-70"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
+              </Button>
             </div>
           </div>
 

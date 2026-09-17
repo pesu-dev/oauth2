@@ -218,12 +218,13 @@ export function DocsClient({
           </div>
 
           {/* Copy Full Spec for LLM Button */}
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() =>
               copyToClipboard(generateFullApiReferenceMarkdown(endpoints, issuerUrl), 'full-spec-sidebar')
             }
-            className="w-full group flex items-center justify-between p-2.5 rounded-xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs transition-all active:scale-[0.98]"
+            className="w-full justify-between border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300"
           >
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-blue-500" />
@@ -236,7 +237,7 @@ export function DocsClient({
             ) : (
               <Copy className="w-3 h-3 text-blue-500 opacity-60 group-hover:opacity-100" />
             )}
-          </button>
+          </Button>
 
           {/* Section: Guides */}
           <div className="space-y-1.5">
@@ -247,19 +248,20 @@ export function DocsClient({
               {filteredGuides.map((guide) => {
                 const isActive = selectedId === guide.id;
                 return (
-                  <button
+                  <Button
                     key={guide.id}
-                    type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => selectItem(guide.id)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
+                    className={`w-full h-auto justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                        ? 'bg-blue-600 text-white hover:bg-blue-600 shadow-xs font-semibold'
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                     }`}
                   >
                     <span>{guide.title}</span>
                     {isActive && <ChevronRight className="w-3 h-3 text-white/80" />}
-                  </button>
+                  </Button>
                 );
               })}
             </nav>
@@ -278,13 +280,14 @@ export function DocsClient({
                   .map((ep) => {
                     const isActive = selectedId === ep.id;
                     return (
-                      <button
+                      <Button
                         key={ep.id}
-                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => selectItem(ep.id)}
-                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-2 ${
+                        className={`w-full h-auto justify-start gap-2 px-2 py-1.5 rounded-lg text-xs font-mono ${
                           isActive
-                            ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                            ? 'bg-blue-600 text-white hover:bg-blue-600 shadow-xs font-semibold'
                             : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                         }`}
                       >
@@ -298,7 +301,7 @@ export function DocsClient({
                           {ep.method}
                         </span>
                         <span className="truncate">{ep.path}</span>
-                      </button>
+                      </Button>
                     );
                   })}
               </nav>
@@ -318,13 +321,14 @@ export function DocsClient({
                     const isGetPost = ep.method.includes('GET / POST');
 
                     return (
-                      <button
+                      <Button
                         key={ep.id}
-                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => selectItem(ep.id)}
-                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-2 ${
+                        className={`w-full h-auto justify-start gap-2 px-2 py-1.5 rounded-lg text-xs font-mono ${
                           isActive
-                            ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                            ? 'bg-blue-600 text-white hover:bg-blue-600 shadow-xs font-semibold'
                             : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                         }`}
                       >
@@ -342,7 +346,7 @@ export function DocsClient({
                           {ep.method}
                         </span>
                         <span className="truncate">{ep.path}</span>
-                      </button>
+                      </Button>
                     );
                   })}
               </nav>
@@ -452,10 +456,11 @@ export function DocsClient({
                   </p>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.03] font-mono text-xs border border-black/5 dark:border-white/5">
                     <span className="text-zinc-800 dark:text-zinc-200 font-semibold break-all">{issuerUrl}</span>
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => copyToClipboard(issuerUrl, 'issuer-url')}
-                      className="px-2.5 py-1 rounded bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-[11px] font-sans font-medium flex items-center gap-1.5 shrink-0 transition-colors"
+                      className="text-[11px] h-7 px-2.5 shrink-0 font-sans"
                     >
                       {copiedId === 'issuer-url' ? (
                         <>
@@ -468,7 +473,7 @@ export function DocsClient({
                           <span>Copy Issuer</span>
                         </>
                       )}
-                    </button>
+                    </Button>
                   </div>
                   <div className="text-xs text-zinc-500 flex items-center gap-1.5 flex-wrap">
                     <span>OpenID Discovery:</span>
@@ -754,18 +759,19 @@ export const { GET, POST } = handlers;`}
                     <code className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 bg-black/5 dark:bg-white/5 px-2.5 py-0.5 rounded-md">
                       {currentEndpoint.path}
                     </code>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       title="Copy endpoint path"
                       onClick={() => copyToClipboard(currentEndpoint.path, `path-${currentEndpoint.id}`)}
-                      className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      className="h-7 w-7 p-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                     >
                       {copiedId === `path-${currentEndpoint.id}` ? (
                         <Check className="w-3.5 h-3.5 text-emerald-500" />
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Stedi-style "Copy for LLM" Button */}
@@ -969,16 +975,17 @@ export const { GET, POST } = handlers;`}
                       const isRedirect = r.status >= 300 && r.status < 400;
 
                       return (
-                        <button
+                        <Button
                           key={rIdx}
-                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() =>
                             setActiveResponseTab((prev) => ({ ...prev, [currentEndpoint.id]: rIdx }))
                           }
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium font-mono transition-all flex items-center gap-1.5 ${
+                          className={`h-auto px-2.5 py-1 rounded-lg text-xs font-medium font-mono gap-1.5 ${
                             isSelected
-                              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-white dark:hover:bg-zinc-800 shadow-xs'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-transparent'
                           }`}
                         >
                           <span
@@ -993,7 +1000,7 @@ export const { GET, POST } = handlers;`}
                           <span>
                             {r.status} {r.statusText}
                           </span>
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -1013,23 +1020,24 @@ export const { GET, POST } = handlers;`}
                           <pre className="overflow-x-auto p-3.5 rounded-lg bg-black/5 dark:bg-black/60 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
                             {JSON.stringify(resp.sample, null, 2)}
                           </pre>
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Copy JSON payload"
                             onClick={() =>
                               copyToClipboard(
                                 JSON.stringify(resp.sample, null, 2),
                                 `resp-${currentEndpoint.id}-${currentRespTab}`
                               )
                             }
-                            title="Copy JSON payload"
-                            className="absolute top-2 right-2 p-1.5 rounded-md bg-white/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
+                            className="absolute top-2 right-2 h-7 w-7 p-0 bg-white/80 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
                           >
                             {copiedId === `resp-${currentEndpoint.id}-${currentRespTab}` ? (
                               <Check className="w-3.5 h-3.5 text-emerald-500" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     );
@@ -1045,45 +1053,48 @@ export const { GET, POST } = handlers;`}
                   </h3>
                   {/* Tab Switcher: Curl vs Fetch vs Python */}
                   <div className="flex items-center gap-1 p-0.5 rounded-lg bg-black/5 dark:bg-white/5 text-[11px] font-medium overflow-x-auto">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         setActiveCodeTab((prev) => ({ ...prev, [currentEndpoint.id]: 'curl' }))
                       }
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`h-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
                         (activeCodeTab[currentEndpoint.id] ?? 'curl') === 'curl'
-                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-white dark:hover:bg-zinc-800 shadow-xs'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-transparent'
                       }`}
                     >
                       cURL
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         setActiveCodeTab((prev) => ({ ...prev, [currentEndpoint.id]: 'fetch' }))
                       }
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`h-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
                         (activeCodeTab[currentEndpoint.id] ?? 'curl') === 'fetch'
-                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-white dark:hover:bg-zinc-800 shadow-xs'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-transparent'
                       }`}
                     >
                       TypeScript (Fetch)
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         setActiveCodeTab((prev) => ({ ...prev, [currentEndpoint.id]: 'python' }))
                       }
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`h-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
                         (activeCodeTab[currentEndpoint.id] ?? 'curl') === 'python'
-                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-white dark:hover:bg-zinc-800 shadow-xs'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-transparent'
                       }`}
                     >
                       Python (requests)
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -1101,20 +1112,21 @@ export const { GET, POST } = handlers;`}
                       <pre className="overflow-x-auto p-4 rounded-xl bg-black/5 dark:bg-black/60 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 border border-black/5 dark:border-white/5">
                         {code}
                       </pre>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Copy code"
                         onClick={() =>
                           copyToClipboard(code, `code-${currentEndpoint.id}-${tab}`)
                         }
-                        title="Copy code"
-                        className="absolute top-2.5 right-2.5 p-1.5 rounded-md bg-white/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
+                        className="absolute top-2.5 right-2.5 h-7 w-7 p-0 bg-white/80 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
                       >
                         {copiedId === `code-${currentEndpoint.id}-${tab}` ? (
                           <Check className="w-3.5 h-3.5 text-emerald-500" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
-                      </button>
+                      </Button>
                     </div>
                   );
                 })()}
@@ -1125,10 +1137,11 @@ export const { GET, POST } = handlers;`}
           {/* Bottom Pagination Links */}
           <div className="pt-8 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-4">
             {prevItem ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => selectItem(prevItem.id)}
-                className="group text-left space-y-0.5 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                className="group h-auto text-left flex-col items-start space-y-0.5 p-2"
               >
                 <div className="flex items-center gap-1 text-[11px] text-zinc-400">
                   <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
@@ -1137,16 +1150,17 @@ export const { GET, POST } = handlers;`}
                 <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                   {prevItem.title}
                 </div>
-              </button>
+              </Button>
             ) : (
               <div />
             )}
 
             {nextItem ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => selectItem(nextItem.id)}
-                className="group text-right space-y-0.5 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                className="group h-auto text-right flex-col items-end space-y-0.5 p-2"
               >
                 <div className="flex items-center justify-end gap-1 text-[11px] text-zinc-400">
                   <span>Next</span>
@@ -1155,7 +1169,7 @@ export const { GET, POST } = handlers;`}
                 <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                   {nextItem.title}
                 </div>
-              </button>
+              </Button>
             ) : (
               <div />
             )}
