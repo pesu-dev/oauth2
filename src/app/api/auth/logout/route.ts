@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
+import { getConfig } from '@/lib/config';
 
 async function performLogout(request: NextRequest) {
+  const config = getConfig();
   const cookieStore = await cookies();
   const pendingCookie = cookieStore.get('pesu_pending')?.value;
 
@@ -20,7 +22,7 @@ async function performLogout(request: NextRequest) {
 
   cookieStore.set('pesu_session', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: config.appEnv !== 'local',
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
@@ -28,7 +30,7 @@ async function performLogout(request: NextRequest) {
 
   cookieStore.set('pesu_pending', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: config.appEnv !== 'local',
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

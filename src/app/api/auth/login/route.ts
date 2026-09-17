@@ -6,6 +6,7 @@ import { createSessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newSub } from '@/lib/id/nanoid';
 import { cookies } from 'next/headers';
+import { getConfig } from '@/lib/config';
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,6 +78,8 @@ export async function POST(request: NextRequest) {
       await user.save();
     }
 
+    const config = getConfig();
+
     // Set signed session token cookie
     const sessionToken = await createSessionToken({
       sub: user.sub,
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     cookieStore.set('pesu_session', sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: config.appEnv !== 'local',
       sameSite: 'lax',
       path: '/',
       maxAge: 1800,
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
 
       cookieStore.set('pesu_pending', pendingCredToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: config.appEnv !== 'local',
         sameSite: 'lax',
         path: '/',
         maxAge: 600,

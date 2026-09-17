@@ -143,6 +143,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     // 5. Clear session cookie
+    const config = getConfig();
     const response = NextResponse.json({
       success: true,
       message: 'Account deleted successfully',
@@ -151,7 +152,7 @@ export async function DELETE(request: NextRequest) {
       path: '/',
       maxAge: 0,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: config.appEnv !== 'local',
       sameSite: 'lax',
     });
 

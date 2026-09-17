@@ -356,7 +356,11 @@ describe('Auth Login Route (/api/auth/login)', () => {
   });
 
   it('handles /authorize without delegated mode, malformed returnTo, and production cookies', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_ENV', 'staging');
+    vi.stubEnv('VAULT_MASTER_KEY', 'x'.repeat(32));
+    vi.stubEnv('TOKEN_EXCHANGE_SECRET', 'x'.repeat(32));
+    vi.stubEnv('SESSION_SECRET', 'pesu-oauth2-session-secret-at-least-32-chars!');
+    vi.stubEnv('TOKEN_SIGNING_KEY_PEM', '-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEIBkg\n-----END EC PRIVATE KEY-----');
 
     try {
       vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValue({

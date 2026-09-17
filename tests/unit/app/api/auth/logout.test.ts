@@ -118,8 +118,12 @@ describe('Auth Logout Route (/api/auth/logout)', () => {
     expect((await res2.json()).redirectTo).toBe('/');
   });
 
-  it('sets secure cookies in production environment', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
+  it('sets secure cookies in non-local environment', async () => {
+    vi.stubEnv('APP_ENV', 'staging');
+    vi.stubEnv('VAULT_MASTER_KEY', 'x'.repeat(32));
+    vi.stubEnv('TOKEN_EXCHANGE_SECRET', 'x'.repeat(32));
+    vi.stubEnv('SESSION_SECRET', 'pesu-oauth2-session-secret-at-least-32-chars!');
+    vi.stubEnv('TOKEN_SIGNING_KEY_PEM', '-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEIBkg\n-----END EC PRIVATE KEY-----');
     mockCookieStore.get.mockReturnValue(undefined);
 
     try {
