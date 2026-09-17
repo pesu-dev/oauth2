@@ -7,14 +7,15 @@ import { getConfig } from '@/lib/config';
 
 async function handleUserInfo(request: NextRequest | Request) {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  const parts = authHeader ? authHeader.split(' ') : [];
+  if (parts.length < 2 || parts[0].toLowerCase() !== 'bearer' || !parts[1]) {
     return NextResponse.json(
       { error: 'invalid_token', error_description: 'Missing or malformed Bearer token' },
       { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } }
     );
   }
 
-  const token = authHeader.slice(7).trim();
+  const token = parts[1].trim();
   const config = getConfig();
 
   let payload;

@@ -91,6 +91,16 @@ export async function proxy(request: NextRequest) {
         );
       }
     }
+
+    const isInternalBrowserApi = PROTECTED_API_PREFIXES.some((prefix) =>
+      pathname.startsWith(prefix)
+    );
+    if (isInternalBrowserApi && !origin && !secFetchSite) {
+      return NextResponse.json(
+        { error: 'Forbidden: missing origin proof' },
+        { status: 403 }
+      );
+    }
   }
 
   // 4. Centralized Protected Routes Authentication

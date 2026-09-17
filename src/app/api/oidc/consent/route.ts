@@ -116,7 +116,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ redirectTo: targetUrl.toString() });
     }
 
-    const scopes = (scope || 'openid').split(' ').filter(Boolean);
+    // Filter requested scopes.
+    // Unknown scopes are silently dropped; missing openid is a hard error.
+    const KNOWN_SCOPES = new Set(['openid', 'profile', 'email', 'phone', 'offline_access']);
+    const rawScopes = (scope || 'openid').split(' ').filter(Boolean);
+    const scopes = rawScopes.filter((s: string) => KNOWN_SCOPES.has(s));
+    if (!scopes.includes('openid')) {
+      return NextResponse.json(
+        { error: 'invalid_scope', error_description: 'OIDC requires the openid scope' },
+        { status: 400 }
+      );
+    }
 
     // Save or update Consent
     await Consent.findOneAndUpdate(

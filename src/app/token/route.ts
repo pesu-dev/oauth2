@@ -145,7 +145,7 @@ export async function POST(request: NextRequest | Request) {
 
     if (!VERIFIER_RE.test(codeVerifier)) {
       return tokenResponse(
-        { error: 'invalid_grant', error_description: 'code_verifier must be 43-128 unreserved ASCII characters' },
+        { error: 'invalid_request', error_description: 'code_verifier must be 43-128 unreserved ASCII characters' },
         400
       );
     }
