@@ -189,12 +189,12 @@ export async function POST(request: NextRequest | Request) {
     );
   }
 
-  // Check cached session validity (at least 60s remaining)
+  // Check cached session validity: return if no expiry set (freshly stored) or at least 60s remaining
   const now = Date.now();
   if (
     plaintext.session?.token &&
-    vaultDoc.session_expires_at &&
-    vaultDoc.session_expires_at.getTime() > now + 60000
+    (!vaultDoc.session_expires_at ||
+      vaultDoc.session_expires_at.getTime() > now + 60000)
   ) {
     return sessionResponse(plaintext.session);
   }
