@@ -46,11 +46,20 @@ check_branch_name() {
     return 0
 }
 
-# Run lint and format checks
+# Run typecheck and lint checks
 run_quality_checks() {
     print_action "Running quality checks..."
 
     if [ -f "$REPO_ROOT/package.json" ]; then
+        if grep -q '"typecheck"' "$REPO_ROOT/package.json"; then
+            print_info "Running pnpm typecheck..."
+            if ! pnpm typecheck; then
+                print_error "pnpm typecheck failed"
+                return 1
+            fi
+            print_success "pnpm typecheck passed"
+        fi
+
         if grep -q '"lint"' "$REPO_ROOT/package.json"; then
             print_info "Running pnpm lint..."
             if ! pnpm lint; then
@@ -61,7 +70,7 @@ run_quality_checks() {
         fi
         return 0
     else
-        print_info "No package.json in root; skipping lint."
+        print_info "No package.json in root; skipping quality checks."
         return 0
     fi
 }
