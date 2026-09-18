@@ -18,7 +18,7 @@ function computeExpiresAt(ttlSeconds: number): Date {
   return new Date(Date.now() + ttlSeconds * 1000);
 }
 
-function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
+export function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(rawParams)) {
     if (value !== undefined && value !== null && value !== '') {

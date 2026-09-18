@@ -93,23 +93,20 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, client });
   }
 
-  if (action === 'unsuspend') {
-    const validStatus = ['testing', 'production'].includes(targetStatus) ? targetStatus : 'testing';
-    client.publishing_status = validStatus;
-    client.suspension_reason = null;
-    client.suspended_at = null;
-    client.suspended_by_sub = null;
-    client.updated_at = now;
-    await client.save();
+  // action === 'unsuspend'
+  const validStatus = ['testing', 'production'].includes(targetStatus) ? targetStatus : 'testing';
+  client.publishing_status = validStatus;
+  client.suspension_reason = null;
+  client.suspended_at = null;
+  client.suspended_by_sub = null;
+  client.updated_at = now;
+  await client.save();
 
-    notifySubQuietly({
-      sub: client.owner_sub,
-      subject: `${client.name} has been reinstated`,
-      body: `Your client application ${client.name} (${client.client_id}) has been reinstated to ${validStatus} status.`,
-    });
+  notifySubQuietly({
+    sub: client.owner_sub,
+    subject: `${client.name} has been reinstated`,
+    body: `Your client application ${client.name} (${client.client_id}) has been reinstated to ${validStatus} status.`,
+  });
 
-    return NextResponse.json({ success: true, client });
-  }
-
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ success: true, client });
 }

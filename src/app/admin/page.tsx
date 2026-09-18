@@ -113,7 +113,7 @@ export default function AdminPage() {
 
   const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
     try {
-      const allowDelegated = delegatedToggles[requestId] ?? false;
+      const allowDelegated = Boolean(delegatedToggles[requestId]);
       const res = await fetch('/api/internal/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

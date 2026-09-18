@@ -761,6 +761,86 @@ describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
     const res = await postExchange(req);
     expect(res.status).toBe(401);
   });
+
+  it('handles request with no Content-Type header', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+    const req = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+      },
+    });
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_request');
+  });
+
+  it('handles academy session refresh when accessToken and userId are missing (null fallback)', async () => {
+    process.env.TOKEN_EXCHANGE_SECRET = 'valid-secret';
+    process.env.FIRST_PARTY_API_CLIENT_ID = 'cli_pesu_api';
+    process.env.VAULT_MASTER_KEY = 'valid-vault-master-key-that-is-long-enough-for-hkdf';
+
+    vi.spyOn(jwtHelper, 'verifyAccessToken').mockResolvedValueOnce({
+      sub: 'usr_null_fields',
+      client_id: 'cli_pesu_api',
+      scope: 'openid',
+    });
+    vi.spyOn(Consent, 'findOne').mockResolvedValueOnce({
+      sub: 'usr_null_fields',
+      client_id: 'cli_pesu_api',
+      mode: 'delegated',
+    } as unknown as InstanceType<typeof Consent>);
+
+    const mockVaultDoc = {
+      sub: 'usr_null_fields',
+      nonce: Buffer.alloc(12),
+      ciphertext: Buffer.alloc(32),
+      wrap_nonce: Buffer.alloc(12),
+      wrapped_dek: Buffer.alloc(48),
+      session_expires_at: new Date(Date.now() - 1000), // expired
+      key_version: 1,
+      save: vi.fn().mockResolvedValue(true),
+    };
+    vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(mockVaultDoc as unknown as InstanceType<typeof Vault>);
+
+    mockEnvelopeOpen.mockReturnValue(
+      Buffer.from(
+        JSON.stringify({
+          username: 'PES1UG20CS999',
+          password: 'UserPassword123',
+        })
+      )
+    );
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_null_fields' } as unknown as InstanceType<typeof User>);
+
+    mockAcademyLogin.mockResolvedValueOnce({
+      session: {
+        token: 'new_acad_token',
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      },
+    });
+
+    const req = new Request('http://localhost:3000/oauth/token-exchange', {
+      method: 'POST',
+      headers: {
+        'x-token-exchange-secret': 'valid-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ access_token: 'valid_jwt' }),
+    });
+
+    const res = await postExchange(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.token).toBe('new_acad_token');
+    expect(data).not.toHaveProperty('access_token');
+    expect(data).not.toHaveProperty('user_id');
+  });
 });
+
 
 

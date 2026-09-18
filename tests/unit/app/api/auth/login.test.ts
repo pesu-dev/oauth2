@@ -355,6 +355,39 @@ describe('Auth Login Route (/api/auth/login)', () => {
     expect(mockUser.save).toHaveBeenCalled();
   });
 
+  it('updates existing user when profile has prn but no srn', async () => {
+    vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+      profile: {
+        name: 'Updated Name',
+        prn: 'PES1UG20CS999',
+        srn: null,
+      },
+      session: {
+        token: 'sess_token',
+      },
+    } as never);
+
+    const mockUser = {
+      sub: 'usr_existing_no_srn',
+      name: 'Old Name',
+      prn: 'PES1UG20CS999',
+      srn: 'PES1202099999',
+      save: vi.fn().mockResolvedValue(true),
+    };
+    vi.spyOn(User, 'findOne').mockResolvedValueOnce(mockUser as never);
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'PES1UG20CS999', password: 'password' }),
+    });
+
+    const res = await postLogin(req);
+    expect(res.status).toBe(200);
+    expect(mockUser.name).toBe('Updated Name');
+    expect(mockUser.save).toHaveBeenCalled();
+  });
+
   it('handles /authorize without delegated mode, malformed returnTo, and production cookies', async () => {
     vi.stubEnv('APP_ENV', 'staging');
     vi.stubEnv('VAULT_MASTER_KEY', 'x'.repeat(32));

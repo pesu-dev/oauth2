@@ -4,6 +4,26 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import React from 'react';
 import PortalPage from '@/app/portal/page';
 
+vi.mock('@/components/ui/drawer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/drawer')>();
+  const MockDrawer = ({ children, open, onOpenChange, ...props }: React.ComponentProps<typeof actual.Drawer>) => {
+    const Component = actual.Drawer;
+    return (
+      <div data-testid="mock-drawer">
+        <button type="button" data-testid="drawer-trigger-true" onClick={() => onOpenChange?.(true)}>Open Drawer True</button>
+        <button type="button" data-testid="drawer-trigger-false" onClick={() => onOpenChange?.(false)}>Close Drawer False</button>
+        <Component open={open} onOpenChange={onOpenChange} {...props}>
+          {children}
+        </Component>
+      </div>
+    );
+  };
+  return {
+    ...actual,
+    Drawer: MockDrawer,
+  };
+});
+
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -19,6 +39,7 @@ beforeAll(() => {
     })),
   });
 });
+
 
 describe('PortalPage Component', () => {
   beforeEach(() => {
@@ -302,4 +323,23 @@ describe('PortalPage Component', () => {
       expect(screen.getByText('Error creating app')).toBeDefined();
     });
   });
+
+  it('resets acceptedTerms and createError when drawer is closed via onOpenChange', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ clients: [] }),
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Register Application')).toBeDefined();
+    });
+
+    // Trigger onOpenChange(true)
+    fireEvent.click(screen.getByTestId('drawer-trigger-true'));
+
+    // Trigger onOpenChange(false)
+    fireEvent.click(screen.getByTestId('drawer-trigger-false'));
+  });
 });
+

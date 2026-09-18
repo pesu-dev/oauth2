@@ -391,10 +391,14 @@ describe('DocsPage & DocsClient', () => {
     // 5. Test copiedId timeout where current !== id
     vi.useFakeTimers();
     try {
-      fireEvent.click(copyPathBtn);
+      await act(async () => {
+        fireEvent.click(copyPathBtn);
+      });
       // Change copiedId to something else before timer expires
       const copyLlmBtn = screen.getByRole('button', { name: /^copy for llm$/i });
-      fireEvent.click(copyLlmBtn);
+      await act(async () => {
+        fireEvent.click(copyLlmBtn);
+      });
       act(() => {
         vi.advanceTimersByTime(2100);
       });
@@ -402,4 +406,59 @@ describe('DocsPage & DocsClient', () => {
       vi.useRealTimers();
     }
   });
+
+  it('renders Overview when defaultSelectedId is not in allNavItems', () => {
+    render(<DocsClient defaultSelectedId="nonexistent-id" />);
+    // In mobile header, it renders the fallback 'Overview'
+    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
+  });
+
+  it('handles full-spec-sidebar copy button and its active check icon state', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    render(<DocsClient />);
+    const copyFullBtn = screen.getByRole('button', { name: /copy for llm \(full\)/i });
+    expect(copyFullBtn).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(copyFullBtn);
+    });
+    expect(screen.getByText('Copied Full Spec!')).toBeDefined();
+  });
+
+  it('handles clipboard fallback via document.execCommand and advances timer', async () => {
+    vi.useFakeTimers();
+    try {
+      // Force clipboard.writeText to throw to hit catch block
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockRejectedValue(new Error('no clipboard')),
+        },
+      });
+      document.execCommand = vi.fn().mockReturnValue(true);
+
+      render(<DocsClient />);
+      const copyFullBtn = screen.getByRole('button', { name: /copy for llm \(full\)/i });
+      await act(async () => {
+        fireEvent.click(copyFullBtn);
+      });
+
+      expect(document.execCommand).toHaveBeenCalledWith('copy');
+      expect(screen.getByText('Copied Full Spec!')).toBeDefined();
+
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+
+      expect(screen.getByText('Copy for LLM (Full)')).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+

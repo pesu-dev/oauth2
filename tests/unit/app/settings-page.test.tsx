@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import SettingsPage from '@/app/settings/page';
 
@@ -147,12 +147,12 @@ describe('SettingsPage Component', () => {
   });
 
   it('renders identity-only mode when user has no vault and handles empty consents', async () => {
+    const settingsWithoutConsents = { ...mockSettingsData, consents: undefined };
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        ...mockSettingsData,
+        ...settingsWithoutConsents,
         hasVault: false,
-        consents: [],
       }),
     });
 
@@ -420,7 +420,7 @@ describe('SettingsPage Component', () => {
   });
 
   it('handles delete vault failure gracefully with ok: false', async () => {
-    window.confirm = vi.fn().mockReturnValue(true);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (init?.method === 'DELETE' && url.includes('action=vault')) {
         return { ok: false, json: async () => ({ error: 'Delete failed' }) };
@@ -433,7 +433,36 @@ describe('SettingsPage Component', () => {
       expect(screen.getByText('Delete Vault')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByText('Delete Vault'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Delete Vault'));
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/internal/settings?action=vault', { method: 'DELETE' });
+  });
+
+  it('proceeds with delete vault when window.confirm is undefined', async () => {
+    const originalConfirm = window.confirm;
+    // @ts-expect-error testing missing window.confirm
+    delete window.confirm;
+
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE' && url.includes('action=vault')) {
+        return { ok: true, json: async () => ({ success: true }) };
+      }
+      return { ok: true, json: async () => mockSettingsData };
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Delete Vault')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Delete Vault'));
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/internal/settings?action=vault', { method: 'DELETE' });
+    window.confirm = originalConfirm;
   });
 });
 

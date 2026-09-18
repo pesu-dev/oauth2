@@ -372,7 +372,7 @@ describe('Settings API (/api/settings)', () => {
         profile: { prn: undefined, srn: 'PES1202099999' },
       } as never);
 
-      const vaultUpsertSpy = vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      const vaultUpsertSpy = vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValue({} as never);
 
       const req2 = new NextRequest('http://localhost:3000/api/settings', {
         method: 'PATCH',
@@ -389,6 +389,25 @@ describe('Settings API (/api/settings)', () => {
         }),
         expect.any(Object)
       );
+
+      // 3. Token is completely empty/falsy -> session evaluates to null
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_srn',
+        prn: 'PES1UG20CS001',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_srn' } as never);
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+        session: { token: '', accessToken: undefined, userId: undefined, expiresAt: undefined },
+        profile: { prn: 'PES1UG20CS001' },
+      } as never);
+
+      const req3 = new NextRequest('http://localhost:3000/api/settings', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: 'pwd' }),
+      });
+      const res3 = await patchSettings(req3);
+      expect(res3.status).toBe(200);
     });
 
     it('handles DELETE account with confirm in searchParams, broken json, and missing client in consent revoke', async () => {

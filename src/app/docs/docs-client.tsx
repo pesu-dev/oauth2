@@ -73,14 +73,24 @@ const GUIDES: GuideDoc[] = [
   },
 ];
 
+function getMethodBadgeClass(method: string, isActive: boolean): string {
+  if (isActive) return 'bg-white/20 text-white';
+  if (method.includes('GET / POST')) return 'bg-sky-500/10 text-sky-600 dark:text-sky-400';
+  if (method.includes('POST')) return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+  return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
+}
+
+
 interface DocsClientProps {
   issuerUrl?: string;
+  defaultSelectedId?: string;
 }
 
 export function DocsClient({
   issuerUrl = DEFAULT_PROD_ISSUER_URL,
+  defaultSelectedId = 'overview',
 }: DocsClientProps) {
-  const [selectedId, setSelectedId] = React.useState<string>('overview');
+  const [selectedId, setSelectedId] = React.useState<string>(defaultSelectedId);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [activeResponseTab, setActiveResponseTab] = React.useState<Record<string, number>>({});
@@ -116,19 +126,13 @@ export function DocsClient({
   const selectItem = (id: string) => {
     setSelectedId(id);
     setMobileMenuOpen(false);
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#${id}`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    window.history.replaceState(null, '', `#${id}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => {
-        setCopiedId((current) => (current === id ? null : current));
-      }, 2000);
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = text;
@@ -136,11 +140,11 @@ export function DocsClient({
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopiedId(id);
-      setTimeout(() => {
-        setCopiedId((current) => (current === id ? null : current));
-      }, 2000);
     }
+    setCopiedId(id);
+    setTimeout(() => {
+      setCopiedId((current) => (current === id ? null : current));
+    }, 2000);
   };
 
   // Filter items based on search query
@@ -309,11 +313,10 @@ export function DocsClient({
                         }`}
                       >
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${getMethodBadgeClass(
+                            ep.method,
                             isActive
-                              ? 'bg-white/20 text-white'
-                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          }`}
+                          )}`}
                         >
                           {ep.method}
                         </span>
@@ -334,8 +337,6 @@ export function DocsClient({
                   .filter((ep) => ep.category === 'Authentication & Tokens')
                   .map((ep) => {
                     const isActive = selectedId === ep.id;
-                    const isPost = ep.method.includes('POST');
-                    const isGetPost = ep.method.includes('GET / POST');
 
                     return (
                       <Button
@@ -350,15 +351,10 @@ export function DocsClient({
                         }`}
                       >
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${getMethodBadgeClass(
+                            ep.method,
                             isActive
-                              ? 'bg-white/20 text-white'
-                              : isGetPost
-                              ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
-                              : isPost
-                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          }`}
+                          )}`}
                         >
                           {ep.method}
                         </span>
@@ -394,8 +390,6 @@ export function DocsClient({
                   .filter((ep) => ep.category === 'Resource Server')
                   .map((ep) => {
                     const isActive = selectedId === ep.id;
-                    const isPost = ep.method.includes('POST');
-                    const isGetPost = ep.method.includes('GET / POST');
                     const displayPath = ep.path.replace(/\/api\/v\d+\//, '/api/');
 
                     return (
@@ -411,15 +405,10 @@ export function DocsClient({
                         }`}
                       >
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${getMethodBadgeClass(
+                            ep.method,
                             isActive
-                              ? 'bg-white/20 text-white'
-                              : isGetPost
-                              ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
-                              : isPost
-                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          }`}
+                          )}`}
                         >
                           {ep.method}
                         </span>

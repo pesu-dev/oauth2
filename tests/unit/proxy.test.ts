@@ -276,5 +276,50 @@ describe('Next.js Proxy', () => {
       const data = await res.json();
       expect(data.error).toContain('cross-origin requests are not allowed');
     });
+
+    it('blocks mutating API request when internal browser API has no origin and no sec-fetch-site', async () => {
+      const req = new NextRequest('http://localhost:3000/api/internal/portal/clients', {
+        method: 'POST',
+        headers: {
+          host: 'localhost:3000',
+          cookie: 'pesu_session=valid',
+        },
+      });
+
+      const res = await proxy(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe('Forbidden: missing origin proof');
+    });
+
+    it('allows mutating API request when origin is present but host header is missing', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
+
+      const req = new NextRequest('http://localhost:3000/api/internal/portal/clients', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3000',
+          cookie: 'pesu_session=valid',
+        },
+      });
+      // Delete host header if possible or rely on empty host
+      req.headers.delete('host');
+
+      const res = await proxy(req);
+      expect(res.status).toBe(200);
+    });
+
+    it('handles session without name property', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_noname' });
+
+      const req = new NextRequest('http://localhost:3000/portal', {
+        headers: {
+          cookie: 'pesu_session=valid',
+        },
+      });
+      const res = await proxy(req);
+      expect(res.status).toBe(200);
+    });
   });
 });
+

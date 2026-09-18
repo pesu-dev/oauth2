@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import AuthorizePage from '@/app/oauth2/authorize/page';
+import AuthorizePage, { buildAuthorizeUrl } from '@/app/oauth2/authorize/page';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { Client, ClientTester, Consent, AuthCode, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
@@ -811,5 +811,141 @@ describe('Authorize Page & Consent', () => {
       const { container } = render(res as React.ReactElement);
       expect(container.textContent).toContain('A valid openid scope is required');
     });
+
+    it('covers all pending credential variations and empty buildAuthorizeUrl', async () => {
+      // 1. Test buildAuthorizeUrl with empty query when redirecting to login
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue(null);
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_empty_params',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: false,
+      } as never);
+
+      // searchParams with all empty/undefined
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_empty_params',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+            state: '',
+            nonce: '',
+            mode: '',
+          }),
+        })
+      ).rejects.toThrow('REDIRECT:');
+
+      // 2. Test pending credentials with full details (accessToken, userId, expiresAt)
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test_full_pending',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOne').mockResolvedValue({
+        sub: 'usr_full_pending',
+        client_id: 'cli_test_full_pending',
+        scopes: ['openid'],
+        mode: 'delegated',
+      } as never);
+
+      const credIdFull = pendingCredentialStore.put({
+        username: 'custom_user',
+        password: 'pwd',
+        sessionToken: 'sess_tok',
+        accessToken: 'acc_tok',
+        userId: 'user_123',
+        expiresAt: new Date(Date.now() + 10000),
+      });
+
+      mockCookieMap.set('pesu_session', 'valid_session');
+      mockCookieMap.set('pesu_pending', 'valid_pending');
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'valid_pending') return { sub: 'usr_full_pending', cred_id: credIdFull };
+        return { sub: 'usr_full_pending', name: 'Full' };
+      });
+
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+      vi.spyOn(Vault, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_test_full_pending',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+            mode: 'delegated',
+          }),
+        })
+      ).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+
+      // 3. Test pending credentials without sessionToken and without username (falls back to session.sub)
+      const credIdMinimal = pendingCredentialStore.put({
+        username: '',
+        password: 'pwd',
+        sessionToken: undefined,
+        accessToken: undefined,
+        userId: undefined,
+        expiresAt: undefined,
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'valid_pending') return { sub: 'usr_full_pending', cred_id: credIdMinimal };
+        return { sub: 'usr_full_pending', name: 'Full' };
+      });
+
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_test_full_pending',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+            mode: 'delegated',
+          }),
+        })
+      ).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+
+      // 4. Test pending credentials without password (skips vault sealing)
+      const credIdNoPwd = pendingCredentialStore.put({
+        username: 'usr_nopwd',
+        password: '',
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'valid_pending') return { sub: 'usr_full_pending', cred_id: credIdNoPwd };
+        return { sub: 'usr_full_pending', name: 'Full' };
+      });
+
+      await expect(
+        AuthorizePage({
+          searchParams: Promise.resolve({
+            client_id: 'cli_test_full_pending',
+            redirect_uri: 'https://app.pesu.edu/callback',
+            response_type: 'code',
+            code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+            code_challenge_method: 'S256',
+            scope: 'openid',
+            mode: 'delegated',
+          }),
+        })
+      ).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+
+      // 5. Direct test for buildAuthorizeUrl with empty params
+      expect(buildAuthorizeUrl({})).toBe('/authorize');
+    });
   });
 });
+
+

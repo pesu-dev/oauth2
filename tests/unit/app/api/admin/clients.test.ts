@@ -250,5 +250,46 @@ describe('Admin Clients API (/api/admin/clients)', () => {
         })
       );
     });
+
+    it('unsuspends with targetStatus production or fallback to testing', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_admin' });
+      vi.spyOn(Admin, 'findOne').mockResolvedValue({ sub: 'usr_admin' } as never);
+
+      const mockClient = {
+        client_id: 'cli_1',
+        name: 'Prod App',
+        owner_sub: 'usr_dev',
+        publishing_status: 'suspended',
+        save: vi.fn().mockResolvedValue(true),
+      };
+      vi.spyOn(Client, 'findOne').mockResolvedValue(mockClient as never);
+
+      // targetStatus: production
+      const req1 = new NextRequest('http://localhost:3000/api/admin/clients', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_1',
+          action: 'unsuspend',
+          targetStatus: 'production',
+        }),
+      });
+      const res1 = await PATCH(req1);
+      expect(res1.status).toBe(200);
+      expect(mockClient.publishing_status).toBe('production');
+
+      // targetStatus: omitted (falls back to testing)
+      const req2 = new NextRequest('http://localhost:3000/api/admin/clients', {
+        method: 'PATCH',
+        headers: { cookie: 'pesu_session=valid', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_1',
+          action: 'unsuspend',
+        }),
+      });
+      const res2 = await PATCH(req2);
+      expect(res2.status).toBe(200);
+      expect(mockClient.publishing_status).toBe('testing');
+    });
   });
 });

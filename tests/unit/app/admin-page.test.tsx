@@ -4,6 +4,26 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import AdminPage from '@/app/admin/page';
 
+vi.mock('@/components/ui/drawer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/drawer')>();
+  const MockDrawer = ({ children, open, onOpenChange, ...props }: React.ComponentProps<typeof actual.Drawer>) => {
+    const Component = actual.Drawer;
+    return (
+      <div data-testid="mock-drawer">
+        <button type="button" data-testid="drawer-trigger-true" onClick={() => onOpenChange?.(true)}>Open Drawer True</button>
+        <button type="button" data-testid="drawer-trigger-false" onClick={() => onOpenChange?.(false)}>Close Drawer False</button>
+        <Component open={open} onOpenChange={onOpenChange} {...props}>
+          {children}
+        </Component>
+      </div>
+    );
+  };
+  return {
+    ...actual,
+    Drawer: MockDrawer,
+  };
+});
+
 describe('AdminPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -253,6 +273,144 @@ describe('AdminPage Component', () => {
             reason: 'Spamming credentials',
           }),
         })
+      );
+    });
+
+    // Search input change and submit
+    const searchInput = screen.getByPlaceholderText('Search clients by name, ID, or owner...');
+    fireEvent.change(searchInput, { target: { value: 'Active' } });
+    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/admin/clients?q=Active');
+    });
+
+    // Switch back to Production Queue tab (line 205)
+    const requestsTabBtn = screen.getByRole('button', { name: /production queue/i });
+    fireEvent.click(requestsTabBtn);
+    expect(screen.getByText('No Pending Requests')).toBeDefined();
+
+    // Switch back to clients tab
+    fireEvent.click(clientsTabBtn);
+
+    // Open suspend drawer again, test drawer trigger true & false (line 404)
+    fireEvent.click(screen.getByRole('button', { name: /^suspend/i }));
+    expect(screen.getByText('Suspend Application')).toBeDefined();
+
+    fireEvent.click(screen.getByTestId('drawer-trigger-true'));
+    expect(screen.getByText('Suspend Application')).toBeDefined();
+
+    fireEvent.click(screen.getByTestId('drawer-trigger-false'));
+    await waitFor(() => {
+      expect(screen.queryByText('Suspend Application')).toBeNull();
+    });
+  });
+
+  it('renders No Clients Found when clients list is empty and handles clients fetch without clients field', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/api/internal/admin/clients')) {
+        return { ok: true, json: async () => ({}) }; // missing clients field -> fallback to []
+      }
+      return { ok: true, json: async () => ({ requests: [] }) };
+    });
+
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading admin queue...')).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /all clients/i }));
+    await waitFor(() => {
+      expect(screen.getByText('No Clients Found')).toBeDefined();
+      expect(screen.getByText('No client applications match your search criteria.')).toBeDefined();
+    });
+  });
+
+  it('handles catch blocks on initial fetch', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Init fetch failed'));
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading admin queue...')).toBeNull();
+    });
+  });
+
+  it('handles PATCH failure on unsuspend and suspend, and empty suspend reason', async () => {
+    // 2. Suspended client with null suspension reason, PATCH unsuspend failure, PATCH suspend failure
+    const mockClients = [
+      {
+        client_id: 'cli_suspended_no_reason',
+        name: 'Suspended No Reason App',
+        owner_sub: 'usr_dev',
+        publishing_status: 'suspended',
+        delegated_allowed: false,
+        redirect_uris: ['http://localhost:3000/cb'],
+        suspension_reason: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        client_id: 'cli_to_fail_suspend',
+        name: 'Fail Suspend App',
+        owner_sub: 'usr_dev',
+        publishing_status: 'production',
+        delegated_allowed: false,
+        redirect_uris: ['http://localhost:3000/cb'],
+        suspension_reason: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (typeof url === 'string' && url.includes('/api/internal/admin/clients')) {
+        if (init?.method === 'PATCH') {
+          return { ok: false, json: async () => ({ error: 'Action failed' }) };
+        }
+        return { ok: true, json: async () => ({ clients: mockClients }) };
+      }
+      return { ok: true, json: async () => ({ requests: [] }) };
+    });
+
+    render(<AdminPage />);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading admin queue...')).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /all clients/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Suspended No Reason App')).toBeDefined();
+      expect(screen.queryByText('Suspension Reason:')).toBeNull();
+    });
+
+    // Click Unsuspend when PATCH returns ok: false
+    fireEvent.click(screen.getAllByRole('button', { name: /unsuspend/i })[0]);
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/internal/admin/clients',
+        expect.objectContaining({ method: 'PATCH' })
+      );
+    });
+
+    // Open Suspend drawer, test empty reason submit (form prevent)
+    fireEvent.click(screen.getByRole('button', { name: /^suspend/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Suspend Application')).toBeDefined();
+    });
+
+    const form = screen.getByRole('button', { name: /confirm suspension/i }).closest('form')!;
+    fireEvent.submit(form); // whitespace or empty reason returns early
+
+    // Enter whitespace only
+    const reasonInput = screen.getByPlaceholderText(/e\.g\. Terms violation/i);
+    fireEvent.change(reasonInput, { target: { value: '   ' } });
+    fireEvent.submit(form);
+
+    // Enter valid reason but PATCH fails
+    fireEvent.change(reasonInput, { target: { value: 'Legit reason' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirm suspension/i }));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/internal/admin/clients',
+        expect.objectContaining({ method: 'PATCH' })
       );
     });
   });
