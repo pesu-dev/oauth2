@@ -30,6 +30,12 @@ Tests directly mirror the `src/` directory layout:
   - `delegated-exchange.test.ts`: Delegated envelope encryption, vault persistence, and `/oauth/token-exchange`.
   - `production-gate.test.ts`: Testing mode gates, tester addition, and admin review queue approval.
   - `settings-lifecycle.test.ts`: Consent revocation, vault credential purging, and account tombstoning.
+  - `admin-suspension.test.ts`: Live client suspension, consent blocking, and administrative reinstatement.
+  - `multi-client-isolation.test.ts`: Multi-client authorization code, refresh token, and tenant boundary isolation.
+  - `concurrency-races.test.ts`: Atomic single-use code exchange and race condition detection under parallel requests.
+  - `client-secret-rotation.test.ts`: Live client secret rotation and immediate credential hash invalidation.
+  - `vault-password-update.test.ts`: Vault resealing and credential lifecycle across user password changes.
+  - `tombstoned-user-cleanup.test.ts`: Tombstoned user state and live token invalidation across all endpoints.
 - `tests/unit/`:
   - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.
     - `api/admin/`:
