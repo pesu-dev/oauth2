@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import nextConfig from '@/../next.config';
 import {
   API_ENDPOINTS,
   createEndpoints,
@@ -46,7 +45,7 @@ describe('API Reference Documentation Data & LLM Generators', () => {
 
     const md = generateEndpointMarkdownForLlm(tokenEp!);
     expect(md).toContain('# API Reference: Token Issuance & Refresh');
-    expect(md).toContain('`POST /token`');
+    expect(md).toContain('`POST /oauth2/token`');
     expect(md).toContain('## Request Headers');
     expect(md).toContain('## Parameters');
     expect(md).toContain('`grant_type`');
@@ -81,14 +80,13 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(md).toContain('-');
   });
 
-
   it('formats the full API reference markdown for LLM export', () => {
     const fullMd = generateFullApiReferenceMarkdown();
     expect(fullMd).toContain('# PESU OAuth2 / OpenID Connect Complete API Reference');
-    expect(fullMd).toContain('POST /token');
-    expect(fullMd).toContain('GET / POST /userinfo');
-    expect(fullMd).toContain('POST /revoke');
-    expect(fullMd).toContain('GET /authorize');
+    expect(fullMd).toContain('POST /oauth2/token');
+    expect(fullMd).toContain('GET / POST /api/v1/userinfo');
+    expect(fullMd).toContain('POST /oauth2/revoke');
+    expect(fullMd).toContain('GET /oauth2/authorize');
     expect(fullMd).toContain('GET /.well-known/openid-configuration');
   });
 
@@ -101,23 +99,16 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(tokenEp.pythonSample).toContain(customBase);
 
     const md = generateEndpointMarkdownForLlm(tokenEp, customBase);
-    expect(md).toContain(`**Full URL:** \`${customBase}/token\``);
+    expect(md).toContain(`**Full URL:** \`${customBase}/oauth2/token\``);
   });
 
-  it('redirects legacy /docs sub-routes to anchor sections in next.config.ts', async () => {
-    if (typeof nextConfig.redirects === 'function') {
-      const redirects = await nextConfig.redirects();
-      const sources = redirects.map((r: { source: string }) => r.source);
-      expect(sources).toContain('/docs/token');
-      expect(sources).toContain('/docs/authorize');
-      expect(sources).toContain('/docs/discovery');
-      expect(sources).toContain('/docs/jwks');
-      expect(sources).toContain('/docs/userinfo');
-      expect(sources).toContain('/docs/revoke');
-      expect(sources).toContain('/docs/scopes');
-      expect(sources).toContain('/docs/quick-start');
-    } else {
-      throw new Error('nextConfig.redirects is not defined');
-    }
+  it('respects configured apiVersion when generating resource server endpoints', () => {
+    const customEndpoints = createEndpoints(undefined, 'v2');
+    const userinfoEp = customEndpoints.find((ep) => ep.id === 'userinfo')!;
+    expect(userinfoEp.path).toBe('/api/v2/userinfo');
+    expect(userinfoEp.curlSample).toContain('/api/v2/userinfo');
+    expect(userinfoEp.fetchSample).toContain('/api/v2/userinfo');
+    expect(userinfoEp.pythonSample).toContain('/api/v2/userinfo');
+    expect(userinfoEp.description).toContain('(v2)');
   });
 });

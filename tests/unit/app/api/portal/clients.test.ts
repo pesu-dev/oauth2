@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET as getClients, POST as postClient } from '@/app/api/portal/clients/route';
-import { GET as getClient, PATCH as updateClient } from '@/app/api/portal/clients/[clientId]/route';
+import { GET as getClients, POST as postClient } from '@/app/api/internal/portal/clients/route';
+import { GET as getClient, PATCH as updateClient } from '@/app/api/internal/portal/clients/[clientId]/route';
 import { Client, ClientTester } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 

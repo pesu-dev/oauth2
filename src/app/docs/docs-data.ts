@@ -24,7 +24,7 @@ export interface EndpointDoc {
   summary: string;
   description: string;
   auth: string;
-  category: 'Discovery & Keys' | 'Authentication & Tokens';
+  category: 'Discovery & Keys' | 'Authentication & Tokens' | 'Resource Server';
   headers: ParamDoc[];
   params: ParamDoc[];
   responses: ResponseDoc[];
@@ -34,8 +34,13 @@ export interface EndpointDoc {
 }
 
 export const DEFAULT_PROD_ISSUER_URL = 'https://oauth2-prod-66snrlj46a-uc.a.run.app';
+export const CURRENT_API_VERSION = 'v1';
+export const AVAILABLE_API_VERSIONS = ['v1'] as const;
 
-export function createEndpoints(baseUrl: string = DEFAULT_PROD_ISSUER_URL): EndpointDoc[] {
+export function createEndpoints(
+  baseUrl: string = DEFAULT_PROD_ISSUER_URL,
+  apiVersion: string = CURRENT_API_VERSION
+): EndpointDoc[] {
   const cleanBase = baseUrl.replace(/\/+$/, '');
 
   return [
@@ -67,11 +72,11 @@ export function createEndpoints(baseUrl: string = DEFAULT_PROD_ISSUER_URL): Endp
           description: 'Successfully retrieved server discovery metadata.',
           sample: {
             issuer: cleanBase,
-            authorization_endpoint: `${cleanBase}/authorize`,
-            token_endpoint: `${cleanBase}/token`,
-            userinfo_endpoint: `${cleanBase}/userinfo`,
+            authorization_endpoint: `${cleanBase}/oauth2/authorize`,
+            token_endpoint: `${cleanBase}/oauth2/token`,
+            userinfo_endpoint: `${cleanBase}/api/v1/userinfo`,
             jwks_uri: `${cleanBase}/jwks.json`,
-            revocation_endpoint: `${cleanBase}/revoke`,
+            revocation_endpoint: `${cleanBase}/oauth2/revoke`,
             response_types_supported: ['code'],
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['RS256'],
@@ -141,7 +146,7 @@ print("Key IDs:", [k["kid"] for k in jwks.get("keys", [])])`,
     {
       id: 'authorize',
       method: 'GET',
-      path: '/authorize',
+      path: '/oauth2/authorize',
       title: 'Authorize (Authorization Code Flow)',
       category: 'Authentication & Tokens',
       summary: 'Interactive authentication & consent endpoint initiating the PKCE code flow.',
@@ -252,12 +257,12 @@ print("Key IDs:", [k["kid"] for k in jwks.get("keys", [])])`,
         },
       ],
       curlSample: `# Direct browser navigation URL:
-${cleanBase}/authorize?client_id=client_live_a1b2c3d4e5&redirect_uri=https%3A%2F%2Fyourapp.pesu.dev%2Fapi%2Fauth%2Fcallback%2Fpesu&response_type=code&scope=openid%20profile%20email%20offline_access&code_challenge=E9Melhoa2OwvFrGMTJguCH5rtG64DTb3Ag618U7-wS4&code_challenge_method=S256&state=xyzSecureStateRandom123`,
+${cleanBase}/oauth2/authorize?client_id=client_live_a1b2c3d4e5&redirect_uri=https%3A%2F%2Fyourapp.pesu.dev%2Fapi%2Fauth%2Fcallback%2Fpesu&response_type=code&scope=openid%20profile%20email%20offline_access&code_challenge=E9Melhoa2OwvFrGMTJguCH5rtG64DTb3Ag618U7-wS4&code_challenge_method=S256&state=xyzSecureStateRandom123`,
       fetchSample: `// Generate PKCE pair and redirect user:
 const codeVerifier = generateRandomString(64);
 const codeChallenge = await sha256Base64Url(codeVerifier);
 
-const authUrl = new URL("${cleanBase}/authorize");
+const authUrl = new URL("${cleanBase}/oauth2/authorize");
 authUrl.searchParams.set("client_id", "client_live_a1b2c3d4e5");
 authUrl.searchParams.set("redirect_uri", "https://yourapp.pesu.dev/api/auth/callback/pesu");
 authUrl.searchParams.set("response_type", "code");
@@ -288,13 +293,13 @@ params = {
     "code_challenge_method": "S256",
     "state": os.urandom(16).hex(),
 }
-auth_url = f"${cleanBase}/authorize?{urllib.parse.urlencode(params)}"
+auth_url = f"${cleanBase}/oauth2/authorize?{urllib.parse.urlencode(params)}"
 print("Direct user to:", auth_url)`,
     },
     {
       id: 'token',
       method: 'POST',
-      path: '/token',
+      path: '/oauth2/token',
       title: 'Token Issuance & Refresh',
       category: 'Authentication & Tokens',
       summary: 'Exchange an authorization code or refresh token for access tokens and ID tokens.',
@@ -419,7 +424,7 @@ print("Direct user to:", auth_url)`,
   -d "code=ac_live_7x9k2m1p0q" \\
   -d "redirect_uri=https://yourapp.pesu.dev/api/auth/callback/pesu" \\
   -d "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"`,
-      fetchSample: `const response = await fetch("${cleanBase}/token", {
+      fetchSample: `const response = await fetch("${cleanBase}/oauth2/token", {
   method: "POST",
   headers: {
     "Content-Type": "application/x-www-form-urlencoded",
@@ -439,7 +444,7 @@ console.log("Access token expires in:", tokenData.expires_in);`,
       pythonSample: `import requests
 
 response = requests.post(
-    "${cleanBase}/token",
+    "${cleanBase}/oauth2/token",
     data={
         "grant_type": "authorization_code",
         "client_id": "client_live_a1b2c3d4e5",
@@ -454,78 +459,9 @@ token_data = response.json()
 print("Access token expires in:", token_data.get("expires_in"))`,
     },
     {
-      id: 'userinfo',
-      method: 'GET / POST',
-      path: '/userinfo',
-      title: 'User Profile Claims',
-      category: 'Authentication & Tokens',
-      summary: 'Returns authorized student profile claims for a valid Bearer access token.',
-      description:
-        'Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student.',
-      auth: 'Bearer <access_token>',
-      headers: [
-        {
-          name: 'Authorization',
-          location: 'header',
-          type: 'string',
-          required: true,
-          description: 'Bearer token minted by the /token endpoint.',
-          example: 'Bearer eyJhbGciOiJSUzI1NiIs...',
-        },
-      ],
-      params: [],
-      responses: [
-        {
-          status: 200,
-          statusText: 'OK',
-          description: 'Authenticated student claims matching granted scopes.',
-          sample: {
-            sub: 'usr_live_88320491',
-            name: 'Ananya Sharma',
-            prn: 'PES1UG22CS001',
-            srn: 'PES1202200001',
-            program: 'B.Tech',
-            branch: 'Computer Science and Engineering',
-            semester: 6,
-            section: 'A',
-            campus: 'RR',
-            email: 'ananya.sharma@pesu.pes.edu',
-            phone_number: '+919876543210',
-          },
-        },
-        {
-          status: 401,
-          statusText: 'Unauthorized',
-          description: 'Token expired, invalid signature, or malformed Authorization header.',
-          sample: {
-            error: 'invalid_token',
-            error_description: 'Token signature or expiration invalid',
-          },
-        },
-      ],
-      curlSample: `curl -X GET ${cleanBase}/userinfo \\
-  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."`,
-      fetchSample: `const response = await fetch("${cleanBase}/userinfo", {
-  headers: {
-    Authorization: \`Bearer \${accessToken}\`,
-  },
-});
-
-const user = await response.json();
-console.log(\`Signed in as \${user.name} (\${user.prn})\`);`,
-      pythonSample: `import requests
-
-headers = {
-    "Authorization": f"Bearer {access_token}"
-}
-response = requests.get("${cleanBase}/userinfo", headers=headers)
-user = response.json()
-print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
-    },
-    {
       id: 'revoke',
       method: 'POST',
-      path: '/revoke',
+      path: '/oauth2/revoke',
       title: 'Token Revocation (RFC 7009)',
       category: 'Authentication & Tokens',
       summary: 'Revokes a refresh token and immediately invalidates its token family.',
@@ -581,11 +517,11 @@ print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
           },
         },
       ],
-      curlSample: `curl -X POST ${cleanBase}/revoke \\
+      curlSample: `curl -X POST ${cleanBase}/oauth2/revoke \\
   -H "Content-Type: application/x-www-form-urlencoded" \\
   -d "token=rt_live_90ab34cd56ef" \\
   -d "token_type_hint=refresh_token"`,
-      fetchSample: `await fetch("${cleanBase}/revoke", {
+      fetchSample: `await fetch("${cleanBase}/oauth2/revoke", {
   method: "POST",
   headers: {
     "Content-Type": "application/x-www-form-urlencoded",
@@ -598,13 +534,82 @@ print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
       pythonSample: `import requests
 
 response = requests.post(
-    "${cleanBase}/revoke",
+    "${cleanBase}/oauth2/revoke",
     data={
         "token": refresh_token,
         "token_type_hint": "refresh_token",
     },
 )
 print("Revocation response:", response.json())`,
+    },
+    {
+      id: 'userinfo',
+      method: 'GET / POST',
+      path: `/api/${apiVersion}/userinfo`,
+      title: 'User Profile Claims',
+      category: 'Resource Server',
+      summary: 'Returns authorized student profile claims for a valid Bearer access token.',
+      description:
+        `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student. Note: /api/userinfo is also available as an unversioned alias pointing to the latest version (${apiVersion}).`,
+      auth: 'Bearer <access_token>',
+      headers: [
+        {
+          name: 'Authorization',
+          location: 'header',
+          type: 'string',
+          required: true,
+          description: 'Bearer token minted by the /oauth2/token endpoint.',
+          example: 'Bearer eyJhbGciOiJSUzI1NiIs...',
+        },
+      ],
+      params: [],
+      responses: [
+        {
+          status: 200,
+          statusText: 'OK',
+          description: 'Authenticated student claims matching granted scopes.',
+          sample: {
+            sub: 'usr_live_88320491',
+            name: 'Ananya Sharma',
+            prn: 'PES1UG22CS001',
+            srn: 'PES1202200001',
+            program: 'B.Tech',
+            branch: 'Computer Science and Engineering',
+            semester: 6,
+            section: 'A',
+            campus: 'RR',
+            email: 'ananya.sharma@pesu.pes.edu',
+            phone_number: '+919876543210',
+          },
+        },
+        {
+          status: 401,
+          statusText: 'Unauthorized',
+          description: 'Token expired, invalid signature, or malformed Authorization header.',
+          sample: {
+            error: 'invalid_token',
+            error_description: 'Token signature or expiration invalid',
+          },
+        },
+      ],
+      curlSample: `curl -X GET ${cleanBase}/api/${apiVersion}/userinfo \\
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."`,
+      fetchSample: `const response = await fetch("${cleanBase}/api/${apiVersion}/userinfo", {
+  headers: {
+    Authorization: \`Bearer \${accessToken}\`,
+  },
+});
+
+const user = await response.json();
+console.log(\`Signed in as \${user.name} (\${user.prn})\`);`,
+      pythonSample: `import requests
+
+headers = {
+    "Authorization": f"Bearer {access_token}"
+}
+response = requests.get("${cleanBase}/api/${apiVersion}/userinfo", headers=headers)
+user = response.json()
+print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
     },
   ];
 }
@@ -694,6 +699,7 @@ export function generateFullApiReferenceMarkdown(
     '> Official API specification and integration manual for PESU OAuth 2.0 and OpenID Connect 1.0 services.',
     `- **Issuer Base URL:** \`${cleanBase}\``,
     '- **Protocol Standard:** OpenID Connect Core 1.0 / OAuth 2.0 RFC 6749',
+    '- **Resource Server Versioning:** Resource APIs are versioned under `/api/v{version}` (default: `v1`). Unversioned requests (e.g. `/api/userinfo`) alias to the latest version.',
     '- **Security Profiles:** Mandatory PKCE (S256), RS256 token signatures, refresh token family rotation',
     '---',
   ];

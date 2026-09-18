@@ -8,13 +8,27 @@ import {
 } from '@/lib/rate-limit';
 
 const PROTECTED_PAGE_PREFIXES = ['/portal', '/admin', '/settings'];
-const PROTECTED_API_PREFIXES = ['/api/portal', '/api/settings', '/api/admin'];
+const PROTECTED_API_PREFIXES = [
+  '/api/internal/portal',
+  '/api/internal/settings',
+  '/api/internal/admin',
+];
+
+export const CURRENT_API_VERSION = 'v1';
+export const RESOURCE_ENDPOINTS = ['userinfo'];
+
+const RESOURCE_ROUTES = RESOURCE_ENDPOINTS.flatMap((ep) => [
+  `/api/${ep}`,
+  `/api/${CURRENT_API_VERSION}/${ep}`,
+]);
+
 const OIDC_ROUTES = [
   '/.well-known/openid-configuration',
   '/jwks.json',
-  '/token',
-  '/userinfo',
-  '/revoke',
+  '/oauth2/token',
+  '/oauth2/revoke',
+  '/oauth2/token-exchange',
+  ...RESOURCE_ROUTES,
 ];
 
 const CORS_HEADERS = {
@@ -39,21 +53,21 @@ export async function proxy(request: NextRequest) {
 
   // 2. Sliding-Window Rate Limiting
   if (request.method === 'POST') {
-    if (pathname === '/api/auth/login' && !loginLimiter.allow(ip)) {
+    if (pathname === '/api/internal/auth/login' && !loginLimiter.allow(ip)) {
       return NextResponse.json(
         { error: 'Too many login attempts. Please wait a minute and try again.' },
         { status: 429, headers: { 'Retry-After': '60' } }
       );
     }
 
-    if (pathname === '/token' && !tokenLimiter.allow(`token:${ip}`)) {
+    if (pathname === '/oauth2/token' && !tokenLimiter.allow(`token:${ip}`)) {
       return NextResponse.json(
         { error: 'temporarily_unavailable', error_description: 'Too many requests' },
         { status: 429, headers: { 'Retry-After': '60' } }
       );
     }
 
-    if (pathname === '/oauth/token-exchange' && !exchangeLimiter.allow(`exchange:${ip}`)) {
+    if (pathname === '/oauth2/token-exchange' && !exchangeLimiter.allow(`exchange:${ip}`)) {
       return NextResponse.json(
         { error: 'temporarily_unavailable', error_description: 'Too many requests' },
         { status: 429, headers: { 'Retry-After': '60' } }
@@ -63,7 +77,7 @@ export async function proxy(request: NextRequest) {
 
   // 3. CSRF & Cross-Origin Defense for internal mutating API endpoints
   const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
-  if (MUTATING_METHODS.includes(request.method) && pathname.startsWith('/api/')) {
+  if (MUTATING_METHODS.includes(request.method) && pathname.startsWith('/api/internal/')) {
     const origin = request.headers.get('origin');
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
     const secFetchSite = request.headers.get('sec-fetch-site');
@@ -123,7 +137,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 4. Header propagation (injected verified user ID and normalized client IP)
+  // 5. Header propagation (injected verified user ID and normalized client IP)
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-client-ip', ip);
   if (session?.sub) {
@@ -133,20 +147,33 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  // 6. Scalable resource endpoint alias rewrite: /api/:resource rewrites internally to /api/:version/:resource
+  const matchedResource = RESOURCE_ENDPOINTS.find((ep) => pathname === `/api/${ep}`);
+  let response: NextResponse;
+  if (matchedResource) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `/api/${CURRENT_API_VERSION}/${matchedResource}`;
+    response = NextResponse.rewrite(rewriteUrl, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  } else {
+    response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
 
-  // 5. OIDC CORS response headers
+  // 7. OIDC CORS response headers
   if (isOidc) {
     Object.entries(CORS_HEADERS).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
   }
 
-  // 6. Security Headers on all responses
+  // 8. Security Headers on all responses
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');

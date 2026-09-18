@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
 import { NextRequest } from 'next/server';
-import { POST as postConsent } from '@/app/api/oidc/consent/route';
-import { POST as postTester } from '@/app/api/portal/clients/[clientId]/testers/route';
-import { POST as postRequestProd } from '@/app/api/portal/clients/[clientId]/request-production/route';
-import { POST as postAdminReview } from '@/app/api/admin/requests/route';
+import { POST as postConsent } from '@/app/api/internal/consent/route';
+import { POST as postTester } from '@/app/api/internal/portal/clients/[clientId]/testers/route';
+import { POST as postRequestProd } from '@/app/api/internal/portal/clients/[clientId]/request-production/route';
+import { POST as postAdminReview } from '@/app/api/internal/admin/requests/route';
 import { Admin, User, Client, ClientTester, ProductionRequest } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
 

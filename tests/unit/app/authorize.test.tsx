@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import AuthorizePage from '@/app/authorize/page';
-import { ConsentClient } from '@/app/authorize/consent-client';
+import AuthorizePage from '@/app/oauth2/authorize/page';
+import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { Client, ClientTester, Consent, AuthCode, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
@@ -643,7 +643,7 @@ describe('Authorize Page & Consent', () => {
       fireEvent.click(screen.getByRole('button', { name: /allow/i }));
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/oidc/consent', {
+        expect(global.fetch).toHaveBeenCalledWith('/api/internal/consent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

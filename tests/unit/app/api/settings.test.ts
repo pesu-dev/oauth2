@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET as getSettings, DELETE as deleteSettings, PATCH as patchSettings } from '@/app/api/settings/route';
+import { GET as getSettings, DELETE as deleteSettings, PATCH as patchSettings } from '@/app/api/internal/settings/route';
 import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { POST as postToken } from '@/app/token/route';
+import { POST as postToken } from '@/app/oauth2/token/route';
 import { AuthCode, Client, RefreshToken, User } from '@/lib/db/models';
 import { sha256Hex, hashClientSecret } from '@/lib/crypto/hash';
 import crypto from 'node:crypto';

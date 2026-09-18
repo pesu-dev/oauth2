@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as rotateSecret } from '@/app/api/portal/clients/[clientId]/rotate-secret/route';
+import { POST as rotateSecret } from '@/app/api/internal/portal/clients/[clientId]/rotate-secret/route';
 import { Client } from '@/lib/db/models';
 import * as cookieModule from '@/lib/session/cookie';
 

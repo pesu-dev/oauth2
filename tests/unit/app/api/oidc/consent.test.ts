@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as postConsent } from '@/app/api/oidc/consent/route';
+import { POST as postConsent } from '@/app/api/internal/consent/route';
 import { AuthCode, Client, ClientTester, Consent, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';

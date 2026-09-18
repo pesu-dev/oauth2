@@ -130,7 +130,7 @@ describe('PortalPage Component', () => {
       expect(screen.getByText('sec_very_secret_key_123')).toBeDefined();
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/portal/clients', {
+    expect(global.fetch).toHaveBeenCalledWith('/api/internal/portal/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'New Campus App' }),

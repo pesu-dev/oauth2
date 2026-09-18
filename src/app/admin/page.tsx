@@ -70,7 +70,7 @@ export default function AdminPage() {
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch('/api/admin/requests');
+      const res = await fetch('/api/internal/admin/requests');
       const data = await res.json();
       if (res.ok) {
         const reqs: RequestItem[] = data.requests || [];
@@ -91,7 +91,7 @@ export default function AdminPage() {
 
   const fetchClients = async (query = '') => {
     try {
-      const url = query ? `/api/admin/clients?q=${encodeURIComponent(query)}` : '/api/admin/clients';
+      const url = query ? `/api/internal/admin/clients?q=${encodeURIComponent(query)}` : '/api/internal/admin/clients';
       const res = await fetch(url);
       const data = await res.json();
       if (res.ok) {
@@ -114,7 +114,7 @@ export default function AdminPage() {
   const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
     try {
       const allowDelegated = delegatedToggles[requestId] ?? false;
-      const res = await fetch('/api/admin/requests', {
+      const res = await fetch('/api/internal/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId, action, allowDelegated }),
@@ -138,7 +138,7 @@ export default function AdminPage() {
 
     setSubmittingAction(true);
     try {
-      const res = await fetch('/api/admin/clients', {
+      const res = await fetch('/api/internal/admin/clients', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +160,7 @@ export default function AdminPage() {
   const handleUnsuspend = async (client: ClientItem) => {
     setSubmittingAction(true);
     try {
-      const res = await fetch('/api/admin/clients', {
+      const res = await fetch('/api/internal/admin/clients', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { GET, PATCH } from '@/app/api/admin/clients/route';
+import { GET, PATCH } from '@/app/api/internal/admin/clients/route';
 import { Admin, Client } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import * as mailer from '@/lib/mailer';

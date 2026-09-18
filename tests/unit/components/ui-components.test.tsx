@@ -88,19 +88,19 @@ describe('UI Primitives & Navigation', () => {
       expect(screen.getAllByText('Sign In').length).toBeGreaterThan(0);
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/auth/status');
+        expect(global.fetch).toHaveBeenCalledWith('/api/internal/auth/status');
       });
     });
 
     it('renders admin links and handles logout when authenticated as admin', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
-        if (url === '/api/auth/status') {
+        if (url === '/api/internal/auth/status') {
           return {
             ok: true,
             json: async () => ({ authenticated: true, isAdmin: true }),
           } as Response;
         }
-        if (url === '/api/auth/logout') {
+        if (url === '/api/internal/auth/logout') {
           return { ok: true } as Response;
         }
         return { ok: false } as Response;
@@ -121,7 +121,7 @@ describe('UI Primitives & Navigation', () => {
       });
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
+        expect(global.fetch).toHaveBeenCalledWith('/api/internal/auth/logout', { method: 'POST' });
         expect(mockPush).toHaveBeenCalledWith('/');
         expect(mockRefresh).toHaveBeenCalled();
       });
@@ -149,13 +149,13 @@ describe('UI Primitives & Navigation', () => {
 
     it('handles mobile menu links click and logout in mobile menu', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
-        if (url === '/api/auth/status') {
+        if (url === '/api/internal/auth/status') {
           return {
             ok: true,
             json: async () => ({ authenticated: true, isAdmin: true }),
           } as Response;
         }
-        if (url === '/api/auth/logout') {
+        if (url === '/api/internal/auth/logout') {
           return { ok: true } as Response;
         }
         return { ok: false } as Response;
@@ -186,13 +186,13 @@ describe('UI Primitives & Navigation', () => {
 
     it('handles logout network error gracefully', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
-        if (url === '/api/auth/status') {
+        if (url === '/api/internal/auth/status') {
           return {
             ok: true,
             json: async () => ({ authenticated: true, isAdmin: false }),
           } as Response;
         }
-        if (url === '/api/auth/logout') {
+        if (url === '/api/internal/auth/logout') {
           throw new Error('Network error');
         }
         return { ok: false } as Response;
@@ -263,7 +263,7 @@ describe('UI Primitives & Navigation', () => {
       rerender(<Navbar />);
     });
 
-    it('handles /api/auth/status returning non-ok response', async () => {
+    it('handles /api/internal/auth/status returning non-ok response', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
       } as Response);
@@ -277,10 +277,10 @@ describe('UI Primitives & Navigation', () => {
 
     it('handles logout network error by redirecting to home', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
-        if (url === '/api/auth/status') {
+        if (url === '/api/internal/auth/status') {
           return { ok: true, json: async () => ({ authenticated: true }) } as Response;
         }
-        if (url === '/api/auth/logout') {
+        if (url === '/api/internal/auth/logout') {
           throw new Error('Network error');
         }
         return { ok: false } as Response;

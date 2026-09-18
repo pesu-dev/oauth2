@@ -98,7 +98,7 @@ describe('SettingsPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/settings?action=consent&client_id=cli_third_party',
+        '/api/internal/settings?action=consent&client_id=cli_third_party',
         { method: 'DELETE' }
       );
     });
@@ -123,7 +123,7 @@ describe('SettingsPage Component', () => {
     fireEvent.click(screen.getByText('Delete Vault'));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/settings?action=vault', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/settings?action=vault', {
         method: 'DELETE',
       });
     });
@@ -143,7 +143,7 @@ describe('SettingsPage Component', () => {
     });
 
     fireEvent.click(screen.getByText('Delete Vault'));
-    expect(global.fetch).not.toHaveBeenCalledWith('/api/settings?action=vault', expect.anything());
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/internal/settings?action=vault', expect.anything());
   });
 
   it('renders identity-only mode when user has no vault and handles empty consents', async () => {
@@ -167,7 +167,7 @@ describe('SettingsPage Component', () => {
   it('handles updating vault password failure and success', async () => {
     let shouldFail = true;
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      if (init?.method === 'PATCH' && url === '/api/settings') {
+      if (init?.method === 'PATCH' && url === '/api/internal/settings') {
         if (shouldFail) {
           return {
             ok: false,
@@ -201,7 +201,7 @@ describe('SettingsPage Component', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update Vault' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/settings', expect.objectContaining({
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/settings', expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ newPassword: 'ValidPassword123' }),
       }));
@@ -264,7 +264,7 @@ describe('SettingsPage Component', () => {
     fireEvent.click(deleteBtn);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/settings?action=account', expect.objectContaining({
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/settings?action=account', expect.objectContaining({
         method: 'DELETE',
         body: JSON.stringify({ confirm: 'DELETE' }),
       }));

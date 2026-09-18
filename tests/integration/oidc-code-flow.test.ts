@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
 import { NextRequest } from 'next/server';
-import { POST as postConsent } from '@/app/api/oidc/consent/route';
-import { POST as postToken } from '@/app/token/route';
-import { GET as getUserInfo } from '@/app/userinfo/route';
+import { POST as postConsent } from '@/app/api/internal/consent/route';
+import { POST as postToken } from '@/app/oauth2/token/route';
+import { GET as getUserInfo } from '@/app/api/v1/userinfo/route';
 import { User, Client, AuthCode, RefreshToken, Consent } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
 import crypto from 'node:crypto';

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET as getUserInfo, POST as postUserInfo } from '@/app/userinfo/route';
+import { GET as getUserInfo, POST as postUserInfo } from '@/app/api/v1/userinfo/route';
 import { User } from '@/lib/db/models';
 import { mintAccessToken } from '@/lib/oidc/jwt';
 

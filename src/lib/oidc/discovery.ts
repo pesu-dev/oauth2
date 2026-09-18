@@ -18,11 +18,11 @@ export function buildOpenIdConfiguration(issuerUrl: string): OpenIdConfiguration
   const issuer = issuerUrl.replace(/\/+$/, '');
   return {
     issuer,
-    authorization_endpoint: `${issuer}/authorize`,
-    token_endpoint: `${issuer}/token`,
-    userinfo_endpoint: `${issuer}/userinfo`,
+    authorization_endpoint: `${issuer}/oauth2/authorize`,
+    token_endpoint: `${issuer}/oauth2/token`,
+    userinfo_endpoint: `${issuer}/api/v1/userinfo`,
     jwks_uri: `${issuer}/jwks.json`,
-    revocation_endpoint: `${issuer}/revoke`,
+    revocation_endpoint: `${issuer}/oauth2/revoke`,
     response_types_supported: ['code'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256'],

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { proxy } from '@/proxy';
+import { proxy, CURRENT_API_VERSION, RESOURCE_ENDPOINTS } from '@/proxy';
 import { NextRequest } from 'next/server';
 import { createSessionToken } from '@/lib/session/cookie';
 import * as cookieHelper from '@/lib/session/cookie';
@@ -31,7 +31,7 @@ describe('Next.js Proxy', () => {
   });
 
   it('rejects unauthenticated requests to protected API routes with 401', async () => {
-    const req = new NextRequest('http://localhost:3000/api/portal/clients');
+    const req = new NextRequest('http://localhost:3000/api/internal/portal/clients');
     const resp = await proxy(req);
 
     expect(resp.status).toBe(401);
@@ -53,10 +53,10 @@ describe('Next.js Proxy', () => {
   });
 
   describe('Rate Limiting', () => {
-    it('enforces rate limit on POST /api/auth/login and returns 429', async () => {
+    it('enforces rate limit on POST /api/internal/auth/login and returns 429', async () => {
       // Limit is 10
       for (let i = 0; i < 10; i++) {
-        const req = new NextRequest('http://localhost:3000/api/auth/login', {
+        const req = new NextRequest('http://localhost:3000/api/internal/auth/login', {
           method: 'POST',
           headers: { 'x-forwarded-for': '192.168.1.50' },
         });
@@ -65,7 +65,7 @@ describe('Next.js Proxy', () => {
       }
 
       // 11th request blocked by proxy
-      const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      const req = new NextRequest('http://localhost:3000/api/internal/auth/login', {
         method: 'POST',
         headers: { 'x-forwarded-for': '192.168.1.50' },
       });
@@ -76,13 +76,13 @@ describe('Next.js Proxy', () => {
       expect(data.error).toContain('Too many login attempts');
     });
 
-    it('enforces rate limit on POST /token and returns RFC 429', async () => {
+    it('enforces rate limit on POST /oauth2/token and returns RFC 429', async () => {
       // Simulate exhausting tokenLimiter limit (60)
       for (let i = 0; i < 60; i++) {
         tokenLimiter.allow('token:192.168.1.60');
       }
 
-      const req = new NextRequest('http://localhost:3000/token', {
+      const req = new NextRequest('http://localhost:3000/oauth2/token', {
         method: 'POST',
         headers: { 'x-forwarded-for': '192.168.1.60' },
       });
@@ -92,13 +92,13 @@ describe('Next.js Proxy', () => {
       expect(data.error).toBe('temporarily_unavailable');
     });
 
-    it('enforces rate limit on POST /oauth/token-exchange and returns RFC 429', async () => {
+    it('enforces rate limit on POST /oauth2/token-exchange and returns RFC 429', async () => {
       // Simulate exhausting exchangeLimiter limit (30)
       for (let i = 0; i < 30; i++) {
         exchangeLimiter.allow('exchange:192.168.1.70');
       }
 
-      const req = new NextRequest('http://localhost:3000/oauth/token-exchange', {
+      const req = new NextRequest('http://localhost:3000/oauth2/token-exchange', {
         method: 'POST',
         headers: { 'x-forwarded-for': '192.168.1.70' },
       });
@@ -108,12 +108,12 @@ describe('Next.js Proxy', () => {
       expect(data.error).toBe('temporarily_unavailable');
     });
 
-    it('enforces rate limit on POST /token/ with trailing slash and returns RFC 429', async () => {
+    it('enforces rate limit on POST /oauth2/token/ with trailing slash and returns RFC 429', async () => {
       for (let i = 0; i < 60; i++) {
         tokenLimiter.allow('token:192.168.1.65');
       }
 
-      const req = new NextRequest('http://localhost:3000/token/', {
+      const req = new NextRequest('http://localhost:3000/oauth2/token/', {
         method: 'POST',
         headers: { 'x-forwarded-for': '192.168.1.65' },
       });
@@ -129,9 +129,11 @@ describe('Next.js Proxy', () => {
       const endpoints = [
         'http://localhost:3000/.well-known/openid-configuration',
         'http://localhost:3000/jwks.json',
-        'http://localhost:3000/token',
-        'http://localhost:3000/userinfo',
-        'http://localhost:3000/revoke',
+        'http://localhost:3000/oauth2/token',
+        'http://localhost:3000/oauth2/revoke',
+        'http://localhost:3000/oauth2/token-exchange',
+        'http://localhost:3000/api/v1/userinfo',
+        'http://localhost:3000/api/userinfo',
       ];
 
       for (const url of endpoints) {
@@ -151,9 +153,28 @@ describe('Next.js Proxy', () => {
     });
   });
 
+  describe('Scalable Resource Alias Rewrite', () => {
+    it('exports scalable versioning configuration with v1 and resource endpoints', () => {
+      expect(CURRENT_API_VERSION).toBe('v1');
+      expect(RESOURCE_ENDPOINTS).toContain('userinfo');
+    });
+
+    it('rewrites /api/userinfo to /api/v1/userinfo with CORS headers', async () => {
+      const req = new NextRequest('http://localhost:3000/api/userinfo', {
+        headers: {
+          authorization: 'Bearer sample_access_token',
+        },
+      });
+      const res = await proxy(req);
+
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      expect(res.headers.get('x-middleware-rewrite')).toContain(`/api/${CURRENT_API_VERSION}/userinfo`);
+    });
+  });
+
   describe('CSRF & Cross-Origin Defense', () => {
     it('blocks mutating API request when sec-fetch-site is cross-site', async () => {
-      const req = new NextRequest('http://localhost:3000/api/settings?action=account', {
+      const req = new NextRequest('http://localhost:3000/api/internal/settings?action=account', {
         method: 'DELETE',
         headers: {
           'sec-fetch-site': 'cross-site',
@@ -168,7 +189,7 @@ describe('Next.js Proxy', () => {
     });
 
     it('blocks mutating API request when origin does not match host', async () => {
-      const req = new NextRequest('http://localhost:3000/api/settings?action=vault', {
+      const req = new NextRequest('http://localhost:3000/api/internal/settings?action=vault', {
         method: 'DELETE',
         headers: {
           origin: 'https://evil-attacker-site.com',
@@ -184,7 +205,7 @@ describe('Next.js Proxy', () => {
     });
 
     it('blocks mutating API request when origin is malformed/invalid URL', async () => {
-      const req = new NextRequest('http://localhost:3000/api/settings?action=vault', {
+      const req = new NextRequest('http://localhost:3000/api/internal/settings?action=vault', {
         method: 'DELETE',
         headers: {
           origin: '://',
@@ -202,7 +223,7 @@ describe('Next.js Proxy', () => {
     it('allows mutating API request from same origin', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
 
-      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+      const req = new NextRequest('http://localhost:3000/api/internal/portal/clients', {
         method: 'POST',
         headers: {
           origin: 'http://localhost:3000',
@@ -221,7 +242,7 @@ describe('Next.js Proxy', () => {
     it('allows mutating API request when origin matches x-forwarded-host behind reverse proxy', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_test' });
 
-      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+      const req = new NextRequest('http://localhost:3000/api/internal/portal/clients', {
         method: 'POST',
         headers: {
           origin: 'https://auth.pesu.dev',
@@ -238,7 +259,7 @@ describe('Next.js Proxy', () => {
     });
 
     it('blocks mutating API request when origin does not match x-forwarded-host', async () => {
-      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+      const req = new NextRequest('http://localhost:3000/api/internal/portal/clients', {
         method: 'POST',
         headers: {
           origin: 'https://evil.com',

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as postLogout } from '@/app/api/auth/logout/route';
+import { POST as postLogout } from '@/app/api/internal/auth/logout/route';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import * as cookieHelper from '@/lib/session/cookie';
 

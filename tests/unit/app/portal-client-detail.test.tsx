@@ -128,7 +128,7 @@ describe('ClientDetailPage Component', () => {
     }
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/portal/clients/cli_portal_1', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/portal/clients/cli_portal_1', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -165,7 +165,7 @@ describe('ClientDetailPage Component', () => {
     fireEvent.click(addButtons[addButtons.length - 1]);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/portal/clients/cli_portal_1/testers', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/portal/clients/cli_portal_1/testers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: 'PES1UG20CS555' }),
@@ -180,7 +180,7 @@ describe('ClientDetailPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/portal/clients/cli_portal_1/testers?sub=usr_tester_1',
+        '/api/internal/portal/clients/cli_portal_1/testers?sub=usr_tester_1',
         { method: 'DELETE' }
       );
     });
@@ -334,7 +334,7 @@ describe('ClientDetailPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/portal/clients/cli_portal_1/request-production',
+        '/api/internal/portal/clients/cli_portal_1/request-production',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -367,7 +367,7 @@ describe('ClientDetailPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/portal/clients/cli_portal_1/request-production',
+        '/api/internal/portal/clients/cli_portal_1/request-production',
         expect.any(Object)
       );
     });
@@ -413,7 +413,7 @@ describe('ClientDetailPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/portal/clients/cli_portal_1/testers',
+        '/api/internal/portal/clients/cli_portal_1/testers',
         expect.any(Object)
       );
     });
@@ -568,7 +568,7 @@ describe('ClientDetailPage Component', () => {
 
   it('does not show success when saving URIs fails', async () => {
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      if (init?.method === 'PATCH' && url.includes('/api/portal/clients/')) {
+      if (init?.method === 'PATCH' && url.includes('/api/internal/portal/clients/')) {
         return { ok: false, json: async () => ({ error: 'Invalid URI hostname' }) };
       }
       return { ok: true, json: async () => mockClientData };

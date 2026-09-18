@@ -5,6 +5,8 @@ import Link from 'next/link';
 import {
   createEndpoints,
   DEFAULT_PROD_ISSUER_URL,
+  CURRENT_API_VERSION,
+  AVAILABLE_API_VERSIONS,
   generateEndpointMarkdownForLlm,
   generateFullApiReferenceMarkdown,
 } from './docs-data';
@@ -28,6 +30,7 @@ import {
   Menu,
   X,
   Server,
+  Database,
 } from 'lucide-react';
 
 interface GuideDoc {
@@ -43,6 +46,12 @@ const GUIDES: GuideDoc[] = [
     title: 'Overview & Quickstart',
     category: 'Guides',
     summary: 'OIDC architecture, issuer URL, and client authentication models.',
+  },
+  {
+    id: 'versioning',
+    title: 'API Versioning',
+    category: 'Guides',
+    summary: 'Resource route versioning, unversioned aliases, and breaking change policy.',
   },
   {
     id: 'pkce',
@@ -79,8 +88,12 @@ export function DocsClient({
     Record<string, 'curl' | 'fetch' | 'python'>
   >({});
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [selectedApiVersion, setSelectedApiVersion] = React.useState<string>(CURRENT_API_VERSION);
 
-  const endpoints = React.useMemo(() => createEndpoints(issuerUrl), [issuerUrl]);
+  const endpoints = React.useMemo(
+    () => createEndpoints(issuerUrl, selectedApiVersion),
+    [issuerUrl, selectedApiVersion]
+  );
 
   // Sync hash on mount and when hash changes
   React.useEffect(() => {
@@ -145,6 +158,7 @@ export function DocsClient({
     return endpoints.filter(
       (ep) =>
         ep.path.toLowerCase().includes(q) ||
+        ep.path.replace(/\/api\/v\d+\//, '/api/').toLowerCase().includes(q) ||
         ep.title.toLowerCase().includes(q) ||
         ep.summary.toLowerCase().includes(q) ||
         ep.method.toLowerCase().includes(q) ||
@@ -157,7 +171,9 @@ export function DocsClient({
       ...GUIDES.map((g) => ({ id: g.id, title: g.title, type: 'guide' as const })),
       ...endpoints.map((ep) => ({
         id: ep.id,
-        title: `${ep.method} ${ep.path}`,
+        title: `${ep.method} ${
+          ep.category === 'Resource Server' ? ep.path.replace(/\/api\/v\d+\//, '/api/') : ep.path
+        }`,
         type: 'endpoint' as const,
       })),
     ];
@@ -352,6 +368,67 @@ export function DocsClient({
                   })}
               </nav>
             </div>
+
+            {/* Resource Server Group */}
+            <div className="space-y-1.5">
+              <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Database className="w-3 h-3" />
+                  <span>Resource Server</span>
+                </div>
+                <select
+                  value={selectedApiVersion}
+                  onChange={(e) => setSelectedApiVersion(e.target.value)}
+                  aria-label="Select API version"
+                  className="text-[10px] font-mono font-semibold py-0.5 px-1.5 rounded-md bg-black/5 dark:bg-white/10 text-zinc-700 dark:text-zinc-300 border border-black/10 dark:border-white/10 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  {AVAILABLE_API_VERSIONS.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <nav className="space-y-0.5">
+                {filteredEndpoints
+                  .filter((ep) => ep.category === 'Resource Server')
+                  .map((ep) => {
+                    const isActive = selectedId === ep.id;
+                    const isPost = ep.method.includes('POST');
+                    const isGetPost = ep.method.includes('GET / POST');
+                    const displayPath = ep.path.replace(/\/api\/v\d+\//, '/api/');
+
+                    return (
+                      <Button
+                        key={ep.id}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => selectItem(ep.id)}
+                        className={`w-full h-auto justify-start gap-2 px-2 py-1.5 rounded-lg text-xs font-mono ${
+                          isActive
+                            ? 'bg-blue-600 text-white hover:bg-blue-600 shadow-xs font-semibold'
+                            : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : isGetPost
+                              ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                              : isPost
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          }`}
+                        >
+                          {ep.method}
+                        </span>
+                        <span className="truncate">{displayPath}</span>
+                      </Button>
+                    );
+                  })}
+              </nav>
+            </div>
           </div>
 
           {/* Useful Developer Info Box */}
@@ -430,7 +507,7 @@ export function DocsClient({
                     2. Initiate PKCE Flow
                   </div>
                   <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                    Redirect users to <code className="font-mono">/authorize</code> with a SHA-256 PKCE code challenge.
+                    Redirect users to <code className="font-mono">/oauth2/authorize</code> with a SHA-256 PKCE code challenge.
                     Users consent to scopes requested by your client.
                   </p>
                 </Card>
@@ -439,8 +516,8 @@ export function DocsClient({
                     3. Mint & Verify Tokens
                   </div>
                   <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                    Exchange the single-use code at <code className="font-mono">/token</code> for signed RS256 ID tokens and
-                    access tokens, or query <code className="font-mono">/userinfo</code>.
+                    Exchange the single-use code at <code className="font-mono">/oauth2/token</code> for signed RS256 ID tokens and
+                    access tokens, or query <code className="font-mono">/api/v1/userinfo</code>.
                   </p>
                 </Card>
               </div>
@@ -505,6 +582,161 @@ export function DocsClient({
             </div>
           )}
 
+          {selectedId === 'versioning' && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="identity" className="text-xs">
+                    Architecture & Standards
+                  </Badge>
+                  <span className="text-xs text-zinc-400">Resource Server Routing</span>
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                  API Versioning
+                </h1>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  PESU OAuth2 uses path-based API versioning for all Resource Server endpoints to guarantee
+                  backward compatibility and predictable developer upgrades. Protocol endpoints remain unversioned per OIDC specifications.
+                </p>
+              </div>
+
+              {/* Versioning Schemes Comparison Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="p-5 space-y-3 bg-white/70 dark:bg-zinc-900/70 border border-black/10 dark:border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                      Explicit Version Route
+                    </span>
+                    <Badge variant="production" className="text-[10px]">
+                      Recommended for Production
+                    </Badge>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.03] font-mono text-xs text-zinc-800 dark:text-zinc-200 border border-black/5 dark:border-white/5 break-all">
+                    GET {issuerUrl}/api/v1/userinfo
+                  </div>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    Pinned to an explicit version number (<code className="font-mono">v1</code>). Production applications should always specify the API version to guarantee immunity against breaking changes when future API versions are deployed.
+                  </p>
+                </Card>
+
+                <Card className="p-5 space-y-3 bg-white/70 dark:bg-zinc-900/70 border border-black/10 dark:border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                      Unversioned Route Alias
+                    </span>
+                    <Badge variant="optional" className="text-[10px]">
+                      Aliases to Latest (v1)
+                    </Badge>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.03] font-mono text-xs text-zinc-800 dark:text-zinc-200 border border-black/5 dark:border-white/5 break-all">
+                    GET {issuerUrl}/api/userinfo
+                  </div>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    Requests to unversioned paths are automatically rewritten at the edge proxy to the current default/latest API version (<code className="font-mono">v1</code>). Ideal for rapid prototyping and interactive testing.
+                  </p>
+                </Card>
+              </div>
+
+              {/* Protocol Endpoints vs Resource Endpoints */}
+              <Card className="p-5 space-y-3 bg-white/70 dark:bg-zinc-900/70 border border-black/10 dark:border-white/10 text-xs">
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                  Authorization Server vs. Resource Server
+                </h3>
+                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  Only <strong>Resource Server</strong> endpoints follow API versioning. Core OAuth 2.0 and OpenID Connect 1.0 protocol endpoints follow RFC standards and remain unversioned.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-1.5">
+                    <div className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Protocol Endpoints (RFC-Governed)</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      Unversioned standard paths defined by OAuth 2.0 & OIDC specifications:
+                    </p>
+                    <ul className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300 space-y-0.5 list-disc list-inside">
+                      <li>/oauth2/authorize</li>
+                      <li>/oauth2/token</li>
+                      <li>/oauth2/revoke</li>
+                      <li>/.well-known/openid-configuration</li>
+                      <li>/jwks.json</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-1.5">
+                    <div className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Resource Server Endpoints (Versioned)</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      Domain resource routes delivering student academic records and profile claims:
+                    </p>
+                    <ul className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300 space-y-0.5 list-disc list-inside">
+                      <li>/api/v1/userinfo (pinned version)</li>
+                      <li>/api/userinfo (unversioned alias)</li>
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+
+              {/* API Versions Table */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Supported API Versions
+                </h3>
+                <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-950">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-zinc-500 dark:text-zinc-400">
+                        <th className="py-2.5 px-3 font-semibold">Version</th>
+                        <th className="py-2.5 px-3 font-semibold">Status</th>
+                        <th className="py-2.5 px-3 font-semibold">Default</th>
+                        <th className="py-2.5 px-3 font-semibold">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black/5 dark:divide-white/5">
+                      <tr>
+                        <td className="py-2.5 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                          v1
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <Badge variant="production" className="text-[10px] px-1.5 py-0.5">
+                            Available
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-zinc-600 dark:text-zinc-300">
+                          Yes
+                        </td>
+                        <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                          Initial stable release of the PESU OIDC Resource Server, providing verified student profile claims via <code className="font-mono">/api/v1/userinfo</code>.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Backward Compatibility & Evolution Policy */}
+              <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 space-y-2 text-xs text-zinc-600 dark:text-zinc-400">
+                <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 text-sm">
+                  <Sparkles className="w-4 h-4 text-blue-500" />
+                  <span>Breaking Changes & Evolution Policy</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1.5 leading-relaxed">
+                  <li>
+                    <strong>Non-Breaking Changes:</strong> Additive changes (e.g. adding new optional claims, new response headers, or new non-mandatory parameters) are introduced directly into the current version without breaking existing integrations.
+                  </li>
+                  <li>
+                    <strong>Breaking Changes:</strong> Structural changes (e.g. removing claims, renaming keys, altering parameter types, or changing status codes) will always increment the API version (e.g. <code className="font-mono">v2</code>).
+                  </li>
+                  <li>
+                    <strong>Deprecation Schedule:</strong> Whenever a new major version is released, previous versions enter a deprecation transition period to allow developers adequate time to upgrade.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+
           {selectedId === 'pkce' && (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -534,11 +766,11 @@ export function DocsClient({
                   </li>
                   <li>
                     <strong>Authorization Request:</strong> Send <code className="font-mono">code_challenge</code> and{' '}
-                    <code className="font-mono">code_challenge_method=S256</code> to <code className="font-mono">/authorize</code>.
+                    <code className="font-mono">code_challenge_method=S256</code> to <code className="font-mono">/oauth2/authorize</code>.
                   </li>
                   <li>
                     <strong>Token Exchange:</strong> Submit the original plaintext <code className="font-mono">code_verifier</code> in
-                    the <code className="font-mono">POST /token</code> request. The authorization server hashes it and matches the
+                    the <code className="font-mono">POST /oauth2/token</code> request. The authorization server hashes it and matches the
                     original challenge before issuing tokens.
                   </li>
                 </ol>

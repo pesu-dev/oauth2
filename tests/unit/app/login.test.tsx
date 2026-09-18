@@ -49,7 +49,7 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/login', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

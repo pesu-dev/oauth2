@@ -83,7 +83,7 @@ export default function ClientDetailPage() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/portal/clients/${clientId}`);
+      const res = await fetch(`/api/internal/portal/clients/${clientId}`);
       const data = await res.json();
       if (res.ok) {
         setClient(data.client);
@@ -140,7 +140,7 @@ export default function ClientDetailPage() {
       .filter(Boolean);
 
     try {
-      const res = await fetch(`/api/portal/clients/${clientId}`, {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ redirectUris: cleanedUris }),
@@ -159,7 +159,7 @@ export default function ClientDetailPage() {
     setRotatingSecret(true);
     setRotateError(null);
     try {
-      const res = await fetch(`/api/portal/clients/${clientId}/rotate-secret`, {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}/rotate-secret`, {
         method: 'POST',
       });
       const data = await res.json();
@@ -181,7 +181,7 @@ export default function ClientDetailPage() {
     setAddingTester(true);
 
     try {
-      const res = await fetch(`/api/portal/clients/${clientId}/testers`, {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}/testers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: testerInput.trim() }),
@@ -196,7 +196,7 @@ export default function ClientDetailPage() {
   };
 
   const handleRemoveTester = async (sub: string) => {
-    await fetch(`/api/portal/clients/${clientId}/testers?sub=${encodeURIComponent(sub)}`, {
+    await fetch(`/api/internal/portal/clients/${clientId}/testers?sub=${encodeURIComponent(sub)}`, {
       method: 'DELETE',
     });
     fetchData();
@@ -207,7 +207,7 @@ export default function ClientDetailPage() {
     setProdLoading(true);
 
     try {
-      const res = await fetch(`/api/portal/clients/${clientId}/request-production`, {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}/request-production`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ justification, delegatedRequested }),

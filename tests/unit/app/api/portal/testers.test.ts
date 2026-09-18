@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST, DELETE } from '@/app/api/portal/clients/[clientId]/testers/route';
+import { POST, DELETE } from '@/app/api/internal/portal/clients/[clientId]/testers/route';
 import { Client, ClientTester, User } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 

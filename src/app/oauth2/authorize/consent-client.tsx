@@ -64,7 +64,7 @@ export function ConsentClient({
     setError(null);
 
     try {
-      const res = await fetch('/api/oidc/consent', {
+      const res = await fetch('/api/internal/consent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

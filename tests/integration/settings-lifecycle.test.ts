@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
 import { NextRequest } from 'next/server';
-import { GET as getSettings, DELETE as deleteSettings } from '@/app/api/settings/route';
+import { GET as getSettings, DELETE as deleteSettings } from '@/app/api/internal/settings/route';
 import { User, Client, Consent, RefreshToken, Vault } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
 

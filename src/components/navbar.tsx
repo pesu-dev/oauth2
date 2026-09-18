@@ -15,7 +15,7 @@ export function Navbar() {
 
   React.useEffect(() => {
     let isMounted = true;
-    fetch('/api/auth/status')
+    fetch('/api/internal/auth/status')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data) {
@@ -32,7 +32,7 @@ export function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/internal/auth/logout', { method: 'POST' });
       setIsAuthenticated(false);
       setIsAdmin(false);
       router.push('/');

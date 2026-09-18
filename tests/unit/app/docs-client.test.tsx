@@ -20,31 +20,34 @@ describe('DocsPage & DocsClient', () => {
   it('renders sidebar navigation items and guides', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
     expect(screen.getAllByText('Overview & Quickstart').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('API Versioning').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Mandatory PKCE (S256)').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('/token').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('/userinfo').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Resource Server').length).toBeGreaterThan(0);
+    expect(screen.getByRole('combobox', { name: /select api version/i })).toBeDefined();
+    expect(screen.getAllByText('/oauth2/token').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/api/userinfo').length).toBeGreaterThan(0);
   });
 
   it('allows searching documentation sections', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
     const searchInputs = screen.getAllByPlaceholderText(/search guides & endpoints/i);
     fireEvent.change(searchInputs[0], { target: { value: 'revoke' } });
-    expect(screen.getAllByText('/revoke').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/oauth2/revoke').length).toBeGreaterThan(0);
   });
 
   it('switches active section when clicked', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     expect(tokenButton).toBeDefined();
     fireEvent.click(tokenButton!);
 
     expect(screen.getByText('Token Issuance & Refresh')).toBeDefined();
-    expect(screen.getAllByText('POST /token').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('POST /oauth2/token').length).toBeGreaterThan(0);
   });
 
   it('switches language tabs for sample code', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     const tsTabs = screen.getAllByRole('button', { name: /typescript/i });
@@ -62,7 +65,7 @@ describe('DocsPage & DocsClient', () => {
     });
 
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     const copyBtn = screen.getByRole('button', { name: /^copy for llm$/i });
@@ -135,8 +138,8 @@ describe('DocsPage & DocsClient', () => {
     });
 
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    // Select /token endpoint
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    // Select /oauth2/token endpoint
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     // Click Python tab
@@ -170,7 +173,7 @@ describe('DocsPage & DocsClient', () => {
     });
 
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     // Find response tabs (e.g. 400 Bad Request)
@@ -188,7 +191,7 @@ describe('DocsPage & DocsClient', () => {
 
   it('switches between curl and ts code tabs on an endpoint', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     // Switch to fetch
@@ -203,7 +206,7 @@ describe('DocsPage & DocsClient', () => {
   it('initializes selected section from window.location.hash and handles hashchange', () => {
     window.location.hash = '#authorize';
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    expect(screen.getAllByText('/authorize').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/oauth2/authorize').length).toBeGreaterThan(0);
 
     // Trigger hashchange event
     window.location.hash = '#openid-configuration';
@@ -276,7 +279,7 @@ describe('DocsPage & DocsClient', () => {
 
   it('handles dual-method endpoint badge variant for userinfo', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const userinfoBtn = screen.getAllByText('/userinfo')[0].closest('button');
+    const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');
     expect(userinfoBtn).toBeDefined();
     fireEvent.click(userinfoBtn!);
 
@@ -314,12 +317,29 @@ describe('DocsPage & DocsClient', () => {
 
   it('omits next button on the last item in documentation', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const revokeBtn = screen.getAllByText('/revoke')[0].closest('button');
-    expect(revokeBtn).toBeDefined();
-    fireEvent.click(revokeBtn!);
+    const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');
+    expect(userinfoBtn).toBeDefined();
+    fireEvent.click(userinfoBtn!);
 
-    // Since /revoke is the last item, Next button should not be present
+    // Since /api/v1/userinfo is the last item, Next button should not be present
     expect(screen.queryByText('Next')).toBeNull();
+  });
+
+  it('renders and navigates to API Versioning guide and handles version selector', () => {
+    render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
+    const versioningBtn = screen.getAllByText('API Versioning')[0].closest('button');
+    expect(versioningBtn).toBeDefined();
+    fireEvent.click(versioningBtn!);
+
+    expect(screen.getAllByText('Architecture & Standards').length).toBeGreaterThan(0);
+    expect(screen.getByText('Supported API Versions')).toBeDefined();
+    expect(screen.getByText('Explicit Version Route')).toBeDefined();
+    expect(screen.getByText('Unversioned Route Alias')).toBeDefined();
+
+    // Change version selector
+    const versionSelect = screen.getByRole('combobox', { name: /select api version/i });
+    fireEvent.change(versionSelect, { target: { value: 'v1' } });
+    expect(versionSelect).toHaveProperty('value', 'v1');
   });
 
   it('handles endpoint with empty responses array returning null for active response', () => {
@@ -331,7 +351,7 @@ describe('DocsPage & DocsClient', () => {
 
     try {
       render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-      const tokenButton = screen.getAllByText('/token')[0].closest('button');
+      const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
       fireEvent.click(tokenButton!);
       expect(screen.queryByTitle('Copy JSON payload')).toBeNull();
     } finally {
@@ -362,7 +382,7 @@ describe('DocsPage & DocsClient', () => {
     });
 
     // 4. Navigate to token endpoint and click copy endpoint path
-    const tokenButton = screen.getAllByText('/token')[0].closest('button');
+    const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
     const copyPathBtn = screen.getByTitle('Copy endpoint path');

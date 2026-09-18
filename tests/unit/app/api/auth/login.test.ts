@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { POST as postLogin } from '@/app/api/auth/login/route';
+import { POST as postLogin } from '@/app/api/internal/auth/login/route';
 import { User, Client } from '@/lib/db/models';
 import { NextRequest } from 'next/server';
 import { AcademyClient } from '@/lib/academy/client';

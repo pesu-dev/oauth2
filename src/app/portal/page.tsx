@@ -50,7 +50,7 @@ export default function PortalPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/portal/clients');
+      const res = await fetch('/api/internal/portal/clients');
       const data = await res.json();
       if (res.ok && data.clients) {
         setClients(data.clients);
@@ -76,7 +76,7 @@ export default function PortalPage() {
     setCreateLoading(true);
 
     try {
-      const res = await fetch('/api/portal/clients', {
+      const res = await fetch('/api/internal/portal/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

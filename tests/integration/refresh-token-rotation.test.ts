@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
-import { POST as postToken } from '@/app/token/route';
+import { POST as postToken } from '@/app/oauth2/token/route';
 import { User, Client, RefreshToken } from '@/lib/db/models';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { newFamilyId, newRefreshToken } from '@/lib/id/nanoid';

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
 import { NextRequest } from 'next/server';
-import { POST as postConsent } from '@/app/api/oidc/consent/route';
-import { POST as postToken } from '@/app/token/route';
-import { POST as postTokenExchange } from '@/app/oauth/token-exchange/route';
+import { POST as postConsent } from '@/app/api/internal/consent/route';
+import { POST as postToken } from '@/app/oauth2/token/route';
+import { POST as postTokenExchange } from '@/app/oauth2/token-exchange/route';
 import { User, Client, Vault } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';

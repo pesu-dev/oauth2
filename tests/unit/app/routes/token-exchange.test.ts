@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { POST as postExchange } from '@/app/oauth/token-exchange/route';
+import { POST as postExchange } from '@/app/oauth2/token-exchange/route';
 import { Consent, Vault, User } from '@/lib/db/models';
 import * as jwtHelper from '@/lib/oidc/jwt';
 

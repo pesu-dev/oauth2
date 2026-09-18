@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as postRequestProduction } from '@/app/api/portal/clients/[clientId]/request-production/route';
+import { POST as postRequestProduction } from '@/app/api/internal/portal/clients/[clientId]/request-production/route';
 import { Client, ProductionRequest } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 

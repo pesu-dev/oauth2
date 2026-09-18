@@ -75,7 +75,7 @@ describe('AdminPage Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/admin/requests', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,7 +90,7 @@ describe('AdminPage Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /reject/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/admin/requests', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/internal/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,7 +183,7 @@ describe('AdminPage Component', () => {
     ];
 
     global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      if (typeof url === 'string' && url.includes('/api/admin/clients')) {
+      if (typeof url === 'string' && url.includes('/api/internal/admin/clients')) {
         if (init?.method === 'PATCH') {
           return { ok: true, json: async () => ({ success: true }) };
         }
@@ -215,7 +215,7 @@ describe('AdminPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/admin/clients',
+        '/api/internal/admin/clients',
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({
@@ -244,7 +244,7 @@ describe('AdminPage Component', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/admin/clients',
+        '/api/internal/admin/clients',
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({

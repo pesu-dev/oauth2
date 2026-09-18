@@ -62,7 +62,7 @@ export default function SettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
+      const res = await fetch('/api/internal/settings');
       const data = await res.json();
       if (res.ok) {
         setUser(data.user);
@@ -83,14 +83,14 @@ export default function SettingsPage() {
     if (typeof window !== 'undefined' && window.confirm && !window.confirm('Are you sure you want to delete your stored vault credentials? Any delegated applications will not be able to execute actions on your behalf until re-authenticated.')) {
       return;
     }
-    const res = await fetch('/api/settings?action=vault', { method: 'DELETE' });
+    const res = await fetch('/api/internal/settings?action=vault', { method: 'DELETE' });
     if (res.ok) {
       fetchSettings();
     }
   };
 
   const handleRevokeConsent = async (clientId: string) => {
-    const res = await fetch(`/api/settings?action=consent&client_id=${encodeURIComponent(clientId)}`, {
+    const res = await fetch(`/api/internal/settings?action=consent&client_id=${encodeURIComponent(clientId)}`, {
       method: 'DELETE',
     });
     if (res.ok) {
@@ -104,7 +104,7 @@ export default function SettingsPage() {
     setPasswordMessage(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch('/api/internal/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword }),
@@ -132,7 +132,7 @@ export default function SettingsPage() {
     setIsDeletingAccount(true);
     setDeleteError(null);
     try {
-      const res = await fetch('/api/settings?action=account', {
+      const res = await fetch('/api/internal/settings?action=account', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirm: 'DELETE' }),

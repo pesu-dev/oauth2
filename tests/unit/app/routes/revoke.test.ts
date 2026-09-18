@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { POST as postRevoke } from '@/app/revoke/route';
+import { POST as postRevoke } from '@/app/oauth2/revoke/route';
 import { Client, RefreshToken } from '@/lib/db/models';
 import { sha256Hex, hashClientSecret } from '@/lib/crypto/hash';
 
