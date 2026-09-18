@@ -153,6 +153,18 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     redirect(`/login?return_to=${encodeURIComponent(returnUrl)}`);
   }
 
+  // Check Suspension Gate: suspended clients cannot be authorized
+  if (client.publishing_status === 'suspended') {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-sm space-y-2">
+        <h3 className="font-semibold text-base">Application Suspended</h3>
+        <p>
+          This application has been suspended by an administrator and cannot be authorized at this time.
+        </p>
+      </div>
+    );
+  }
+
   // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
   if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
     const isOwner = client.owner_sub === session.sub;

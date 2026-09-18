@@ -64,6 +64,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid redirect URI' }, { status: 400 });
     }
 
+    // Check Suspension Gate: suspended clients cannot be authorized
+    if (client.publishing_status === 'suspended') {
+      return NextResponse.json(
+        { error: 'Application is suspended by an administrator.' },
+        { status: 403 }
+      );
+    }
+
     // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
     if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
       const isOwner = client.owner_sub === session.sub;

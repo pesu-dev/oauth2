@@ -25,7 +25,7 @@ import { Plus, AppWindow, ArrowUpRight, ShieldAlert } from 'lucide-react';
 interface ClientItem {
   client_id: string;
   name: string;
-  publishing_status: 'testing' | 'pending_production' | 'production';
+  publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   redirect_uris: string[];
   delegated_allowed: boolean;
   created_at: string;

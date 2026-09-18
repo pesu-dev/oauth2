@@ -210,6 +210,35 @@ describe('Authorize Page & Consent', () => {
       expect(container.textContent).toContain('Application in Testing Mode');
     });
 
+    it('blocks authorization when client is suspended', async () => {
+      mockCookieMap.set('pesu_session', 'mock-session');
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({
+        sub: 'user_123',
+        name: 'Student Name',
+      });
+
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_suspended',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'suspended',
+        owner_sub: 'owner_123',
+      } as never);
+
+      const res = await AuthorizePage({
+        searchParams: Promise.resolve({
+          client_id: 'cli_suspended',
+          redirect_uri: 'https://app.pesu.edu/callback',
+          response_type: 'code',
+          code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+          code_challenge_method: 'S256',
+          scope: 'openid',
+        }),
+      });
+      const { container } = render(res as React.ReactElement);
+      expect(container.textContent).toContain('Application Suspended');
+      expect(container.textContent).toContain('suspended by an administrator');
+    });
+
     it('auto-issues authorization code when valid consent already exists (identity mode)', async () => {
       mockCookieMap.set('pesu_session', 'mock-session');
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({

@@ -91,6 +91,32 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(data.error).toContain('Application in testing mode');
     });
 
+    it('rejects with 403 when client is suspended', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_owner' });
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        owner_sub: 'usr_owner',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'suspended',
+        delegated_allowed: false,
+      } as unknown as InstanceType<typeof Client>);
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toContain('Application is suspended by an administrator');
+    });
+
     it('rejects with 400 when mode is invalid', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
 

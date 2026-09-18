@@ -9,7 +9,7 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 }
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'testing' | 'pending' | 'pending_production' | 'production' | 'identity' | 'delegated' | 'neutral' | 'required' | 'optional';
+  variant?: 'testing' | 'pending' | 'pending_production' | 'production' | 'suspended' | 'identity' | 'delegated' | 'neutral' | 'required' | 'optional';
 }
 
 export function Badge({
@@ -27,6 +27,8 @@ export function Badge({
       'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20',
     production:
       'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20',
+    suspended:
+      'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20',
     identity:
       'bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20',
     delegated:

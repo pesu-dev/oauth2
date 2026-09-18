@@ -248,6 +248,32 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error).toBe('invalid_client');
     });
 
+    it('returns 401 when client is suspended', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_suspended',
+        token_endpoint_auth_method: 'none',
+        publishing_status: 'suspended',
+      } as never);
+
+      const req = new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: 'cli_suspended',
+          code: 'some_code',
+          redirect_uri: 'http://localhost/cb',
+          code_verifier: 'a'.repeat(43),
+        }).toString(),
+      });
+
+      const res = await postToken(req);
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe('invalid_client');
+      expect(data.error_description).toContain('Client is suspended');
+    });
+
     it('decodes URL-encoded basic auth credentials with colon in secret', async () => {
       const secretWithColon = 'secret:with:colons%26special!';
       const secretHash = await hashClientSecret(secretWithColon);

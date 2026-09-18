@@ -155,4 +155,105 @@ describe('AdminPage Component', () => {
     global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network error'));
     fireEvent.click(screen.getByRole('button', { name: /reject/i }));
   });
+
+  it('navigates to All Clients tab, handles search, suspend drawer, and unsuspend action', async () => {
+    const mockClients = [
+      {
+        client_id: 'cli_active',
+        name: 'Active App',
+        owner_sub: 'usr_dev1',
+        publishing_status: 'testing',
+        delegated_allowed: false,
+        redirect_uris: ['http://localhost:3000/cb'],
+        suspension_reason: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        client_id: 'cli_suspended',
+        name: 'Suspended App',
+        owner_sub: 'usr_dev2',
+        publishing_status: 'suspended',
+        delegated_allowed: true,
+        redirect_uris: ['http://localhost:3000/cb'],
+        suspension_reason: 'Abusive API calls',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (typeof url === 'string' && url.includes('/api/admin/clients')) {
+        if (init?.method === 'PATCH') {
+          return { ok: true, json: async () => ({ success: true }) };
+        }
+        return { ok: true, json: async () => ({ clients: mockClients }) };
+      }
+      return { ok: true, json: async () => ({ requests: [] }) };
+    });
+
+    render(<AdminPage />);
+
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.queryByText('Loading admin queue...')).toBeNull();
+    });
+
+    // Switch to All Clients tab
+    const clientsTabBtn = screen.getByRole('button', { name: /all clients/i });
+    fireEvent.click(clientsTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Active App')).toBeDefined();
+      expect(screen.getByText('Suspended App')).toBeDefined();
+      expect(screen.getByText(/abusive api calls/i)).toBeDefined();
+    });
+
+    // Test Unsuspend action on suspended client
+    const unsuspendBtn = screen.getByRole('button', { name: /unsuspend/i });
+    fireEvent.click(unsuspendBtn);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/admin/clients',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            clientId: 'cli_suspended',
+            action: 'unsuspend',
+            targetStatus: 'testing',
+          }),
+        })
+      );
+    });
+
+    // Test Suspend action on active client
+    const suspendBtn = screen.getByRole('button', { name: /^suspend/i });
+    fireEvent.click(suspendBtn);
+
+    // Enter reason and confirm
+    await waitFor(() => {
+      expect(screen.getByText('Suspend Application')).toBeDefined();
+    });
+
+    const reasonInput = screen.getByPlaceholderText(/e\.g\. Terms violation/i);
+    fireEvent.change(reasonInput, { target: { value: 'Spamming credentials' } });
+
+    const confirmBtn = screen.getByRole('button', { name: /confirm suspension/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/admin/clients',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            clientId: 'cli_active',
+            action: 'suspend',
+            reason: 'Spamming credentials',
+          }),
+        })
+      );
+    });
+  });
 });

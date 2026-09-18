@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type PublishingStatus = 'testing' | 'pending_production' | 'production';
+export type PublishingStatus = 'testing' | 'pending_production' | 'production' | 'suspended';
 
 export interface IClient extends Document {
   client_id: string;
@@ -11,6 +11,9 @@ export interface IClient extends Document {
   publishing_status: PublishingStatus;
   delegated_allowed: boolean;
   token_endpoint_auth_method: string;
+  suspension_reason?: string | null;
+  suspended_at?: Date | null;
+  suspended_by_sub?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -24,11 +27,14 @@ export const ClientSchema = new Schema<IClient>(
     redirect_uris: { type: [String], default: [] },
     publishing_status: {
       type: String,
-      enum: ['testing', 'pending_production', 'production'],
+      enum: ['testing', 'pending_production', 'production', 'suspended'],
       default: 'testing',
     },
     delegated_allowed: { type: Boolean, default: false },
     token_endpoint_auth_method: { type: String, default: 'client_secret_post' },
+    suspension_reason: { type: String, default: null },
+    suspended_at: { type: Date, default: null },
+    suspended_by_sub: { type: String, default: null },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now },
   },

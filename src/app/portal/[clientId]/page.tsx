@@ -35,9 +35,11 @@ import {
 interface ClientData {
   client_id: string;
   name: string;
-  publishing_status: 'testing' | 'pending_production' | 'production';
+  publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   redirect_uris: string[];
   delegated_allowed: boolean;
+  suspension_reason?: string | null;
+  suspended_at?: string | null;
 }
 
 interface TesterData {
@@ -335,6 +337,25 @@ export default function ClientDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {/* Application Suspended Banner */}
+      {client.publishing_status === 'suspended' && (
+        <Card className="p-4 bg-red-500/10 border border-red-500/30 dark:border-red-500/20 space-y-2 text-red-700 dark:text-red-400">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+            <span>Application Suspended by Administrator</span>
+          </div>
+          <p className="text-xs leading-relaxed text-red-900/80 dark:text-red-300/80">
+            This application has been suspended. Authorization and token exchange requests for this client are currently blocked.
+          </p>
+          {client.suspension_reason && (
+            <div className="mt-2 pt-2 border-t border-red-500/20 text-xs">
+              <span className="font-semibold block mb-0.5 text-red-900 dark:text-red-200">Reason:</span>
+              <p className="text-red-800 dark:text-red-300">{client.suspension_reason}</p>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Rotated Secret Banner */}
       {rotatedSecret && (

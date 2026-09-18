@@ -687,5 +687,32 @@ describe('ClientDetailPage Component', () => {
       expect(screen.getByText('pending production')).toBeDefined();
     });
   });
+
+  it('renders suspended badge and reason banner when app status is suspended', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        client: {
+          client_id: 'cli_portal_suspended',
+          name: 'Suspended App',
+          publishing_status: 'suspended',
+          redirect_uris: ['https://app.pesu.edu/callback'],
+          delegated_allowed: false,
+          suspension_reason: 'Violation of OAuth security guidelines',
+        },
+        testers: [],
+      }),
+    });
+
+    render(<ClientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Suspended App')).toBeDefined();
+      expect(screen.getByText('suspended')).toBeDefined();
+      expect(screen.getByText('Application Suspended by Administrator')).toBeDefined();
+      expect(screen.getByText('Violation of OAuth security guidelines')).toBeDefined();
+      expect(screen.queryByText('Request Production')).toBeNull();
+    });
+  });
 });
 

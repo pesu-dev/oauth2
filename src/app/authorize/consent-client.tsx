@@ -31,7 +31,7 @@ interface ConsentClientProps {
   client: {
     clientId: string;
     name: string;
-    publishingStatus: 'testing' | 'pending_production' | 'production';
+    publishingStatus: 'testing' | 'pending_production' | 'production' | 'suspended';
     delegatedAllowed: boolean;
     ownerSub?: string;
   };

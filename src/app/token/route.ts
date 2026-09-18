@@ -128,6 +128,13 @@ export async function POST(request: NextRequest | Request) {
     }
   }
 
+  if (client.publishing_status === 'suspended') {
+    return tokenResponse(
+      { error: 'invalid_client', error_description: 'Client is suspended' },
+      401
+    );
+  }
+
   // -------------------------------------------------------------
   // 1. authorization_code
   // -------------------------------------------------------------
