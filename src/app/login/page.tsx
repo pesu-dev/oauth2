@@ -2,9 +2,11 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { PageLoader } from '@/components/ui/page-loader';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
 
 function LoginForm() {
@@ -47,23 +49,24 @@ function LoginForm() {
   return (
     <div className="flex items-center justify-center min-h-[70vh] px-4">
       <Card className="w-full max-w-md p-8 shadow-xl">
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <CardTitle className="text-xl">Sign in with PESU</CardTitle>
-            <CardDescription className="text-xs">
-              Use your official PESU Academy credentials
-            </CardDescription>
-          </div>
-        </div>
+        <CardHeader
+          icon={<ShieldCheck className="w-5 h-5" />}
+          iconColor="blue"
+          className="mb-6"
+        >
+          <CardTitle className="text-xl">Sign in with PESU</CardTitle>
+          <CardDescription className="text-xs">
+            Use your official PESU Academy credentials
+          </CardDescription>
+        </CardHeader>
 
         {error ? (
-          <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
+          <InlineAlert
+            variant="error"
+            message={error}
+            icon={<AlertCircle className="w-4 h-4" />}
+            className="mb-5 text-xs p-3"
+          />
         ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -108,7 +111,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <React.Suspense fallback={<div className="flex items-center justify-center min-h-[70vh]"><div className="text-sm text-zinc-500">Loading...</div></div>}>
+    <React.Suspense fallback={<PageLoader />}>
       <LoginForm />
     </React.Suspense>
   );

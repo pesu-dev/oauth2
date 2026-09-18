@@ -7,6 +7,10 @@ import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { PageLoader } from '@/components/ui/page-loader';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { DrawerActions } from '@/components/ui/drawer-actions';
 import {
   Drawer,
   DrawerTrigger,
@@ -224,7 +228,7 @@ export default function ClientDetailPage() {
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-zinc-400">Loading details...</div>;
+    return <PageLoader message="Loading details..." />;
   }
 
   if (!client) {
@@ -253,15 +257,7 @@ export default function ClientDetailPage() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
                 {client.name}
               </h1>
-              <Badge
-                variant={
-                  client.publishing_status === 'production'
-                    ? 'production'
-                    : client.publishing_status === 'pending_production'
-                    ? 'pending'
-                    : 'testing'
-                }
-              >
+              <Badge variant={client.publishing_status}>
                 {client.publishing_status.replace('_', ' ')}
               </Badge>
               {client.delegated_allowed && (
@@ -300,19 +296,14 @@ export default function ClientDetailPage() {
                 </DrawerHeader>
 
                 <form onSubmit={handleRequestProduction} className="space-y-4 px-4 pb-6">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Justification & Club / Project Context
-                    </label>
-                    <textarea
-                      className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={4}
-                      placeholder="Explain your app's purpose, target audience, and why production access is needed..."
-                      value={justification}
-                      onChange={(e) => setJustification(e.target.value)}
-                      required
-                    />
-                  </div>
+                  <Textarea
+                    label="Justification & Club / Project Context"
+                    rows={4}
+                    placeholder="Explain your app's purpose, target audience, and why production access is needed..."
+                    value={justification}
+                    onChange={(e) => setJustification(e.target.value)}
+                    required
+                  />
 
                   <div className="flex items-start gap-2.5 pt-1">
                     <input
@@ -333,19 +324,11 @@ export default function ClientDetailPage() {
                     </label>
                   </div>
 
-                  <div className="pt-2 flex gap-3">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="flex-1"
-                      onClick={() => setIsProdDrawerOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="flex-1" loading={prodLoading}>
-                      Submit for Review
-                    </Button>
-                  </div>
+                  <DrawerActions
+                    onCancel={() => setIsProdDrawerOpen(false)}
+                    submitLabel="Submit for Review"
+                    loading={prodLoading}
+                  />
                 </form>
               </DrawerContent>
             </Drawer>
@@ -470,33 +453,21 @@ export default function ClientDetailPage() {
 
           <div className="space-y-4 px-4 pb-6">
             {rotateError && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-400">
-                {rotateError}
-              </div>
+              <InlineAlert variant="error" message={rotateError} className="p-3 text-xs" />
             )}
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200">
-              Are you sure you want to regenerate the client secret for <strong>{client.name}</strong>?
-            </div>
+            <InlineAlert
+              variant="warning"
+              message={`Are you sure you want to regenerate the client secret for ${client.name}?`}
+              className="p-3.5 text-xs font-medium"
+            />
 
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setIsRotateSecretOpen(false)}
-                disabled={rotatingSecret}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
-                onClick={handleRotateSecret}
-                loading={rotatingSecret}
-              >
-                Yes, Rotate Secret
-              </Button>
-            </div>
+            <DrawerActions
+              onCancel={() => setIsRotateSecretOpen(false)}
+              onSubmit={handleRotateSecret}
+              submitLabel="Yes, Rotate Secret"
+              loading={rotatingSecret}
+              destructive
+            />
           </div>
         </DrawerContent>
       </Drawer>

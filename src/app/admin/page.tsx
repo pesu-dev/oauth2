@@ -1,9 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { PageLoader } from '@/components/ui/page-loader';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ShieldAlert, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 interface RequestItem {
@@ -66,7 +69,7 @@ export default function AdminPage() {
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-zinc-400">Loading admin queue...</div>;
+    return <PageLoader message="Loading admin queue..." />;
   }
 
   if (error) {
@@ -81,22 +84,18 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6 py-4 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Admin Review Queue
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Review and approve production publishing requests for third-party client apps.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin Review Queue"
+        description="Review and approve production publishing requests for third-party client apps."
+      />
 
       {requests.length === 0 ? (
         <Card className="text-center py-16 space-y-2">
-          <Clock className="w-10 h-10 mx-auto text-zinc-400 opacity-60 mb-2" />
-          <CardTitle className="text-lg">No Pending Requests</CardTitle>
-          <CardDescription>
-            All production publishing requests have been reviewed.
-          </CardDescription>
+          <EmptyState
+            icon={<Clock className="w-10 h-10 opacity-60" />}
+            title="No Pending Requests"
+            description="All production publishing requests have been reviewed."
+          />
         </Card>
       ) : (
         <div className="space-y-4">

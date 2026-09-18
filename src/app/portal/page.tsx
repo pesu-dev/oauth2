@@ -6,6 +6,13 @@ import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/ui/page-header';
+import { PageLoader } from '@/components/ui/page-loader';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { CopyableField } from '@/components/ui/copyable-field';
+import { DrawerActions } from '@/components/ui/drawer-actions';
 import {
   Drawer,
   DrawerTrigger,
@@ -14,7 +21,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from '@/components/ui/drawer';
-import { Plus, AppWindow, ArrowUpRight, Copy, Check, ShieldAlert } from 'lucide-react';
+import { Plus, AppWindow, ArrowUpRight, ShieldAlert } from 'lucide-react';
 
 interface ClientItem {
   client_id: string;
@@ -41,7 +48,6 @@ export default function PortalPage() {
     clientId: string;
     secret: string;
   } | null>(null);
-  const [copied, setCopied] = React.useState(false);
 
   const fetchClients = async () => {
     try {
@@ -101,23 +107,13 @@ export default function PortalPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="space-y-8 py-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Developer Portal
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Manage your registered OAuth2 applications and publishing status.
-          </p>
-        </div>
+        <PageHeader
+          title="Developer Portal"
+          description="Manage your registered OAuth2 applications and publishing status."
+        />
 
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerTrigger asChild>
@@ -135,9 +131,7 @@ export default function PortalPage() {
 
             <form onSubmit={handleCreate} className="space-y-4 px-4 pb-6">
               {createError ? (
-                <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-xs">
-                  {createError}
-                </div>
+                <InlineAlert variant="error" message={createError} className="p-3 text-xs" />
               ) : null}
 
               <Input
@@ -148,37 +142,24 @@ export default function PortalPage() {
                 required
               />
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Redirect URIs (one per line)
-                </label>
-                <textarea
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="https://example.com/api/auth/callback&#10;http://localhost:3000/callback"
-                  value={redirectUris}
-                  onChange={(e) => setRedirectUris(e.target.value)}
-                  required
-                />
-              </div>
+              <Textarea
+                label="Redirect URIs (one per line)"
+                rows={3}
+                placeholder="https://example.com/api/auth/callback&#10;http://localhost:3000/callback"
+                value={redirectUris}
+                onChange={(e) => setRedirectUris(e.target.value)}
+                required
+              />
 
               <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-3 text-xs text-zinc-500 dark:text-zinc-400">
                 All applications start with Identity mode in testing. Delegated credential vault access can be requested when submitting for production review.
               </div>
 
-              <div className="pt-4 flex gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setIsDrawerOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="flex-1" loading={createLoading}>
-                  Create Application
-                </Button>
-              </div>
+              <DrawerActions
+                onCancel={() => setIsDrawerOpen(false)}
+                submitLabel="Create Application"
+                loading={createLoading}
+              />
             </form>
           </DrawerContent>
         </Drawer>
@@ -198,28 +179,8 @@ export default function PortalPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div className="p-3 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-xs break-all flex items-center justify-between">
-              <span>{createdSecret.clientId}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => copyToClipboard(createdSecret.clientId)}
-                className="ml-2 h-7 w-7 p-0 hover:opacity-70"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-            <div className="p-3 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-xs break-all flex items-center justify-between">
-              <span>{createdSecret.secret}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => copyToClipboard(createdSecret.secret)}
-                className="ml-2 h-7 w-7 p-0 hover:opacity-70"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              </Button>
-            </div>
+            <CopyableField value={createdSecret.clientId} />
+            <CopyableField value={createdSecret.secret} />
           </div>
 
           <Button
@@ -235,23 +196,19 @@ export default function PortalPage() {
 
       {/* Apps list */}
       {loading ? (
-        <div className="text-center py-12 text-sm text-zinc-400">Loading applications...</div>
+        <PageLoader message="Loading applications..." />
       ) : clients.length === 0 ? (
-        <Card className="text-center py-16 px-4 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center mx-auto text-zinc-400">
-            <AppWindow className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              No applications registered yet
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto mt-1">
-              Create your first application to obtain OAuth2 client credentials and start integrating Sign in with PESU.
-            </p>
-          </div>
-          <Button onClick={() => setIsDrawerOpen(true)} size="sm">
-            Register your first app
-          </Button>
+        <Card className="text-center py-16 px-4">
+          <EmptyState
+            icon={<AppWindow className="w-8 h-8" />}
+            title="No applications registered yet"
+            description="Create your first application to obtain OAuth2 client credentials and start integrating Sign in with PESU."
+            action={
+              <Button onClick={() => setIsDrawerOpen(true)} size="sm">
+                Register your first app
+              </Button>
+            }
+          />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -263,15 +220,7 @@ export default function PortalPage() {
                     <CardTitle className="group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {app.name}
                     </CardTitle>
-                    <Badge
-                      variant={
-                        app.publishing_status === 'production'
-                          ? 'production'
-                          : app.publishing_status === 'pending_production'
-                          ? 'pending'
-                          : 'testing'
-                      }
-                    >
+                    <Badge variant={app.publishing_status}>
                       {app.publishing_status.replace('_', ' ')}
                     </Badge>
                   </div>

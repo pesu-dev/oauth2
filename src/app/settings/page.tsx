@@ -1,10 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { PageLoader } from '@/components/ui/page-loader';
+import { InlineAlert } from '@/components/ui/inline-alert';
+import { DrawerActions } from '@/components/ui/drawer-actions';
 import {
   Drawer,
   DrawerTrigger,
@@ -145,32 +149,23 @@ export default function SettingsPage() {
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-zinc-400">Loading settings...</div>;
+    return <PageLoader message="Loading settings..." />;
   }
 
   return (
     <div className="space-y-8 py-4 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Account & Privacy Settings
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Review your student identity profile, delegated credential vault, and third-party app permissions.
-        </p>
-      </div>
+      <PageHeader
+        title="Account & Privacy Settings"
+        description="Review your student identity profile, delegated credential vault, and third-party app permissions."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Profile Summary Card */}
         <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">{user?.name}</CardTitle>
-              <CardDescription className="text-xs">{user?.prn} • {user?.srn}</CardDescription>
-            </div>
-          </div>
+          <CardHeader icon={<User className="w-5 h-5" />} iconColor="blue" className="mb-4">
+            <CardTitle className="text-lg">{user?.name}</CardTitle>
+            <CardDescription className="text-xs">{user?.prn} • {user?.srn}</CardDescription>
+          </CardHeader>
 
           <div className="space-y-2 pt-2 text-xs text-zinc-600 dark:text-zinc-300">
             <div className="flex justify-between py-1.5 border-b border-black/5 dark:border-white/5">
@@ -196,15 +191,10 @@ export default function SettingsPage() {
         <Card className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Credential Vault</CardTitle>
-                  <CardDescription className="text-xs">Delegated API permissions</CardDescription>
-                </div>
-              </div>
+              <CardHeader icon={<Lock className="w-5 h-5" />} iconColor="purple" className="mb-0">
+                <CardTitle className="text-lg">Credential Vault</CardTitle>
+                <CardDescription className="text-xs">Delegated API permissions</CardDescription>
+              </CardHeader>
               <Badge variant={hasVault ? 'delegated' : 'neutral'}>
                 {hasVault ? 'Active Vault' : 'No Vault'}
               </Badge>
@@ -236,9 +226,7 @@ export default function SettingsPage() {
 
                     <form onSubmit={handleUpdatePassword} className="space-y-4 px-4 pb-6">
                       {passwordMessage ? (
-                        <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-xs">
-                          {passwordMessage}
-                        </div>
+                        <InlineAlert variant="error" message={passwordMessage} className="p-3 text-xs" />
                       ) : null}
 
                       <Input
@@ -250,19 +238,11 @@ export default function SettingsPage() {
                         disabled={updatingPassword}
                       />
 
-                      <div className="pt-2 flex gap-3">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="flex-1"
-                          onClick={() => setIsPasswordDrawerOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button type="submit" className="flex-1" loading={updatingPassword}>
-                          Update Vault
-                        </Button>
-                      </div>
+                      <DrawerActions
+                        onCancel={() => setIsPasswordDrawerOpen(false)}
+                        submitLabel="Update Vault"
+                        loading={updatingPassword}
+                      />
                     </form>
                   </DrawerContent>
                 </Drawer>
@@ -339,9 +319,7 @@ export default function SettingsPage() {
 
         <div className="mt-6 space-y-4 max-w-md">
           {deleteError && (
-            <div className="text-xs text-red-500 font-medium">
-              {deleteError}
-            </div>
+            <InlineAlert variant="error" message={deleteError} className="p-3 text-xs" />
           )}
           <div className="space-y-2">
             <label className="text-xs text-zinc-400">

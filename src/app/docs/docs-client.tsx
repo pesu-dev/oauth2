@@ -11,6 +11,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CodeBlock } from '@/components/ui/code-block';
 import {
   Check,
   Copy,
@@ -857,15 +858,9 @@ export const { GET, POST } = handlers;`}
                             </td>
                             <td className="py-2 px-3 text-zinc-500 font-mono">{h.type}</td>
                             <td className="py-2 px-3">
-                              {h.required ? (
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 text-red-600 dark:text-red-400">
-                                  Required
-                                </span>
-                              ) : (
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                                  Optional
-                                </span>
-                              )}
+                              <Badge variant={h.required ? 'required' : 'optional'} className="text-[10px] px-1.5 py-0.5">
+                                {h.required ? 'Required' : 'Optional'}
+                              </Badge>
                             </td>
                             <td className="py-2 px-3 text-zinc-600 dark:text-zinc-400 leading-relaxed">
                               {h.description}
@@ -916,15 +911,9 @@ export const { GET, POST } = handlers;`}
                             </td>
                             <td className="py-2.5 px-3 font-mono text-zinc-500">{p.type}</td>
                             <td className="py-2.5 px-3">
-                              {p.required ? (
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 text-red-600 dark:text-red-400">
-                                  Required
-                                </span>
-                              ) : (
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                                  Optional
-                                </span>
-                              )}
+                              <Badge variant={p.required ? 'required' : 'optional'} className="text-[10px] px-1.5 py-0.5">
+                                {p.required ? 'Required' : 'Optional'}
+                              </Badge>
                             </td>
                             <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-md">
                               <div>{p.description}</div>
@@ -1016,29 +1005,13 @@ export const { GET, POST } = handlers;`}
                         <p className="text-xs text-zinc-600 dark:text-zinc-400">
                           {resp.description}
                         </p>
-                        <div className="relative group">
-                          <pre className="overflow-x-auto p-3.5 rounded-lg bg-black/5 dark:bg-black/60 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
-                            {JSON.stringify(resp.sample, null, 2)}
-                          </pre>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Copy JSON payload"
-                            onClick={() =>
-                              copyToClipboard(
-                                JSON.stringify(resp.sample, null, 2),
-                                `resp-${currentEndpoint.id}-${currentRespTab}`
-                              )
-                            }
-                            className="absolute top-2 right-2 h-7 w-7 p-0 bg-white/80 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
-                          >
-                            {copiedId === `resp-${currentEndpoint.id}-${currentRespTab}` ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-500" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </Button>
-                        </div>
+                        <CodeBlock
+                          code={JSON.stringify(resp.sample, null, 2)}
+                          copyId={`resp-${currentEndpoint.id}-${currentRespTab}`}
+                          copied={copiedId === `resp-${currentEndpoint.id}-${currentRespTab}`}
+                          onCopy={(id) => copyToClipboard(JSON.stringify(resp.sample, null, 2), id)}
+                          title="Copy JSON payload"
+                        />
                       </div>
                     );
                   })()}
@@ -1108,26 +1081,12 @@ export const { GET, POST } = handlers;`}
                       : currentEndpoint.pythonSample;
 
                   return (
-                    <div className="relative group">
-                      <pre className="overflow-x-auto p-4 rounded-xl bg-black/5 dark:bg-black/60 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 border border-black/5 dark:border-white/5">
-                        {code}
-                      </pre>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Copy code"
-                        onClick={() =>
-                          copyToClipboard(code, `code-${currentEndpoint.id}-${tab}`)
-                        }
-                        className="absolute top-2.5 right-2.5 h-7 w-7 p-0 bg-white/80 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
-                      >
-                        {copiedId === `code-${currentEndpoint.id}-${tab}` ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-500" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </Button>
-                    </div>
+                    <CodeBlock
+                      code={code}
+                      copyId={`code-${currentEndpoint.id}-${tab}`}
+                      copied={copiedId === `code-${currentEndpoint.id}-${tab}`}
+                      onCopy={(id) => copyToClipboard(code, id)}
+                    />
                   );
                 })()}
               </div>

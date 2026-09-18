@@ -1,4 +1,5 @@
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { HelpCircle } from 'lucide-react';
 
 const FAQS = [
@@ -27,17 +28,15 @@ const FAQS = [
 export default function FaqPage() {
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
-      <div className="space-y-2 text-center sm:text-left">
-        <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-          <HelpCircle className="w-4 h-4" /> Frequently Asked Questions
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Everything you need to know.
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Answers to common questions about security, privacy, and development.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={{
+          icon: <HelpCircle className="w-4 h-4" />,
+          label: 'Frequently Asked Questions',
+        }}
+        title="Everything you need to know."
+        description="Answers to common questions about security, privacy, and development."
+        className="text-center sm:text-left"
+      />
 
       <div className="space-y-4">
         {FAQS.map((faq, idx) => (

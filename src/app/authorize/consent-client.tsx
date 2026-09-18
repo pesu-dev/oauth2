@@ -4,7 +4,28 @@ import * as React from 'react';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { InlineAlert } from '@/components/ui/inline-alert';
 import { ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound } from 'lucide-react';
+
+function ScopePermissionRow({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
+      {icon}
+      <div className="text-xs">
+        <div className="font-semibold text-zinc-900 dark:text-zinc-100">{title}</div>
+        <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</div>
+      </div>
+    </div>
+  );
+}
 
 interface ConsentClientProps {
   client: {
@@ -94,23 +115,13 @@ export function ConsentClient({
               </div>
             ) : null}
           </div>
-          <Badge
-            variant={
-              client.publishingStatus === 'production'
-                ? 'production'
-                : client.publishingStatus === 'pending_production'
-                ? 'pending'
-                : 'testing'
-            }
-          >
+          <Badge variant={client.publishingStatus}>
             {client.publishingStatus.replace('_', ' ')}
           </Badge>
         </div>
 
         {error ? (
-          <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs">
-            {error}
-          </div>
+          <InlineAlert variant="error" message={error} className="mb-5 text-xs" />
         ) : null}
 
         <div className="space-y-4 mb-8">
@@ -120,59 +131,35 @@ export function ConsentClient({
 
           <div className="space-y-2.5">
             {requestedScopes.includes('openid') || requestedScopes.includes('profile') ? (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
-                <UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                <div className="text-xs">
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    Access your Student Profile
-                  </div>
-                  <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    Name, PRN, SRN, program, branch, semester, section, and campus.
-                  </div>
-                </div>
-              </div>
+              <ScopePermissionRow
+                icon={<UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />}
+                title="Access your Student Profile"
+                description="Name, PRN, SRN, program, branch, semester, section, and campus."
+              />
             ) : null}
 
             {requestedScopes.includes('email') ? (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
-                <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />
-                <div className="text-xs">
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    View your Email Address
-                  </div>
-                  <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    Your official university email registered on PESU Academy.
-                  </div>
-                </div>
-              </div>
+              <ScopePermissionRow
+                icon={<Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />}
+                title="View your Email Address"
+                description="Your official university email registered on PESU Academy."
+              />
             ) : null}
 
             {requestedScopes.includes('phone') ? (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
-                <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                <div className="text-xs">
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    View your Phone Number
-                  </div>
-                  <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    Your contact phone number registered on PESU Academy.
-                  </div>
-                </div>
-              </div>
+              <ScopePermissionRow
+                icon={<Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />}
+                title="View your Phone Number"
+                description="Your contact phone number registered on PESU Academy."
+              />
             ) : null}
 
             {requestedScopes.includes('offline_access') ? (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
-                <RefreshCw className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
-                <div className="text-xs">
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    Maintain Offline Access
-                  </div>
-                  <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    Remain signed into this application without re-authenticating every hour.
-                  </div>
-                </div>
-              </div>
+              <ScopePermissionRow
+                icon={<RefreshCw className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />}
+                title="Maintain Offline Access"
+                description="Remain signed into this application without re-authenticating every hour."
+              />
             ) : null}
           </div>
 

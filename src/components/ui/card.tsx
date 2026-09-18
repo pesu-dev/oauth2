@@ -27,11 +27,30 @@ export function Card({
   );
 }
 
+export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  icon?: React.ReactNode;
+  iconColor?: string;
+}
+
 export function CardHeader({
   className,
   children,
+  icon,
+  iconColor = 'blue',
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: CardHeaderProps) {
+  if (icon) {
+    return (
+      <div className={cn('flex items-center gap-2.5 mb-4', className)} {...props}>
+        <div
+          className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${iconColor}-600/10 text-${iconColor}-600 dark:text-${iconColor}-400 shrink-0`}
+        >
+          {icon}
+        </div>
+        <div>{children}</div>
+      </div>
+    );
+  }
   return (
     <div className={cn('mb-4 space-y-1.5', className)} {...props}>
       {children}
