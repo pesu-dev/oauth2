@@ -321,8 +321,20 @@ export async function POST(request: NextRequest | Request) {
         { family_id: existing.family_id, revoked_at: null },
         { $set: { revoked_at: now } }
       );
+      await RefreshToken.updateOne(
+        { token_hash: tokenHash },
+        { $set: { successor_hash: null } }
+      );
       return tokenResponse(
         { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+        400
+      );
+    }
+
+    const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
+    if (!user) {
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'User not found or deleted' },
         400
       );
     }
@@ -334,35 +346,30 @@ export async function POST(request: NextRequest | Request) {
       token_hash: newRtHash,
       family_id: claimed.family_id,
       client_id: clientId,
-      sub: claimed.sub,
+      sub: user.sub,
       scopes,
       expires_at: claimed.expires_at,
       created_at: now,
       revoked_at: null,
     });
 
-    // Check race condition: family must only have 1 active live token
-    const liveCount = await RefreshToken.countDocuments({
-      family_id: claimed.family_id,
-      revoked_at: null,
-      expires_at: { $gt: now },
-    });
-    if (liveCount !== 1) {
+    // Check race condition: family must only have 1 active live token and claimed token was not invalidated
+    const [liveCount, claimedCheck] = await Promise.all([
+      RefreshToken.countDocuments({
+        family_id: claimed.family_id,
+        revoked_at: null,
+        expires_at: { $gt: now },
+      }),
+      RefreshToken.findOne({ token_hash: tokenHash }),
+    ]);
+
+    if (liveCount !== 1 || !claimedCheck || claimedCheck.successor_hash === null) {
       await RefreshToken.updateMany(
         { family_id: claimed.family_id, revoked_at: null },
         { $set: { revoked_at: now } }
       );
       return tokenResponse(
         { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-        400
-      );
-    }
-
-    const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
-    if (!user) {
-      await RefreshToken.updateOne({ token_hash: newRtHash }, { $set: { revoked_at: now } });
-      return tokenResponse(
-        { error: 'invalid_grant', error_description: 'User not found or deleted' },
         400
       );
     }
@@ -386,18 +393,6 @@ export async function POST(request: NextRequest | Request) {
         accessToken,
         ttlSeconds: config.idTokenTtlSeconds,
       });
-    }
-
-    // Verify token was not revoked in a race during JWT generation
-    const liveToken = await RefreshToken.findOne({
-      token_hash: newRtHash,
-      revoked_at: null,
-    });
-    if (!liveToken) {
-      return tokenResponse(
-        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-        400
-      );
     }
 
     return tokenResponse({
