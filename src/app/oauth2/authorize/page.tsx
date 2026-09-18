@@ -185,9 +185,10 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   if (targetMode === 'delegated') {
     const vaultExists = await Vault.findOne({ sub: session.sub });
     const pendingCookie = cookieStore.get('pesu_pending')?.value;
-    const pendingToken = pendingCookie
+    const rawPendingToken = pendingCookie
       ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
       : null;
+    const pendingToken = rawPendingToken && rawPendingToken.sub === session.sub ? rawPendingToken : null;
     const hasPendingCreds = Boolean(pendingToken?.cred_id && pendingCredentialStore.get(pendingToken.cred_id));
 
     if (!vaultExists && !hasPendingCreds) {
@@ -215,9 +216,10 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
     if (effectiveMode === 'delegated') {
       const pendingCookie = cookieStore.get('pesu_pending')?.value;
-      const pendingToken = pendingCookie
+      const rawPendingToken = pendingCookie
         ? await verifySessionToken<{ sub: string; cred_id?: string }>(pendingCookie)
         : null;
+      const pendingToken = rawPendingToken && rawPendingToken.sub === session.sub ? rawPendingToken : null;
       if (pendingToken?.cred_id) {
         const pending = pendingCredentialStore.pop(pendingToken.cred_id);
         if (pending?.password && config.vaultMasterKey) {

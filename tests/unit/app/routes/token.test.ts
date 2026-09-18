@@ -337,7 +337,6 @@ describe('Token Endpoint (/token)', () => {
         client_id: 'cli_test',
         token_endpoint_auth_method: 'none',
       } as never);
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce(null);
 
       const req = new Request('http://localhost:3000/token', {
@@ -361,7 +360,6 @@ describe('Token Endpoint (/token)', () => {
         client_id: 'cli_test',
         token_endpoint_auth_method: 'none',
       } as never);
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_test',
         family_id: 'fam_compromised',
@@ -396,6 +394,12 @@ describe('Token Endpoint (/token)', () => {
       } as never);
 
       const expiresAt = new Date(Date.now() + 30 * 86400 * 1000);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        family_id: 'fam_valid',
+        client_id: 'cli_test',
+        revoked_at: null,
+        expires_at: expiresAt,
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         family_id: 'fam_valid',
         client_id: 'cli_test',
@@ -436,12 +440,13 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as never);
 
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
         family_id: 'fam_other',
         client_id: 'cli_victim',
         sub: 'usr_victim',
       } as never);
-      vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
+      const updateManySpy = vi.spyOn(RefreshToken, 'updateMany');
+      const findOneAndUpdateSpy = vi.spyOn(RefreshToken, 'findOneAndUpdate');
 
       const req = new Request('http://localhost:3000/token', {
         method: 'POST',
@@ -457,6 +462,8 @@ describe('Token Endpoint (/token)', () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error_description).toContain('Token was issued to a different client');
+      expect(updateManySpy).not.toHaveBeenCalled();
+      expect(findOneAndUpdateSpy).not.toHaveBeenCalled();
     });
 
     it('rejects refresh token when user is not found or deleted', async () => {
@@ -465,6 +472,13 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as never);
 
+      const expiresAt = new Date(Date.now() + 30 * 86400 * 1000);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        family_id: 'fam_valid',
+        client_id: 'cli_test',
+        revoked_at: null,
+        expires_at: expiresAt,
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         family_id: 'fam_valid',
         client_id: 'cli_test',
@@ -490,12 +504,19 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as never);
 
+      const expiresAt = new Date(Date.now() + 10000);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        family_id: 'fam_race',
+        client_id: 'cli_test',
+        revoked_at: null,
+        expires_at: expiresAt,
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         family_id: 'fam_race',
         client_id: 'cli_test',
         sub: 'usr_race',
         scopes: [],
-        expires_at: new Date(Date.now() + 10000),
+        expires_at: expiresAt,
       } as never);
       vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_race' } as never);
       vi.spyOn(RefreshToken, 'create').mockResolvedValueOnce({} as never);
@@ -670,7 +691,6 @@ describe('Token Endpoint (/token)', () => {
         token_endpoint_auth_method: 'none',
       } as never);
 
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
         token_hash: 'hash',
         client_id: 'cli_different',
@@ -692,19 +712,21 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error_description).toBe('Token was issued to a different client');
     });
 
-    it('rejects refresh token with fallback invalid or reused message', async () => {
+    it('rejects refresh token with reuse detection when concurrent claim fails', async () => {
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
         client_id: 'cli_requesting',
         token_endpoint_auth_method: 'none',
       } as never);
 
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
         token_hash: 'hash',
         client_id: 'cli_requesting',
+        family_id: 'fam_concurrent',
         revoked_at: null,
         expires_at: new Date(Date.now() + 100000),
       } as never);
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
+      const updateManySpy = vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
 
       const req = new Request('http://localhost:3000/token', {
         method: 'POST',
@@ -719,7 +741,11 @@ describe('Token Endpoint (/token)', () => {
       const res = await postToken(req);
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error_description).toBe('Invalid or reused refresh token');
+      expect(data.error_description).toBe('Refresh token reuse detected; family revoked');
+      expect(updateManySpy).toHaveBeenCalledWith(
+        { family_id: 'fam_concurrent', revoked_at: null },
+        expect.any(Object)
+      );
     });
 
     it('rejects with 401 when client is not found in database', async () => {
@@ -908,6 +934,13 @@ describe('Token Endpoint (/token)', () => {
       vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValue(1 as never);
 
       // 1. Scopes without openid
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_1'),
+        client_id: 'cli_test',
+        family_id: 'fam_1',
+        revoked_at: null,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         token_hash: sha256Hex('rt_1'),
         client_id: 'cli_test',
@@ -933,6 +966,13 @@ describe('Token Endpoint (/token)', () => {
       expect(data1.id_token).toBeUndefined();
 
       // 2. Scopes undefined (falls back to [])
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_2'),
+        client_id: 'cli_test',
+        family_id: 'fam_2',
+        revoked_at: null,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         token_hash: sha256Hex('rt_2'),
         client_id: 'cli_test',

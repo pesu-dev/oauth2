@@ -120,4 +120,94 @@ describe('Refresh Token Rotation & Compromise Detection (Integration)', () => {
     const r2Data = await r2Res.json();
     expect(r2Data.error).toBe('invalid_grant');
   });
+
+  it('prevents another client from revoking or invalidating a victim client refresh token family', async () => {
+    const victimUser = await User.create({
+      sub: 'usr_victim_user',
+      name: 'Victim Student',
+      prn: 'PES1UG20CS888',
+      srn: 'PES1202000888',
+    });
+
+    const victimClient = await Client.create({
+      client_id: 'cli_victim_app',
+      name: 'Victim App',
+      owner_sub: 'usr_owner_v',
+      redirect_uris: ['https://victim.pesu.edu/cb'],
+      token_endpoint_auth_method: 'none',
+      publishing_status: 'production',
+    });
+
+    const attackerClient = await Client.create({
+      client_id: 'cli_attacker_app',
+      name: 'Attacker App',
+      owner_sub: 'usr_owner_a',
+      redirect_uris: ['https://attacker.pesu.edu/cb'],
+      token_endpoint_auth_method: 'none',
+      publishing_status: 'production',
+    });
+
+    const rawVictimToken = newRefreshToken();
+    const victimFamilyId = newFamilyId();
+
+    await RefreshToken.create({
+      token_hash: sha256Hex(rawVictimToken),
+      client_id: victimClient.client_id,
+      sub: victimUser.sub,
+      scopes: ['openid', 'offline_access'],
+      family_id: victimFamilyId,
+      expires_at: new Date(Date.now() + 30 * 86400 * 1000),
+      revoked_at: null,
+      created_at: new Date(),
+    });
+
+    // Attacker client attempts to use or rotate victim's refresh token
+    const attackParams = new URLSearchParams();
+    attackParams.set('grant_type', 'refresh_token');
+    attackParams.set('client_id', attackerClient.client_id);
+    attackParams.set('refresh_token', rawVictimToken);
+
+    const attackRes = await postToken(
+      new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: attackParams.toString(),
+      })
+    );
+
+    expect(attackRes.status).toBe(400);
+    const attackData = await attackRes.json();
+    expect(attackData.error).toBe('invalid_grant');
+    expect(attackData.error_description).toContain('Token was issued to a different client');
+
+    // Verify victim's token is STILL active and NOT revoked in MongoDB
+    const victimDoc = await RefreshToken.findOne({ token_hash: sha256Hex(rawVictimToken) });
+    expect(victimDoc?.revoked_at).toBeNull();
+
+    // Verify victim's family is completely intact
+    const activeTokens = await RefreshToken.countDocuments({
+      family_id: victimFamilyId,
+      revoked_at: null,
+    });
+    expect(activeTokens).toBe(1);
+
+    // Verify victim client can legitimately rotate the token afterwards
+    const legitimateParams = new URLSearchParams();
+    legitimateParams.set('grant_type', 'refresh_token');
+    legitimateParams.set('client_id', victimClient.client_id);
+    legitimateParams.set('refresh_token', rawVictimToken);
+
+    const legitRes = await postToken(
+      new Request('http://localhost:3000/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: legitimateParams.toString(),
+      })
+    );
+
+    expect(legitRes.status).toBe(200);
+    const legitData = await legitRes.json();
+    expect(legitData.refresh_token).toBeDefined();
+    expect(legitData.refresh_token).not.toBe(rawVictimToken);
+  });
 });

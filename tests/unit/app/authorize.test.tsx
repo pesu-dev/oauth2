@@ -762,6 +762,95 @@ describe('Authorize Page & Consent', () => {
       await expect(AuthorizePage({ searchParams })).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
     });
 
+    it('redirects to login when delegated mode requested with pending credentials of a different user and no vault exists', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test_delegated_mismatch',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      // User B has NO vault
+      vi.spyOn(Vault, 'findOne').mockResolvedValue(null);
+
+      const credId = pendingCredentialStore.put({
+        username: 'usr_userA',
+        password: 'password_A',
+      });
+
+      mockCookieMap.set('pesu_session', 'session_B');
+      mockCookieMap.set('pesu_pending', 'pending_A');
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'pending_A') {
+          return { sub: 'usr_userA', cred_id: credId };
+        }
+        return { sub: 'usr_userB', name: 'User B' };
+      });
+
+      const searchParams = Promise.resolve({
+        client_id: 'cli_test_delegated_mismatch',
+        redirect_uri: 'https://app.pesu.edu/callback',
+        response_type: 'code',
+        code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+        code_challenge_method: 'S256',
+        scope: 'openid',
+        mode: 'delegated',
+      });
+
+      await expect(AuthorizePage({ searchParams })).rejects.toThrow('REDIRECT:/login?return_to=');
+      expect(pendingCredentialStore.get(credId)).not.toBeNull();
+    });
+
+    it('does not seal pending credentials of another user into vault during auto-consent', async () => {
+      vi.spyOn(Client, 'findOne').mockResolvedValue({
+        client_id: 'cli_test_owner',
+        redirect_uris: ['https://app.pesu.edu/callback'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      // User B has existing consent and existing vault
+      vi.spyOn(Consent, 'findOne').mockResolvedValue({
+        sub: 'usr_userB',
+        client_id: 'cli_test_owner',
+        scopes: ['openid'],
+        mode: 'delegated',
+      } as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValue({ sub: 'usr_userB' } as never);
+
+      mockCookieMap.set('pesu_session', 'session_B');
+      mockCookieMap.set('pesu_pending', 'pending_A');
+      const credId = pendingCredentialStore.put({
+        username: 'usr_userA',
+        password: 'password_A',
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockImplementation(async (tok) => {
+        if (tok === 'pending_A') {
+          return { sub: 'usr_userA', cred_id: credId };
+        }
+        return { sub: 'usr_userB', name: 'User B' };
+      });
+
+      vi.spyOn(AuthCode, 'create').mockResolvedValueOnce({} as never);
+      const vaultSpy = vi.spyOn(Vault, 'findOneAndUpdate');
+
+      const searchParams = Promise.resolve({
+        client_id: 'cli_test_owner',
+        redirect_uri: 'https://app.pesu.edu/callback',
+        response_type: 'code',
+        code_challenge: 'E9Melhoa2OwvFrGMTJguCH5ZiXV68OSTXb0Pl5C_D7g',
+        code_challenge_method: 'S256',
+        scope: 'openid',
+        mode: 'delegated',
+      });
+
+      await expect(AuthorizePage({ searchParams })).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
+      expect(vaultSpy).not.toHaveBeenCalled();
+      expect(pendingCredentialStore.get(credId)).not.toBeNull();
+    });
+
     it('handles delegated auto-consent when pesu_pending cookie is missing and vault exists', async () => {
       vi.spyOn(Client, 'findOne').mockResolvedValue({
         client_id: 'cli_test_delegated_novault',

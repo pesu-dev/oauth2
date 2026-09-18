@@ -268,6 +268,34 @@ export async function POST(request: NextRequest | Request) {
 
     const tokenHash = sha256Hex(rawRt);
     const now = new Date();
+
+    const existing = await RefreshToken.findOne({ token_hash: tokenHash });
+    if (!existing) {
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'Invalid refresh token' },
+        400
+      );
+    }
+
+    if (existing.client_id !== clientId) {
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
+        400
+      );
+    }
+
+    // Reused revoked or expired token: revoke family immediately
+    if (existing.revoked_at || existing.expires_at <= now) {
+      await RefreshToken.updateMany(
+        { family_id: existing.family_id, revoked_at: null },
+        { $set: { revoked_at: now } }
+      );
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+        400
+      );
+    }
+
     const newRt = newRefreshToken();
     const newRtHash = sha256Hex(newRt);
 
@@ -275,6 +303,7 @@ export async function POST(request: NextRequest | Request) {
     const claimed = await RefreshToken.findOneAndUpdate(
       {
         token_hash: tokenHash,
+        client_id: clientId,
         revoked_at: null,
         expires_at: { $gt: now },
       },
@@ -288,51 +317,12 @@ export async function POST(request: NextRequest | Request) {
     );
 
     if (!claimed) {
-      const existing = await RefreshToken.findOne({ token_hash: tokenHash });
-      if (!existing) {
-        return tokenResponse(
-          { error: 'invalid_grant', error_description: 'Invalid refresh token' },
-          400
-        );
-      }
-      if (existing.client_id !== clientId) {
-        return tokenResponse(
-          { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
-          400
-        );
-      }
-      // Reused revoked or expired token: revoke family immediately
-      if (existing.revoked_at || existing.expires_at <= now) {
-        await RefreshToken.updateMany(
-          { family_id: existing.family_id, revoked_at: null },
-          { $set: { revoked_at: now } }
-        );
-        return tokenResponse(
-          { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
-          400
-        );
-      }
-      return tokenResponse(
-        { error: 'invalid_grant', error_description: 'Invalid or reused refresh token' },
-        400
-      );
-    }
-
-    if (claimed.client_id !== clientId) {
       await RefreshToken.updateMany(
-        { family_id: claimed.family_id, revoked_at: null },
+        { family_id: existing.family_id, revoked_at: null },
         { $set: { revoked_at: now } }
       );
       return tokenResponse(
-        { error: 'invalid_grant', error_description: 'Token was issued to a different client' },
-        400
-      );
-    }
-
-    const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
-    if (!user) {
-      return tokenResponse(
-        { error: 'invalid_grant', error_description: 'User not found or deleted' },
+        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
         400
       );
     }
@@ -344,7 +334,7 @@ export async function POST(request: NextRequest | Request) {
       token_hash: newRtHash,
       family_id: claimed.family_id,
       client_id: clientId,
-      sub: user.sub,
+      sub: claimed.sub,
       scopes,
       expires_at: claimed.expires_at,
       created_at: now,
@@ -368,6 +358,15 @@ export async function POST(request: NextRequest | Request) {
       );
     }
 
+    const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
+    if (!user) {
+      await RefreshToken.updateOne({ token_hash: newRtHash }, { $set: { revoked_at: now } });
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'User not found or deleted' },
+        400
+      );
+    }
+
     const accessToken = await mintAccessToken({
       issuer: config.issuerUrl,
       sub: user.sub,
@@ -387,6 +386,18 @@ export async function POST(request: NextRequest | Request) {
         accessToken,
         ttlSeconds: config.idTokenTtlSeconds,
       });
+    }
+
+    // Verify token was not revoked in a race during JWT generation
+    const liveToken = await RefreshToken.findOne({
+      token_hash: newRtHash,
+      revoked_at: null,
+    });
+    if (!liveToken) {
+      return tokenResponse(
+        { error: 'invalid_grant', error_description: 'Refresh token reuse detected; family revoked' },
+        400
+      );
     }
 
     return tokenResponse({

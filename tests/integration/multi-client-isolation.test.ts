@@ -189,12 +189,12 @@ describe('Multi-Client & Cross-Tenant Isolation (Integration)', () => {
     expect(attackRefreshData.error).toBe('invalid_grant');
     expect(attackRefreshData.error_description).toContain('different client');
 
-    // Token theft compromise defense: the entire token family was revoked in MongoDB!
-    const revokedTokenInDb = await RefreshToken.findOne({ client_id: clientAlpha.client_id });
-    expect(revokedTokenInDb?.revoked_at).not.toBeNull();
+    // Cross-client defense: another client's request must NOT invalidate Client Alpha's refresh token
+    const tokenInDb = await RefreshToken.findOne({ client_id: clientAlpha.client_id });
+    expect(tokenInDb?.revoked_at).toBeNull();
 
-    // 8. Replay attempt: Client Alpha can no longer use the compromised token
-    const compromisedRefreshReq = new NextRequest('http://localhost:3000/oauth2/token', {
+    // 8. Legitimate rotation: Client Alpha can successfully rotate their token
+    const legitimateRefreshReq = new NextRequest('http://localhost:3000/oauth2/token', {
       method: 'POST',
       headers: {
         Authorization: `Basic ${alphaBasicAuth}`,
@@ -205,11 +205,11 @@ describe('Multi-Client & Cross-Tenant Isolation (Integration)', () => {
         refresh_token: alphaRefreshToken,
       }).toString(),
     });
-    const compromisedRefreshRes = await postToken(compromisedRefreshReq);
-    expect(compromisedRefreshRes.status).toBe(400);
-    const compromisedData = await compromisedRefreshRes.json();
-    expect(compromisedData.error).toBe('invalid_grant');
-    expect(compromisedData.error_description).toContain('reuse detected');
+    const legitimateRefreshRes = await postToken(legitimateRefreshReq);
+    expect(legitimateRefreshRes.status).toBe(200);
+    const legitimateData = await legitimateRefreshRes.json();
+    expect(legitimateData.refresh_token).toBeDefined();
+    expect(legitimateData.refresh_token).not.toBe(alphaRefreshToken);
 
     // 9. Attack 4: Bob attempts to read Alice's client portal details
     const portalAttackReq = new NextRequest(`http://localhost:3000/api/internal/portal/clients/${clientAlpha.client_id}`, {

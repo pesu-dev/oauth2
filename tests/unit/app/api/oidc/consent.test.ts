@@ -41,6 +41,25 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(data.error).toContain('Missing required parameters');
     });
 
+    it('rejects with 400 when action is unexpected (neither allow nor deny)', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: { cookie: 'pesu_session=valid', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://legit.example.com/callback',
+          action: 'unexpected',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe('Invalid action: must be allow or deny');
+    });
+
     it('rejects with 400 when redirectUri is not registered, even on deny action', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
@@ -397,6 +416,54 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       );
     });
 
+    it('refuses to use pending credentials of another account (pendingToken.sub !== session.sub) and does not store them into caller vault', async () => {
+      const credId = pendingCredentialStore.put({
+        username: 'userA',
+        password: 'secret_password_A',
+        sessionToken: 'token_A',
+      });
+
+      // Session is user B, but pending cookie belongs to user A
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_userB' }) // for session
+        .mockResolvedValueOnce({ sub: 'usr_userA', cred_id: credId }); // for pending cookie
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        name: 'Target App',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'production',
+        delegated_allowed: true,
+      } as never);
+
+      vi.spyOn(Consent, 'findOneAndUpdate').mockResolvedValueOnce({} as never);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null); // User B has no vault
+      const vaultSpy = vi.spyOn(Vault, 'findOneAndUpdate');
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: {
+          cookie: 'pesu_session=valid; pesu_pending=pending_token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'allow',
+          mode: 'delegated',
+          codeChallenge: 'E9Melhoa2OwvFrGMTJguCH5rtx64LxU408W3P65czvc',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Session expired or credentials missing');
+      expect(vaultSpy).not.toHaveBeenCalled();
+      // Credential of user A remains intact in pending store
+      expect(pendingCredentialStore.get(credId)).not.toBeNull();
+    });
+
     it('rejects with 400 when unsupported codeChallengeMethod is passed', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_user1' });
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
@@ -574,6 +641,43 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       const data = await res.json();
       expect(data.redirectTo).toContain('error=access_denied');
       expect(popSpy).toHaveBeenCalledWith('pcred_deny123');
+    });
+
+    it('does not pop pending credentials of another user when action is deny', async () => {
+      const credId = pendingCredentialStore.put({
+        username: 'userA',
+        password: 'secret_password_A',
+      });
+
+      vi.spyOn(cookieHelper, 'verifySessionToken')
+        .mockResolvedValueOnce({ sub: 'usr_userB' }) // session
+        .mockResolvedValueOnce({ sub: 'usr_userA', cred_id: credId }); // pending
+
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
+        client_id: 'cli_test',
+        redirect_uris: ['https://app.example.com/cb'],
+        publishing_status: 'production',
+      } as never);
+
+      const popSpy = vi.spyOn(pendingCredentialStore, 'pop');
+
+      const req = new NextRequest('http://localhost:3000/api/oidc/consent', {
+        method: 'POST',
+        headers: {
+          cookie: 'pesu_session=valid; pesu_pending=pending_token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId: 'cli_test',
+          redirectUri: 'https://app.example.com/cb',
+          action: 'deny',
+        }),
+      });
+
+      const res = await postConsent(req);
+      expect(res.status).toBe(200);
+      expect(popSpy).not.toHaveBeenCalled();
+      expect(pendingCredentialStore.get(credId)).not.toBeNull();
     });
 
     it('allows owner to authorize application in testing status', async () => {

@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (action !== 'allow' && action !== 'deny') {
+      return NextResponse.json(
+        { error: 'Invalid action: must be allow or deny' },
+        { status: 400 }
+      );
+    }
+
     if (mode !== undefined && mode !== null && mode !== 'identity' && mode !== 'delegated') {
       return NextResponse.json(
         { error: 'Invalid mode: must be identity or delegated' },
@@ -109,9 +116,10 @@ export async function POST(request: NextRequest) {
     }
 
     const pendingCookie = request.cookies.get('pesu_pending')?.value;
-    const pendingToken = pendingCookie
+    const rawPendingToken = pendingCookie
       ? await verifySessionToken<{ sub: string; cred_id?: string; password?: string; session_token?: string; user_id?: string }>(pendingCookie)
       : null;
+    const pendingToken = rawPendingToken && rawPendingToken.sub === session.sub ? rawPendingToken : null;
 
     if (action === 'deny') {
       if (pendingToken?.cred_id) {
