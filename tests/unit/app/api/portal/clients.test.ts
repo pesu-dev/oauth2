@@ -101,6 +101,31 @@ describe('Portal Clients API', () => {
       expect(data.rawSecret).toMatch(/^sec_/);
     });
 
+    it('successfully creates client with omitted redirectUris defaulting to empty array', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_dev_1' });
+      const createSpy = vi.spyOn(Client, 'create').mockImplementationOnce(async (doc: unknown) => doc as never);
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'pesu_session=valid_token',
+        },
+        body: JSON.stringify({
+          name: 'Client Without Redirect URIs',
+        }),
+      });
+
+      const res = await postClient(req);
+      expect(res.status).toBe(200);
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Client Without Redirect URIs',
+          redirect_uris: [],
+        })
+      );
+    });
+
     it('forces delegated_allowed to false regardless of input', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_dev_1' });
       const createSpy = vi.spyOn(Client, 'create').mockImplementationOnce(async (doc: unknown) => doc as never);
@@ -274,6 +299,27 @@ describe('Portal Clients API', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.client.redirect_uris).toEqual(['https://app.com/callback']);
+    });
+
+    it('updates redirect URIs to empty array successfully', async () => {
+      vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'user_1' });
+      vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValueOnce({
+        client_id: 'cli_123',
+        redirect_uris: [],
+      } as unknown as InstanceType<typeof Client>);
+
+      const req = new NextRequest('http://localhost:3000/api/portal/clients/cli_123', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'pesu_session=valid_token',
+        },
+        body: JSON.stringify({ redirectUris: [] }),
+      });
+      const res = await updateClient(req, { params: Promise.resolve({ clientId: 'cli_123' }) });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.client.redirect_uris).toEqual([]);
     });
   });
 });

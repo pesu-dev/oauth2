@@ -21,7 +21,7 @@ export const ClientSchema = new Schema<IClient>(
     client_secret_hash: { type: String, required: false, default: null },
     name: { type: String, required: true },
     owner_sub: { type: String, required: true, index: true },
-    redirect_uris: { type: [String], required: true },
+    redirect_uris: { type: [String], default: [] },
     publishing_status: {
       type: String,
       enum: ['testing', 'pending_production', 'production'],

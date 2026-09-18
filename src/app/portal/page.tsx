@@ -6,7 +6,6 @@ import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -39,7 +38,7 @@ export default function PortalPage() {
 
   // Creation form state
   const [name, setName] = React.useState('');
-  const [redirectUris, setRedirectUris] = React.useState('');
+  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
   const [createLoading, setCreateLoading] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
 
@@ -68,12 +67,13 @@ export default function PortalPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError(null);
-    setCreateLoading(true);
 
-    const uris = redirectUris
-      .split('\n')
-      .map((u) => u.trim())
-      .filter(Boolean);
+    if (!acceptedTerms) {
+      setCreateError('You must accept the Terms of Service and Privacy Policy.');
+      return;
+    }
+
+    setCreateLoading(true);
 
     try {
       const res = await fetch('/api/portal/clients', {
@@ -81,7 +81,6 @@ export default function PortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          redirectUris: uris,
         }),
       });
 
@@ -96,7 +95,7 @@ export default function PortalPage() {
       });
 
       setName('');
-      setRedirectUris('');
+      setAcceptedTerms(false);
       setIsDrawerOpen(false);
       fetchClients();
     } catch (err: unknown) {
@@ -115,7 +114,16 @@ export default function PortalPage() {
           description="Manage your registered OAuth2 applications and publishing status."
         />
 
-        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+        <Drawer
+          open={isDrawerOpen}
+          onOpenChange={(open) => {
+            setIsDrawerOpen(open);
+            if (!open) {
+              setAcceptedTerms(false);
+              setCreateError(null);
+            }
+          }}
+        >
           <DrawerTrigger asChild>
             <Button className="shadow-md">
               <Plus className="w-4 h-4 mr-1.5" /> Register Application
@@ -125,7 +133,7 @@ export default function PortalPage() {
             <DrawerHeader>
               <DrawerTitle>Register New Application</DrawerTitle>
               <DrawerDescription>
-                Configure your OAuth2 client credentials and redirect URIs.
+                Register your client application to obtain OAuth2 credentials.
               </DrawerDescription>
             </DrawerHeader>
 
@@ -142,17 +150,41 @@ export default function PortalPage() {
                 required
               />
 
-              <Textarea
-                label="Redirect URIs (one per line)"
-                rows={3}
-                placeholder="https://example.com/api/auth/callback&#10;http://localhost:3000/callback"
-                value={redirectUris}
-                onChange={(e) => setRedirectUris(e.target.value)}
-                required
-              />
+              <div className="flex items-start gap-2.5 pt-1">
+                <input
+                  type="checkbox"
+                  id="acceptedTerms"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
+                  required
+                />
+                <label
+                  htmlFor="acceptedTerms"
+                  className="text-xs text-zinc-600 dark:text-zinc-400 select-none cursor-pointer leading-relaxed"
+                >
+                  I accept the{' '}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    className="text-blue-600 dark:text-blue-400 font-medium underline hover:opacity-80"
+                  >
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    className="text-blue-600 dark:text-blue-400 font-medium underline hover:opacity-80"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </label>
+              </div>
 
               <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-3 text-xs text-zinc-500 dark:text-zinc-400">
-                All applications start with Identity mode in testing. Delegated credential vault access can be requested when submitting for production review.
+                All applications start with Identity mode in testing. Delegated credential vault access can be requested when submitting for production review. Redirect URIs can be configured in your application settings.
               </div>
 
               <DrawerActions

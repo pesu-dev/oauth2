@@ -64,6 +64,9 @@ export default function RootLayout({
                 <Link href="/privacy" className="hover:underline">
                   Privacy Policy
                 </Link>
+                <Link href="/terms" className="hover:underline">
+                  Terms of Service
+                </Link>
                 <a
                   href="https://github.com/pesu-dev/oauth2"
                   target="_blank"

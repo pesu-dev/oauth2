@@ -118,9 +118,9 @@ describe('PortalPage Component', () => {
     fireEvent.change(screen.getByLabelText(/application name/i), {
       target: { value: 'New Campus App' },
     });
-    fireEvent.change(screen.getByPlaceholderText(/example\.com/i), {
-      target: { value: 'https://campus.pesu.edu/callback' },
-    });
+
+    // Check terms
+    fireEvent.click(screen.getByRole('checkbox', { name: /terms of service/i }));
 
     // Submit
     fireEvent.click(screen.getByRole('button', { name: /^create application$/i }));
@@ -128,6 +128,12 @@ describe('PortalPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Save your Client Secret immediately')).toBeDefined();
       expect(screen.getByText('sec_very_secret_key_123')).toBeDefined();
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/portal/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'New Campus App' }),
     });
 
     // Copy client id
@@ -155,6 +161,33 @@ describe('PortalPage Component', () => {
     // Dismiss secret callout
     fireEvent.click(screen.getByText('I have saved the secret'));
     expect(screen.queryByText('Save your Client Secret immediately')).toBeNull();
+  });
+
+  it('displays error if terms checkbox is not checked', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ clients: mockClients }),
+    });
+
+    render(<PortalPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Register Application')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Register Application'));
+    fireEvent.change(screen.getByLabelText(/application name/i), {
+      target: { value: 'Unchecked App' },
+    });
+
+    // Submit without checking terms
+    const form = screen.getByRole('button', { name: /^create application$/i }).closest('form');
+    fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('You must accept the Terms of Service and Privacy Policy.')
+      ).toBeDefined();
+    });
   });
 
   it('can cancel the application registration drawer', async () => {
@@ -193,7 +226,7 @@ describe('PortalPage Component', () => {
       if (init?.method === 'POST') {
         return {
           ok: false,
-          json: async () => ({ error: 'Redirect URI invalid' }),
+          json: async () => ({ error: 'Name is already taken' }),
         };
       }
       return { ok: true, json: async () => ({ clients: mockClients }) };
@@ -208,16 +241,14 @@ describe('PortalPage Component', () => {
     fireEvent.click(screen.getByText('Register Application'));
 
     fireEvent.change(screen.getByLabelText(/application name/i), {
-      target: { value: 'Invalid App' },
+      target: { value: 'Taken App' },
     });
-    fireEvent.change(screen.getByPlaceholderText(/example\.com/i), {
-      target: { value: 'http://not-https.com' },
-    });
+    fireEvent.click(screen.getByRole('checkbox', { name: /terms of service/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /^create application$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Redirect URI invalid')).toBeDefined();
+      expect(screen.getByText('Name is already taken')).toBeDefined();
     });
   });
 
@@ -251,7 +282,7 @@ describe('PortalPage Component', () => {
 
     fireEvent.click(screen.getByText('Register your first app'));
     fireEvent.change(screen.getByLabelText(/application name/i), { target: { value: 'App' } });
-    fireEvent.change(screen.getByPlaceholderText(/example\.com/i), { target: { value: 'https://a.com' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /terms of service/i }));
     fireEvent.click(screen.getByRole('button', { name: /^create application$/i }));
 
     await waitFor(() => {

@@ -45,9 +45,16 @@ describe('Redirect URI Validation', () => {
     }
   });
 
-  it('rejects empty arrays or arrays with only empty strings', () => {
-    expect(parseAndValidateRedirectUris([]).valid).toBe(false);
-    expect(parseAndValidateRedirectUris(['   ']).valid).toBe(false);
-    expect(parseAndValidateRedirectUris([null as never, 123 as never]).valid).toBe(false);
+  it('allows empty arrays, undefined, or arrays with only empty strings', () => {
+    expect(parseAndValidateRedirectUris([])).toEqual({ valid: true, uris: [] });
+    expect(parseAndValidateRedirectUris()).toEqual({ valid: true, uris: [] });
+    expect(parseAndValidateRedirectUris(null)).toEqual({ valid: true, uris: [] });
+    expect(parseAndValidateRedirectUris(['   '])).toEqual({ valid: true, uris: [] });
+  });
+
+  it('rejects non-array input or non-string elements', () => {
+    expect(parseAndValidateRedirectUris('not-an-array' as never).valid).toBe(false);
+    expect(parseAndValidateRedirectUris([null as never]).valid).toBe(false);
+    expect(parseAndValidateRedirectUris([123 as never]).valid).toBe(false);
   });
 });

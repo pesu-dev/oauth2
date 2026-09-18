@@ -21,17 +21,28 @@ export function isValidRedirectUri(uri: string): boolean {
 }
 
 export function parseAndValidateRedirectUris(
-  uris: string[]
+  uris?: string[] | null
 ): { valid: true; uris: string[] } | { valid: false; error: string } {
-  if (!Array.isArray(uris) || uris.length === 0) {
-    return { valid: false, error: 'At least one redirect URI is required' };
+  if (uris === undefined || uris === null) {
+    return { valid: true, uris: [] };
+  }
+
+  if (!Array.isArray(uris)) {
+    return { valid: false, error: 'Redirect URIs must be an array' };
   }
 
   const cleanedUris: string[] = [];
   const seen = new Set<string>();
 
   for (const raw of uris) {
-    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    if (typeof raw !== 'string') {
+      return {
+        valid: false,
+        error: 'Each redirect URI must be a valid string',
+      };
+    }
+
+    const trimmed = raw.trim();
     if (!trimmed) continue;
 
     if (!isValidRedirectUri(trimmed)) {
@@ -45,10 +56,6 @@ export function parseAndValidateRedirectUris(
       seen.add(trimmed);
       cleanedUris.push(trimmed);
     }
-  }
-
-  if (cleanedUris.length === 0) {
-    return { valid: false, error: 'At least one valid redirect URI is required' };
   }
 
   return { valid: true, uris: cleanedUris };

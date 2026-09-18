@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react';
 import HomePage from '@/app/page';
 import FaqPage from '@/app/faq/page';
 import PrivacyPage from '@/app/privacy/page';
+import TermsPage from '@/app/terms/page';
 import NotFound from '@/app/not-found';
 import RootLayout from '@/app/layout';
 
@@ -41,6 +42,7 @@ describe('Public Static Pages', () => {
     );
     expect(screen.getByTestId('page-child')).toBeDefined();
     expect(screen.getByText('PESU OAuth2')).toBeDefined();
+    expect(screen.getByText('Terms of Service')).toBeDefined();
     expect(screen.getByText(/PESU Developer Community/i)).toBeDefined();
   });
   it('renders HomePage with hero and features', () => {
@@ -61,6 +63,16 @@ describe('Public Static Pages', () => {
     render(<PrivacyPage />);
     expect(screen.getByText(/Privacy Policy & Data Security/i)).toBeDefined();
     expect(screen.getByText(/1. Zero-Exposure Credential Policy/i)).toBeDefined();
+  });
+
+  it('renders TermsPage with terms and acceptable use', () => {
+    render(<TermsPage />);
+    expect(screen.getByText(/Terms of Service/i)).toBeDefined();
+    expect(screen.getByText(/1. Unofficial Community Project & Non-Affiliation/i)).toBeDefined();
+    expect(screen.getByText(/2. Developer Obligations & Acceptable Use/i)).toBeDefined();
+    expect(screen.getByText(/3. Disclaimer of Warranties & Limitation of Liability/i)).toBeDefined();
+    expect(screen.getByText(/4. Client Suspension & Service Revocation/i)).toBeDefined();
+    expect(screen.getByText(/5. Intellectual Property & Trademarks/i)).toBeDefined();
   });
 
   it('renders NotFound page with navigation links', () => {
