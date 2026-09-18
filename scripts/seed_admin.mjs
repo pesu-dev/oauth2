@@ -14,6 +14,7 @@
  * set MONGO_X509_CERT_PATH to the path of your client PEM file.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import mongoose from 'mongoose';
 
 // ── Mirrors ENVIRONMENT_DEFAULTS in src/lib/config.ts ──────────────────────
@@ -27,6 +28,7 @@ const rawEnv = process.env.APP_ENV || 'local';
 const appEnv = ['local', 'staging', 'prod'].includes(rawEnv) ? rawEnv : 'local';
 const defaultMongoUri = ENVIRONMENT_DEFAULTS[appEnv];
 const mongoUri = process.env.MONGODB_URI || defaultMongoUri;
+const dbName = process.env.DB_NAME || 'oauth2';
 
 // ── CLI args ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -44,33 +46,48 @@ if (!sub || !sub.startsWith('usr_')) {
 }
 
 // ── X.509 client auth (required for Atlas clusters) ─────────────────────────
-const certPath = process.env.MONGO_X509_CERT_PATH;
-const connectOptions = {};
+const defaultCertPath = fs.existsSync(path.resolve(process.cwd(), 'scratch/mongo-dev.pem'))
+  ? path.resolve(process.cwd(), 'scratch/mongo-dev.pem')
+  : undefined;
+const certPath = process.env.MONGO_X509_CERT_PATH || defaultCertPath;
+const connectOptions = {
+  dbName,
+};
+
 if (certPath) {
-  if (!fs.existsSync(certPath)) {
+  const resolvedCert = path.resolve(certPath);
+  if (!fs.existsSync(resolvedCert)) {
     console.error(`MONGO_X509_CERT_PATH set but file not found: ${certPath}`);
     process.exit(1);
   }
-  const pem = fs.readFileSync(certPath, 'utf-8');
-  connectOptions.tlsCertificateKeyFile = certPath;
+  const pem = fs.readFileSync(resolvedCert, 'utf-8');
+  connectOptions.tls = true;
+  connectOptions.tlsCertificateKeyFile = resolvedCert;
   connectOptions.authMechanism = 'MONGODB-X509';
   connectOptions.authSource = '$external';
   void pem; // referenced via tlsCertificateKeyFile
 }
 
 // ── Connect and seed ────────────────────────────────────────────────────────
-console.log(`Connecting to MongoDB (APP_ENV=${appEnv})…`);
+console.log(`Connecting to MongoDB (APP_ENV=${appEnv}, db=${dbName})…`);
 
 try {
   await mongoose.connect(mongoUri, connectOptions);
 
   const AdminSchema = new mongoose.Schema(
-    { sub: { type: String, required: true, unique: true } },
-    { timestamps: { createdAt: 'created_at', updatedAt: false } }
+    {
+      sub: { type: String, required: true, unique: true, index: true },
+      added_at: { type: Date, default: Date.now },
+    },
+    { collection: 'admins' }
   );
 
   const Admin = mongoose.models.Admin || mongoose.model('Admin', AdminSchema, 'admins');
-  const result = await Admin.updateOne({ sub }, { $setOnInsert: { sub } }, { upsert: true });
+  const result = await Admin.updateOne(
+    { sub },
+    { $setOnInsert: { sub, added_at: new Date() } },
+    { upsert: true }
+  );
 
   if (result.upsertedCount > 0) {
     console.log(`✓ Seeded new admin: sub=${sub}`);
