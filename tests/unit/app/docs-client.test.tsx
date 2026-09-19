@@ -12,7 +12,10 @@ describe('DocsPage & DocsClient', () => {
     window.location.hash = '';
   });
 
-  it('renders DocsPage and mounts DocsClient', () => {
+  it('renders DocsPage, exports dynamic = force-dynamic, and mounts DocsClient', async () => {
+    const { dynamic } = await import('@/app/docs/page');
+    expect(dynamic).toBe('force-dynamic');
+
     render(<DocsPage />);
     expect(screen.getByText('Getting Started with Sign in with PESU')).toBeDefined();
   });

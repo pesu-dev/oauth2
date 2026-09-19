@@ -8,6 +8,8 @@ export const metadata: Metadata = {
     'Complete OpenID Connect & OAuth 2.0 API reference, parameter specifications, response schemas, and code examples for PESU OAuth2.',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default function DocsPage() {
   const config = getConfig();
   return <DocsClient issuerUrl={config.issuerUrl} />;
