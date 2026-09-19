@@ -1,0 +1,74 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db/connection';
+import { Client } from '@/lib/db/models';
+import { verifySessionToken } from '@/lib/session/cookie';
+import { newClientId, newClientSecret } from '@/lib/id/nanoid';
+import { hashClientSecret } from '@/lib/crypto/hash';
+import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
+
+export async function GET(request: NextRequest) {
+  const sessionCookie = request.cookies.get('pesu_session')?.value;
+  const session = sessionCookie ? await verifySessionToken<{ sub: string }>(sessionCookie) : null;
+
+  if (!session?.sub) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  await connectToDatabase();
+  const clients = await Client.find({ owner_sub: session.sub }).sort({ created_at: -1 });
+
+  return NextResponse.json({ clients });
+}
+
+export async function POST(request: NextRequest) {
+  const sessionCookie = request.cookies.get('pesu_session')?.value;
+  const session = sessionCookie ? await verifySessionToken<{ sub: string }>(sessionCookie) : null;
+
+  if (!session?.sub) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { name, redirectUris } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { error: 'Client application name is required' },
+        { status: 400 }
+      );
+    }
+
+    const validated = parseAndValidateRedirectUris(redirectUris);
+    if (!validated.valid) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    const clientId = newClientId();
+    const rawSecret = newClientSecret();
+    const secretHash = await hashClientSecret(rawSecret);
+
+    const client = await Client.create({
+      client_id: clientId,
+      client_secret_hash: secretHash,
+      name: name.trim(),
+      owner_sub: session.sub,
+      redirect_uris: validated.uris,
+      publishing_status: 'testing',
+      delegated_allowed: false, // Security: only admins can grant delegated mode upon production review
+      token_endpoint_auth_method: 'client_secret_post',
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    return NextResponse.json({
+      client,
+      rawSecret, // Show once to user!
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to create client';
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}

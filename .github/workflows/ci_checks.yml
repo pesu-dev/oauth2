@@ -35,30 +35,30 @@ jobs:
           fi
 
   package_checks:
-    name: Package checks
+    name: Package checks & Typecheck
     needs: [pr_target_checker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
         with:
-          python-version: "3.13"
-          enable-cache: true
+          node-version: 24
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev
+        run: pnpm install --frozen-lockfile
 
-      - name: Run Ruff lint
-        run: uv run ruff check . --output-format=github
+      - name: Run Typecheck
+        run: pnpm typecheck
 
-      - name: Run Ruff format check
-        run: uv run ruff format . --check
-
-      - name: Run compile checks
-        run: uv run -m compileall -q src tests
+      - name: Run ESLint
+        run: pnpm lint
 
   unit_tests:
     name: Unit tests
@@ -68,49 +68,72 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
         with:
-          python-version: "3.13"
-          enable-cache: true
+          node-version: 24
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev
+        run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests
-        run: uv run pytest -m unit --cov=src --cov-report=term-missing --cov-fail-under=95
+      - name: Run unit tests with coverage
+        run: pnpm test:coverage
 
   integration_tests:
     name: Integration tests
     needs: [pr_target_checker]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Verify Docker for Testcontainers
-        run: |
-          set -euo pipefail
-          docker version
-          docker info
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6.1.0
 
-      - name: Pre-pull Mongo image
-        run: docker pull mongo:7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
         with:
-          python-version: "3.13"
-          enable-cache: true
+          node-version: 24
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev
+        run: pnpm install --frozen-lockfile
 
-      - name: Run integration tests
-        run: uv run pytest -m integration
+      - name: Pre-pull Mongo image for Testcontainers
+        run: docker pull mongo:7
+
+      - name: Run integration tests (Testcontainers Mongo)
+        run: pnpm test:integration
         env:
           DOCKER_HOST: unix:///var/run/docker.sock
+
+  build_check:
+    name: Next.js Production Build
+    needs: [pr_target_checker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Next.js build
+        run: pnpm build
 
   pr_image_build:
     name: Build image on PR
@@ -128,6 +151,7 @@ jobs:
       - package_checks
       - unit_tests
       - integration_tests
+      - build_check
       - pr_image_build
     if: always()
     runs-on: ubuntu-latest
@@ -139,6 +163,7 @@ jobs:
             package_checks=${{ needs.package_checks.result }}
             unit_tests=${{ needs.unit_tests.result }}
             integration_tests=${{ needs.integration_tests.result }}
+            build_check=${{ needs.build_check.result }}
             pr_image_build=${{ needs.pr_image_build.result }}
         run: |
           set -euo pipefail

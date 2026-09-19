@@ -75,9 +75,9 @@ done
 
 echo
 print_info "🎯 Hook capabilities:"
-echo "  • pre-commit: Ruff lint"
+echo "  • pre-commit: ESLint & Vitest checks"
 echo "  • pre-push: Branch name convention check (warning)"
-echo "  • post-merge: Auto-install dependencies if pyproject.toml changed"
+echo "  • post-merge: Auto-install dependencies if package.json/pnpm-lock.yaml changed"
 echo "  • post-checkout: Auto-install dependencies when switching branches"
 echo "  • commit-msg: Validates commit message format and length"
 

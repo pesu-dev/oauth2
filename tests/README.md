@@ -1,70 +1,92 @@
-# Testing
+# Test Suite
 
-How we test the PESU OAuth2 authorization server.
+This repository uses [Vitest](https://vitest.dev/) for unit and smoke testing, with V8 for test coverage reporting.
 
-## Pyramid
-
-| Layer | What | How |
-| --- | --- | --- |
-| **Unit** (majority) | FastAPI routes, config helpers, pure logic with mocked I/O | `pytest -m unit` |
-| **Integration** (selective) | ASGI + real Mongo via **Testcontainers**; OIDC/portal/settings flows | `pytest -m integration` |
-| **Atlas smoke** (opt-in) | X.509 connect against real Atlas when a cert is present | `pytest -m atlas_smoke` |
-
-We do **not** run live Cloud Run or Atlas e2e in default CI (credentials, flakiness, cost). Atlas smoke is skipped unless the cert path is ready.
-
-## Docker / Testcontainers
-
-Integration tests start `mongo:7` through [Testcontainers](https://testcontainers.com/).
-
-| Environment | Docker requirement |
-| --- | --- |
-| **Local (macOS)** | [Colima](https://github.com/abiosoft/colima) or Docker Desktop. `tests/integration/conftest.py` auto-points Testcontainers at `~/.colima/default/docker.sock` when present. |
-| **CI** | GitHub Actions `ubuntu-latest` (Docker preinstalled). The integration job verifies `docker info`, pre-pulls `mongo:7`, and sets `DOCKER_HOST=unix:///var/run/docker.sock`. |
-
-Without a working Docker daemon, `pytest -m integration` will fail when the Mongo container starts.
-
-## Commands
+## Running Tests
 
 ```bash
-uv sync --extra dev
+# Run unit and smoke tests (vitest.unit.config.ts)
+pnpm test:unit
 
-# Fast local loop (CI still enforces unit + coverage)
-uv run pytest -m unit -q --cov=src --cov-report=term:skip-covered --cov-fail-under=95
+# Run real MongoDB integration tests (vitest.integration.config.ts; requires Docker / Colima)
+pnpm test:integration
 
-# ASGI + Testcontainers Mongo (needs Docker)
-uv run pytest -m integration
+# Run unit tests in interactive watch mode
+pnpm test:unit:watch
 
-# Optional Atlas X.509 smoke (needs MONGO_X509_CERT_PATH / cert file)
-uv run pytest -m atlas_smoke
-
-# Everything
-uv run pytest
+# Run test coverage report
+pnpm test:coverage
 ```
 
-Coverage floor is **95%** on `src/` (see `[tool.coverage.report]` in `pyproject.toml`), enforced on the unit CI job.
+## Structure
 
-## Layout
+Tests directly mirror the `src/` directory layout:
 
-```text
-tests/
-  conftest.py           # shared fixtures (TestClient, app)
-  unit/                 # modules named test_*.py
-  integration/          # modules named test_*.py (+ Testcontainers conftest)
-```
-
-Unit and integration tests cover **`src/` only**. Do not add pytest suites for `scripts/` or workflow YAML — those are exercised by CI / manual ops instead. Coverage is scoped with `--cov=src` / `[tool.coverage.run] source = ["src"]`.
-
-## Conventions
-
-- Name test modules `test_*.py` (see `name-tests-test` in pre-commit).
-- Prefer asserting **outcomes** (status codes, JSON bodies), not mock call sequences that mirror implementation.
-- Use `TYPE_CHECKING` imports for `TestClient` in test modules; runtime import stays in `conftest.py`.
-- Use absolute imports (`from src...`) the same as production code.
-- Never require real `.env`, Mongo X.509 certs, or GCP credentials for default automated tests (Atlas smoke is the exception and is opt-in).
-
-## When to add which test
-
-- New pure helper / config resolver → **unit**
-- New HTTP route behavior → **unit** with `TestClient`
-- New Mongo write path that must survive real queries → **integration** (plus unit with mocks)
-- New OIDC / portal / settings flow spanning persistence → **integration** with Testcontainers
+- `tests/smoke.test.ts`: Integration/smoke verification (e.g., MongoDB Atlas connection).
+- `tests/integration/`: End-to-end integration tests using real `mongo:7` via [Testcontainers](https://testcontainers.com/):
+  - `mongo-indexes.test.ts`: Real MongoDB compound uniqueness and TTL index enforcement.
+  - `oidc-code-flow.test.ts`: Complete code exchange, S256 PKCE verification, replay defense, and `/userinfo`.
+  - `refresh-token-rotation.test.ts`: Refresh token rotation, compromise detection, and family-wide revocation.
+  - `delegated-exchange.test.ts`: Delegated envelope encryption, vault persistence, and `/oauth/token-exchange`.
+  - `production-gate.test.ts`: Testing mode gates, tester addition, and admin review queue approval.
+  - `settings-lifecycle.test.ts`: Consent revocation, vault credential purging, and account tombstoning.
+  - `admin-suspension.test.ts`: Live client suspension, consent blocking, and administrative reinstatement.
+  - `multi-client-isolation.test.ts`: Multi-client authorization code, refresh token, and tenant boundary isolation.
+  - `concurrency-races.test.ts`: Atomic single-use code exchange and race condition detection under parallel requests.
+  - `client-secret-rotation.test.ts`: Live client secret rotation and immediate credential hash invalidation.
+  - `vault-password-update.test.ts`: Vault resealing and credential lifecycle across user password changes.
+  - `tombstoned-user-cleanup.test.ts`: Tombstoned user state and live token invalidation across all endpoints.
+- `tests/unit/`:
+  - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.
+    - `api/admin/`:
+      - `requests.test.ts`: `/api/admin/requests` production request review, CAS concurrency protection, and approval/rejection.
+    - `api/auth/`:
+      - `login.test.ts`: `/api/auth/login` query guards, Academy authentication, user upsert, and redirect sanitization.
+      - `logout.test.ts`: `/api/auth/logout` session/pending cookie clearing and safe redirects.
+      - `status.test.ts`: `/api/auth/status` authentication and admin role status with error resilience.
+    - `api/oidc/`:
+      - `consent.test.ts`: `/api/oidc/consent` validation, client testing mode guards, and delegated vault resealing.
+    - `api/portal/`:
+      - `clients.test.ts`: `/api/portal/clients` creation privilege rules and redirect URI updates.
+      - `production.test.ts`: `/api/portal/clients/[clientId]/request-production` status gating, duplicate guards, and notification.
+      - `secret.test.ts`: `/api/portal/clients/[clientId]/rotate-secret` client secret rotation.
+      - `testers.test.ts`: `/api/portal/clients/[clientId]/testers` PRN/SRN/sub tester authorization and removal.
+    - `api/settings.test.ts`: `/api/settings` details retrieval, vault deletion, password re-encryption, and consent revocation.
+    - `routes/`: Top-level OIDC protocol and service route handlers.
+      - `discovery.test.ts`: `/.well-known/openid-configuration` discovery endpoint metadata.
+      - `health.test.ts`: `/health` service liveness check.
+      - `jwks.test.ts`: `/jwks.json` public key set endpoint.
+      - `revoke.test.ts`: `/revoke` RFC 7009 token revocation, client auth, and timing safety.
+      - `token.test.ts`: `/token` authorization code exchange, PKCE verification, refresh token grant, reuse detection, and client auth.
+      - `token-exchange.test.ts`: `/oauth/token-exchange` internal token exchange, cached session decryption, and Academy session refresh.
+      - `userinfo.test.ts`: `/userinfo` Bearer token verification and claims delivery.
+    - `admin-page.test.tsx`: `/admin` admin queue rendering, delegated allowance toggling, and review actions.
+    - `authorize.test.tsx`: `/authorize` page and `ConsentClient` interactive consent, scope filtering, testing-mode gates, and PKCE requirements.
+    - `docs.test.ts` & `docs-client.test.tsx`: `/docs` documentation metadata, interactive endpoint selector, and LLM reference exports.
+    - `login.test.tsx`: `/login` authentication form, credentials submission, error feedback, and return-to redirection.
+    - `pages.test.tsx`: Public static pages (`/`, `/faq`, `/privacy`, `not-found`, and `layout`).
+    - `portal-page.test.tsx`: `/portal` developer applications listing and registration drawer.
+    - `portal-client-detail.test.tsx`: `/portal/[clientId]` client application management, redirect URIs, testers, and secret rotation.
+    - `robots.test.ts`: `robots.ts` crawler disallow directives.
+    - `settings-page.test.tsx`: `/settings` student identity, vault deletion, and application access revocation.
+  - `components/`:
+    - `ui.test.tsx`: Apple-style UI component rendering (`Button`, `Card`, `Badge`).
+    - `ui-components.test.tsx`: `Input`, `Card`, `Drawer`, and `Navbar` interactive authentication and mobile navigation.
+    - `theme.test.tsx`: `ThemeProvider` and `ThemeToggle` light/dark theme switching.
+  - `lib/`: Core logic and helper engines.
+    - `academy/client.test.ts`: PESU Academy Axios client authentication and profile parsing.
+    - `crypto/crypto.test.ts`: Envelope encryption (DEK wrapping with AES-256-GCM), hashing, and PKCE S256 verification.
+    - `db/models.test.ts`: Mongoose schema validation and collection bindings.
+    - `id/nanoid.test.ts`: Prefixed Nanoid ID generators.
+    - `mailer/mailer.test.ts`: Transactional logging mailer service and non-fatal delivery helpers.
+    - `oidc/`:
+      - `claims.test.ts`: OIDC standard scopes and claims mapper.
+      - `discovery.test.ts`: Discovery document builder and advertised auth methods.
+      - `jwt.test.ts`: Token minting (`at_hash`, `jti`, `nonce`), verification, and public JWKS export.
+    - `session/`:
+      - `cookie.test.ts`: Signed HS256 session token cookies and verification.
+      - `pending-credentials.test.ts`: Ephemeral in-memory pending credential store with TTL expiration.
+    - `validation/redirect-uri.test.ts`: Client redirect URI parsing, deduplication, and scheme validation.
+    - `config.test.ts`: Zod configuration schema validation and fail-fast environment checks.
+    - `rate-limit.test.ts`: Sliding window rate limiter accounting and key isolation.
+  - `proxy.test.ts`: Next.js Edge security headers, CORS preflight, CSRF origin checks, and route rate limits.

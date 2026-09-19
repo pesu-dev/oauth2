@@ -1,33 +1,51 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.13-slim-bookworm AS builder
+FROM node:24-alpine AS base
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
-
-ENV UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=0
-
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-FROM python:3.13-slim-bookworm
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
+FROM base AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
+
+FROM base AS runner
 WORKDIR /app
 
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.revision=${GIT_SHA}
 
-COPY --from=builder /app/.venv /app/.venv
-COPY src/ ./src/
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
 
-ENV PATH="/app/.venv/bin:$PATH"
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=4 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/health || exit 1
 
-CMD ["python", "-m", "src"]
+CMD ["node", "server.js"]

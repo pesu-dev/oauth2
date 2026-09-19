@@ -39,6 +39,6 @@ This is an **unofficial** project. We are not affiliated with PESU University or
 
 ## Dependencies
 
-We monitor and update Python dependencies via `uv.lock` and CI.
+We monitor and update dependencies via `pnpm-lock.yaml` and CI.
 
 Thank you for helping keep PESU OAuth2 secure.

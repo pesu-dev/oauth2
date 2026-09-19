@@ -20,38 +20,43 @@ This project is **not affiliated with PESU University or PESU Academy**. Use at 
 
 ## Quick start (local)
 
-**Prerequisites:** Python 3.13+, [uv](https://docs.astral.sh/uv/). Integration tests also need Docker (Colima on macOS is fine).
+**Prerequisites:** Node.js 22+, [pnpm](https://pnpm.io/).
 
 ```bash
 cd oauth2
-cp .env.example .env   # fill SESSION_SECRET, etc.
-uv sync --extra dev
-uv run -m src --reload
-curl http://localhost:8080/health
+cp .env.example .env   # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
+pnpm install
+pnpm dev
+# Server running at http://localhost:3000
 ```
 
 ## Development
 
 ```bash
-uv run ruff check .
-uv run ruff format .
-uv run pytest -m unit
-uv run pytest -m integration   # requires Docker
+pnpm lint              # Run ESLint
+pnpm typecheck         # TypeScript check without emit
+pnpm test:unit         # Run Vitest unit test suite
+pnpm test:integration  # Run Testcontainers MongoDB integration suite
+pnpm build             # Build standalone production bundle
 .githooks/install.sh   # once per clone
 ```
 
-See [tests/README.md](tests/README.md) for the test pyramid, coverage floor, and Testcontainers notes.
+See [tests/README.md](tests/README.md) for the test structure and coverage details.
 
 ## Repository layout
 
 ```text
 oauth2/
   docs/plans/        # historical architecture + bootstrap technical notes
-  docs/superpowers/  # approved design spec + MVP implementation plan
-  src/               # FastAPI application
-  tests/             # unit + integration
-  .cursor/           # curated skills and rules (incl. Apple-design)
-  .githooks/         # git hooks (install via .githooks/install.sh)
+  docs/superpowers/  # approved design spec + Next.js migration implementation plan
+  src/
+    app/             # Next.js App Router (pages & API route handlers)
+    components/      # Reusable Apple-design UI components
+    lib/             # Core engines (OIDC, Academy client, crypto, db models)
+    proxy.ts         # Edge routing and security proxy
+  tests/             # Unit tests (Vitest)
+  .agents/           # Curated agent skills (incl. Apple-design)
+  .githooks/         # Git hooks (install via .githooks/install.sh)
   .github/           # CI, staging deploy, prod promote
 ```
 

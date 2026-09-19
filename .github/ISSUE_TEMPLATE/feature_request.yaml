@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check the approved [design spec](../../docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) and [MVP plan](../../docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) first. `docs/plans/*` is historical/outdated.
+        Check the approved [design spec](../../docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) and [migration plan](../../docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md) first. `docs/plans/*` is historical/outdated.
 
   - type: textarea
     id: problem

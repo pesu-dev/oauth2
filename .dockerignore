@@ -1,0 +1,11 @@
+Dockerfile
+.dockerignore
+node_modules
+.next
+legacy
+.git
+.github
+.env*
+tests
+vitest.config.ts
+*.md
