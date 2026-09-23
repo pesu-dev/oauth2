@@ -118,7 +118,7 @@ jobs:
         run: echo "Approved ${{ needs.prepare.outputs.tag }} at ${{ needs.prepare.outputs.target_sha }}"
 
   deploy_prod:
-    name: Deploy promoted SHA to Render prod
+    name: Deploy to prod
     needs: [prepare, await_approval]
     if: needs.prepare.outputs.has_changes == 'true'
     uses: pesu-dev/actions/.github/workflows/deploy_render.yml@v1

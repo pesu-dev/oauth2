@@ -33,7 +33,7 @@ jobs:
       push: true
 
   deploy_staging:
-    name: Deploy to Render staging
+    name: Deploy to staging
     needs: [build_and_push_image]
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
