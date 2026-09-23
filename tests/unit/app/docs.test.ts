@@ -91,7 +91,7 @@ describe('API Reference Documentation Data & LLM Generators', () => {
   });
 
   it('respects configured base URL when generating endpoints and samples', () => {
-    const customBase = 'https://oauth2-staging-66snrlj46a-uc.a.run.app';
+    const customBase = 'https://pesu-oauth2-staging.onrender.com';
     const customEndpoints = createEndpoints(customBase);
     const tokenEp = customEndpoints.find((ep) => ep.id === 'token')!;
     expect(tokenEp.curlSample).toContain(customBase);

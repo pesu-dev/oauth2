@@ -11,7 +11,7 @@ Unofficial OAuth2 / OpenID Connect authorization server for PESU Academy. Third-
 | Product ADRs (historical) | [docs/plans/architecture.md](docs/plans/architecture.md) — **outdated for build detail**; ADRs remain useful background |
 | Bootstrap tech notes | [docs/plans/technical.md](docs/plans/technical.md) — **outdated stub**; hosting/Mongo choices still generally valid |
 | HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; portal, admin, settings; public FAQ/privacy/docs |
-| Hosting target | Google Cloud Run (staging + prod) |
+| Hosting target | Render (staging + prod) |
 | Database | MongoDB Atlas `oauth2` (X.509; staging + prod clusters); Testcontainers Mongo in CI |
 
 ## Disclaimer

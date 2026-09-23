@@ -16,7 +16,6 @@ on:
 permissions:
   contents: write
   packages: write
-  id-token: write
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -119,30 +118,24 @@ jobs:
         run: echo "Approved ${{ needs.prepare.outputs.tag }} at ${{ needs.prepare.outputs.target_sha }}"
 
   deploy_prod:
-    name: Deploy promoted SHA to prod
+    name: Deploy promoted SHA to Render prod
     needs: [prepare, await_approval]
     if: needs.prepare.outputs.has_changes == 'true'
-    uses: ./.github/workflows/deploy_cloudrun.yml
+    uses: pesu-dev/actions/.github/workflows/deploy_render.yml@v1
     with:
       environment: prod
-      service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
-      image: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.target_sha }}
-    permissions:
-      contents: read
-      id-token: write
+      image_url: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.target_sha }}
+    secrets: inherit
 
   rollback_prod:
     name: Rollback prod to last stable prod image
     needs: [prepare, deploy_prod]
     if: failure() && needs.deploy_prod.result == 'failure'
-    uses: ./.github/workflows/deploy_cloudrun.yml
+    uses: pesu-dev/actions/.github/workflows/deploy_render.yml@v1
     with:
       environment: prod
-      service: ${{ vars.CLOUD_RUN_SERVICE_PROD }}
-      image: ghcr.io/${{ github.repository }}:prod
-    permissions:
-      contents: read
-      id-token: write
+      image_url: ghcr.io/${{ github.repository }}:prod
+    secrets: inherit
 
   fail_after_rollback:
     name: Mark deployment as failed after rollback

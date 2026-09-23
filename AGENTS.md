@@ -29,7 +29,7 @@ On entry for non-trivial work: read Status → Map → relevant History/spec sec
 - **Next.js 16+** (App Router) + **React 19**, MongoDB via **mongoose**, HTTP via **axios** with cookiejar
 - Lint: **ESLint** (Next.js flat config), Typecheck: **TypeScript**
 - Tests: **Vitest** (see [tests/README.md](tests/README.md))
-- Hosting: **Google Cloud Run** (staging + prod); standalone container images on **GHCR**
+- Hosting: **Render** (staging + prod); standalone container images on **GHCR**
 
 ## Commands
 
@@ -116,19 +116,21 @@ Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/sup
 
 ## Deploy notes (maintainers)
 
-GitHub **repository variables** used by workflows:
+GitHub **repository secrets** used by workflows:
 
-| Variable | Example |
+| Secret | Description |
 | -------------------------------- | ------------------------------------------------------------------------------------------ |
-| `GCP_REGION` | `us-central1` |
-| `CLOUD_RUN_SERVICE_STAGING` | `oauth2-staging` |
-| `CLOUD_RUN_SERVICE_PROD` | `oauth2-prod` |
-| `CLOUD_RUN_RUNTIME_SA` | `oauth2-runtime@dev-pesu-dev.iam.gserviceaccount.com` |
-| `GCP_DEPLOYER_SA` | `github-oauth2-deploy@dev-pesu-dev.iam.gserviceaccount.com` |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/<number>/locations/global/workloadIdentityPools/github/providers/github-actions` |
+| `RENDER_API_KEY` | Render Public REST API Key (Bearer token) |
 
-Deploy auth is Workload Identity Federation (no JSON key). Cloud Run revisions run as `CLOUD_RUN_RUNTIME_SA`.
+GitHub **environment variables** (defined in each GitHub Environment: `staging`, `prod`):
 
-Deploy workflows pin **`--max-instances=1`**. Process-local pending credentials and login rate limits require a single instance; do not scale out until those move to shared storage.
+| Variable | Environment | Example |
+| -------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `RENDER_SERVICE_ID` | `staging` | `srv-dan35u6gekts73fhh65g` |
+| `RENDER_SERVICE_ID` | `prod` | `srv-dap9l8n40ujc73c1v500` |
 
-Mongo X.509 PEMs are mounted at `/run/secrets/mongo.pem` with `MONGO_X509_CERT_PATH` (and `APP_ENV`) set on the Cloud Run service; deploy updates the image only and leaves those env vars in place.
+Deployments use `pesu-dev/actions/.github/workflows/deploy_render.yml@v1` to trigger and monitor deploys on Render.
+
+Process-local pending credentials and login rate limits require a single instance; do not scale out until those move to shared storage.
+
+Mongo X.509 PEMs and application environment variables (`APP_ENV`, secrets) are configured on Render dashboard services; GitHub Actions updates the image reference only.

@@ -45,7 +45,7 @@ pnpm build         # Build standalone production container
 
 ## What to work on
 
-Before implementing OIDC flows, MongoDB collections, or Cloud Run deploy wiring, read:
+Before implementing OIDC flows, MongoDB collections, or Render deploy wiring, read:
 
 1. **Product + tech contract:** [docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md](../docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) (approved MVP design)
 2. **Implementation plan:** [docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md](../docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md)

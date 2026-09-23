@@ -33,7 +33,7 @@ export interface EndpointDoc {
   pythonSample: string;
 }
 
-export const DEFAULT_PROD_ISSUER_URL = 'https://oauth2-prod-66snrlj46a-uc.a.run.app';
+export const DEFAULT_PROD_ISSUER_URL = 'https://pesu-oauth2.onrender.com';
 export const CURRENT_API_VERSION = 'v1';
 export const AVAILABLE_API_VERSIONS = ['v1'] as const;
 

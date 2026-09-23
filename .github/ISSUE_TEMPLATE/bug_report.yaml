@@ -40,8 +40,8 @@ body:
       label: Environment
       options:
         - Local development
-        - Cloud Run staging
-        - Cloud Run production
+        - Render staging
+        - Render production
         - CI only
         - Other
     validations:

@@ -35,7 +35,7 @@ This is an **unofficial** project. We are not affiliated with PESU University or
 - Use HTTPS only in deployed environments.
 - Never commit `.env`, X.509 client certificates (`.pem`), Atlas connection strings with embedded credentials, signing keys, or SMTP credentials.
 - Rotate compromised secrets immediately.
-- Prefer least-privilege GitHub and GCP access for deploy roles.
+- Prefer least-privilege GitHub and Render access for deploy roles.
 
 ## Dependencies
 

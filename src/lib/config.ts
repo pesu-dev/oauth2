@@ -5,11 +5,11 @@ import { z } from 'zod';
 const ENVIRONMENT_DEFAULTS = {
   prod: {
     mongoUri: 'mongodb+srv://pesudev.nkzgere.mongodb.net/',
-    issuerUrl: 'https://oauth2-prod-66snrlj46a-uc.a.run.app',
+    issuerUrl: 'https://pesu-oauth2.onrender.com',
   },
   staging: {
     mongoUri: 'mongodb+srv://pesudev.andmjbp.mongodb.net/',
-    issuerUrl: 'https://oauth2-staging-66snrlj46a-uc.a.run.app',
+    issuerUrl: 'https://pesu-oauth2-staging.onrender.com',
   },
   local: {
     mongoUri: 'mongodb+srv://pesudev.andmjbp.mongodb.net/',
