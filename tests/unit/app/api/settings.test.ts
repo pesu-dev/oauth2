@@ -315,6 +315,7 @@ describe('Settings API (/api/settings)', () => {
     it('returns 404 when user record does not exist on PATCH', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_missing' });
       vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+      vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null);
 
       const req = new NextRequest('http://localhost:3000/api/settings', {
         method: 'PATCH',

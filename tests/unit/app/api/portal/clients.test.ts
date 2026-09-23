@@ -24,9 +24,11 @@ describe('Portal Clients API', () => {
     it('returns list of clients for authenticated owner', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_owner' });
       vi.spyOn(Client, 'find').mockReturnValueOnce({
-        sort: vi.fn().mockResolvedValueOnce([
-          { client_id: 'cli_1', name: 'App One', owner_sub: 'usr_owner' },
-        ]),
+        sort: vi.fn().mockReturnValueOnce({
+          lean: vi.fn().mockResolvedValueOnce([
+            { client_id: 'cli_1', name: 'App One', owner_sub: 'usr_owner' },
+          ]),
+        }),
       } as never);
 
       const req = new NextRequest('http://localhost:3000/api/portal/clients', {

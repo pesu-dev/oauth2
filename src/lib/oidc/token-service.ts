@@ -247,9 +247,9 @@ export async function exchangeAuthorizationCode(
     ttlSeconds: config.accessTokenTtlSeconds,
   });
 
-  let idToken: string | undefined;
+  let idTokenPromise: Promise<string> | undefined;
   if (scopes.includes('openid')) {
-    idToken = await mintIdToken({
+    idTokenPromise = mintIdToken({
       issuer: config.issuerUrl,
       sub: user.sub,
       clientId: client.client_id,
@@ -262,10 +262,11 @@ export async function exchangeAuthorizationCode(
   }
 
   let refreshToken: string | undefined;
+  let refreshTokenPromise: Promise<unknown> | undefined;
   if (scopes.includes('offline_access')) {
     const rawRt = newRefreshToken();
     const familyId = newFamilyId();
-    await RefreshToken.create({
+    refreshTokenPromise = RefreshToken.create({
       token_hash: sha256Hex(rawRt),
       family_id: familyId,
       client_id: client.client_id,
@@ -275,6 +276,11 @@ export async function exchangeAuthorizationCode(
     });
     refreshToken = rawRt;
   }
+
+  const [idToken] = await Promise.all([
+    idTokenPromise,
+    refreshTokenPromise,
+  ]);
 
   return {
     status: 200,

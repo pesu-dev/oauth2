@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  const clients = await Client.find(filter).sort({ created_at: -1 }).limit(20);
+  const clients = await Client.find(filter).sort({ created_at: -1 }).limit(20).lean();
 
   return NextResponse.json({
     clients: clients.map((c) => ({

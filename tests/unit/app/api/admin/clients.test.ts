@@ -71,7 +71,9 @@ describe('Admin Clients API (/api/admin/clients)', () => {
 
       vi.spyOn(Client, 'find').mockReturnValueOnce({
         sort: vi.fn().mockReturnValueOnce({
-          limit: vi.fn().mockResolvedValueOnce(mockClients),
+          limit: vi.fn().mockReturnValueOnce({
+            lean: vi.fn().mockResolvedValueOnce(mockClients),
+          }),
         }),
       } as never);
 
@@ -92,7 +94,9 @@ describe('Admin Clients API (/api/admin/clients)', () => {
 
       const findSpy = vi.spyOn(Client, 'find').mockReturnValueOnce({
         sort: vi.fn().mockReturnValueOnce({
-          limit: vi.fn().mockResolvedValueOnce([]),
+          limit: vi.fn().mockReturnValueOnce({
+            lean: vi.fn().mockResolvedValueOnce([]),
+          }),
         }),
       } as never);
 

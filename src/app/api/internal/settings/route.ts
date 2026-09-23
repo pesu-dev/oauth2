@@ -195,12 +195,14 @@ export async function PATCH(request: NextRequest) {
   }
 
   await connectToDatabase();
-  const user = await User.findOne({ sub: session.sub, deleted_at: null });
+  const [user, existingVault] = await Promise.all([
+    User.findOne({ sub: session.sub, deleted_at: null }),
+    Vault.findOne({ sub: session.sub }),
+  ]);
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const existingVault = await Vault.findOne({ sub: session.sub });
   if (!existingVault) {
     return NextResponse.json({ error: 'No saved credentials to update' }, { status: 400 });
   }

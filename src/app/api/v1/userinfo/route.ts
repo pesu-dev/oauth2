@@ -29,7 +29,7 @@ async function handleUserInfo(request: NextRequest | Request) {
   }
 
   await connectToDatabase();
-  const user = await User.findOne({ sub: payload.sub, deleted_at: null });
+  const user = await User.findOne({ sub: payload.sub, deleted_at: null }).lean();
   if (!user) {
     return NextResponse.json(
       { error: 'invalid_token', error_description: 'User not found' },

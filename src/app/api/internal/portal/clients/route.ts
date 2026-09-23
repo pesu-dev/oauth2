@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   }
 
   await connectToDatabase();
-  const clients = await Client.find({ owner_sub: session.sub }).sort({ created_at: -1 });
+  const clients = await Client.find({ owner_sub: session.sub }).sort({ created_at: -1 }).lean();
 
   return NextResponse.json({ clients });
 }
@@ -44,11 +44,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
-    await connectToDatabase();
-
     const clientId = newClientId();
     const rawSecret = newClientSecret();
-    const secretHash = await hashClientSecret(rawSecret);
+    const [, secretHash] = await Promise.all([
+      connectToDatabase(),
+      hashClientSecret(rawSecret),
+    ]);
 
     const client = await Client.create({
       client_id: clientId,

@@ -17,9 +17,11 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await connectToDatabase();
   const rawSecret = newClientSecret();
-  const secretHash = await hashClientSecret(rawSecret);
+  const [, secretHash] = await Promise.all([
+    connectToDatabase(),
+    hashClientSecret(rawSecret),
+  ]);
 
   const client = await Client.findOneAndUpdate(
     { client_id: clientId, owner_sub: session.sub },

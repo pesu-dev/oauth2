@@ -20,17 +20,19 @@ describe('Userinfo Endpoint (/userinfo)', () => {
       scopes: ['openid', 'profile'],
     });
 
-    vi.spyOn(User, 'findOne').mockResolvedValue({
-      sub: 'usr_test',
-      name: 'Test Student',
-      prn: 'PES1UG20CS001',
-      srn: 'PES1202000001',
-      program: 'B.Tech',
-      branch: 'CSE',
-      semester: 'Sem-6',
-      section: 'A',
-      campus: 'RR',
-    } as unknown as InstanceType<typeof User>);
+    vi.spyOn(User, 'findOne').mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        sub: 'usr_test',
+        name: 'Test Student',
+        prn: 'PES1UG20CS001',
+        srn: 'PES1202000001',
+        program: 'B.Tech',
+        branch: 'CSE',
+        semester: 'Sem-6',
+        section: 'A',
+        campus: 'RR',
+      }),
+    } as never);
 
     const reqGet = new Request('http://localhost:3000/userinfo', {
       headers: { Authorization: `Bearer ${token}` },
@@ -70,7 +72,9 @@ describe('Userinfo Endpoint (/userinfo)', () => {
       scopes: ['openid'],
     });
 
-    vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+    vi.spyOn(User, 'findOne').mockReturnValueOnce({
+      lean: vi.fn().mockResolvedValueOnce(null),
+    } as never);
 
     const req = new Request('http://localhost:3000/userinfo', {
       headers: { Authorization: `Bearer ${token}` },
@@ -89,9 +93,11 @@ describe('Userinfo Endpoint (/userinfo)', () => {
       scopes: [],
     });
 
-    vi.spyOn(User, 'findOne').mockResolvedValueOnce({
-      sub: 'usr_no_scope',
-      name: 'No Scope User',
+    vi.spyOn(User, 'findOne').mockReturnValueOnce({
+      lean: vi.fn().mockResolvedValueOnce({
+        sub: 'usr_no_scope',
+        name: 'No Scope User',
+      }),
     } as never);
 
     const req = new Request('http://localhost:3000/userinfo', {
