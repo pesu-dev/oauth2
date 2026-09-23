@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client, ClientTester } from '@/lib/db/models';
+import { Client } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
 
@@ -17,13 +17,23 @@ export async function GET(
   }
 
   await connectToDatabase();
-  const client = await Client.findOne({ client_id: clientId, owner_sub: session.sub });
-  if (!client) {
+  const results = await Client.aggregate([
+    { $match: { client_id: clientId, owner_sub: session.sub } },
+    {
+      $lookup: {
+        from: 'client_testers',
+        localField: 'client_id',
+        foreignField: 'client_id',
+        as: 'testers',
+      },
+    },
+  ]);
+
+  if (!results || results.length === 0) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  const testers = await ClientTester.find({ client_id: clientId });
-
+  const { testers, ...client } = results[0];
   return NextResponse.json({ client, testers });
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
+import { withTransaction } from '@/lib/db/transaction';
 import {
   AuthCode,
   Client,
@@ -12,7 +13,7 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
+import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext, SealedBlob } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
 
 export async function POST(request: NextRequest) {
@@ -144,18 +145,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save or update Consent
-    await Consent.findOneAndUpdate(
-      { sub: session.sub, client_id: clientId },
-      {
-        sub: session.sub,
-        client_id: clientId,
-        scopes,
-        mode: targetMode,
-        granted_at: new Date(),
-      },
-      { upsert: true }
-    );
+    let sealedVaultData: SealedBlob | null = null;
+    let sessionExpiresAt: Date | undefined;
 
     // If delegated mode, process vault storage using pending credentials
     if (targetMode === 'delegated') {
@@ -188,7 +179,7 @@ export async function POST(request: NextRequest) {
         }
         const username = pending.username || session.sub;
 
-        const sessionExpiresAt: Date | undefined = pending.expiresAt
+        sessionExpiresAt = pending.expiresAt
           ? new Date(pending.expiresAt)
           : undefined;
 
@@ -205,22 +196,7 @@ export async function POST(request: NextRequest) {
         };
 
         const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-        const sealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
-
-        await Vault.findOneAndUpdate(
-          { sub: session.sub },
-          {
-            sub: session.sub,
-            nonce: sealed.nonce,
-            ciphertext: sealed.ciphertext,
-            wrap_nonce: sealed.wrapNonce,
-            wrapped_dek: sealed.wrappedDek,
-            key_version: sealed.keyVersion,
-            session_expires_at: sessionExpiresAt,
-            updated_at: new Date(),
-          },
-          { upsert: true }
-        );
+        sealedVaultData = seal(masterKey, packVaultPlaintext(plaintext), 1);
       }
     } else {
       // Identity mode: pop and discard any pending credentials
@@ -231,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     // Generate AuthCode
     const rawCode = newAuthCode();
-    await AuthCode.create({
+    const authCodeData = {
       code_hash: sha256Hex(rawCode),
       client_id: clientId,
       sub: session.sub,
@@ -242,6 +218,40 @@ export async function POST(request: NextRequest) {
       code_challenge_method: codeChallengeMethod || 'S256',
       nonce,
       expires_at: new Date(Date.now() + config.authorizationCodeTtlSeconds * 1000),
+    };
+
+    // Commit consent, vault, and auth code in a single atomic transaction
+    await withTransaction(async (dbSession) => {
+      await Consent.findOneAndUpdate(
+        { sub: session.sub, client_id: clientId },
+        {
+          sub: session.sub,
+          client_id: clientId,
+          scopes,
+          mode: targetMode,
+          granted_at: new Date(),
+        },
+        { upsert: true, session: dbSession }
+      );
+
+      if (sealedVaultData) {
+        await Vault.findOneAndUpdate(
+          { sub: session.sub },
+          {
+            sub: session.sub,
+            nonce: sealedVaultData.nonce,
+            ciphertext: sealedVaultData.ciphertext,
+            wrap_nonce: sealedVaultData.wrapNonce,
+            wrapped_dek: sealedVaultData.wrappedDek,
+            key_version: sealedVaultData.keyVersion,
+            session_expires_at: sessionExpiresAt,
+            updated_at: new Date(),
+          },
+          { upsert: true, session: dbSession }
+        );
+      }
+
+      await AuthCode.create([authCodeData], { session: dbSession });
     });
 
     const effectiveMode = targetMode;

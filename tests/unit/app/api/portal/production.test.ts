@@ -8,6 +8,10 @@ vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('@/lib/db/transaction', () => ({
+  withTransaction: vi.fn(async (fn: (session: unknown) => Promise<unknown>) => fn({ id: 'mock-session' })),
+}));
+
 vi.mock('@/lib/mailer', () => ({
   notifySubQuietly: vi.fn(),
 }));
@@ -107,11 +111,13 @@ describe('Production Request Gating & Duplicate Guard (/api/portal/clients/[clie
     };
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce(mockClient as unknown as InstanceType<typeof Client>);
     vi.spyOn(ProductionRequest, 'findOne').mockResolvedValueOnce(null);
-    vi.spyOn(ProductionRequest, 'create').mockResolvedValueOnce({
-      request_id: 'req_new_1',
-      client_id: 'cli_1',
-      status: 'pending',
-    } as never);
+    vi.spyOn(ProductionRequest, 'create').mockResolvedValueOnce([
+      {
+        request_id: 'req_new_1',
+        client_id: 'cli_1',
+        status: 'pending',
+      },
+    ] as never);
 
     const req = new NextRequest('http://localhost:3000/api/portal/clients/cli_1/request-production', {
       method: 'POST',
@@ -127,10 +133,10 @@ describe('Production Request Gating & Duplicate Guard (/api/portal/clients/[clie
     const data = await res.json();
     expect(data.request.request_id).toBe('req_new_1');
     expect(mockClient.publishing_status).toBe('pending_production');
-    expect(mockClient.save).toHaveBeenCalled();
+    expect(mockClient.save).toHaveBeenCalledWith({ session: expect.any(Object) });
   });
 
-  it('performs compensating deletion of production request if client.save fails', async () => {
+  it('aborts transaction when client.save fails', async () => {
     const mockClient = {
       client_id: 'cli_1',
       name: 'Test Client App',
@@ -140,12 +146,13 @@ describe('Production Request Gating & Duplicate Guard (/api/portal/clients/[clie
     };
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce(mockClient as unknown as InstanceType<typeof Client>);
     vi.spyOn(ProductionRequest, 'findOne').mockResolvedValueOnce(null);
-    vi.spyOn(ProductionRequest, 'create').mockResolvedValueOnce({
-      request_id: 'req_new_rollback',
-      client_id: 'cli_1',
-      status: 'pending',
-    } as never);
-    const deleteSpy = vi.spyOn(ProductionRequest, 'deleteOne').mockResolvedValueOnce({} as never);
+    vi.spyOn(ProductionRequest, 'create').mockResolvedValueOnce([
+      {
+        request_id: 'req_new_rollback',
+        client_id: 'cli_1',
+        status: 'pending',
+      },
+    ] as never);
 
     const req = new NextRequest('http://localhost:3000/api/portal/clients/cli_1/request-production', {
       method: 'POST',
@@ -158,7 +165,5 @@ describe('Production Request Gating & Duplicate Guard (/api/portal/clients/[clie
     await expect(
       postRequestProduction(req, { params: Promise.resolve({ clientId: 'cli_1' }) })
     ).rejects.toThrow('Save failed');
-
-    expect(deleteSpy).toHaveBeenCalledWith({ request_id: 'req_new_rollback' });
   });
 });

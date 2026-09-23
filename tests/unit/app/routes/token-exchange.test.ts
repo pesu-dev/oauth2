@@ -26,6 +26,7 @@ vi.mock('@/lib/academy/client', () => ({
 describe('Token Exchange Endpoint (/oauth/token-exchange)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Vault, 'findOne').mockResolvedValue(null);
   });
 
   it('rejects missing or invalid token exchange secret with 401', async () => {

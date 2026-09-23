@@ -8,6 +8,10 @@ vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('@/lib/db/transaction', () => ({
+  withTransaction: vi.fn(async (fn: (session: unknown) => Promise<unknown>) => fn({ id: 'mock-session' })),
+}));
+
 describe('Token Endpoint (/token)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -383,7 +387,8 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error_description).toContain('Refresh token reuse detected');
       expect(revokeFamilySpy).toHaveBeenCalledWith(
         { family_id: 'fam_compromised', revoked_at: null },
-        expect.any(Object)
+        expect.any(Object),
+        { session: expect.any(Object) }
       );
     });
 
@@ -394,17 +399,12 @@ describe('Token Endpoint (/token)', () => {
       } as never);
 
       const expiresAt = new Date(Date.now() + 30 * 86400 * 1000);
-      vi.spyOn(RefreshToken, 'findOne')
-        .mockResolvedValueOnce({
-          family_id: 'fam_valid',
-          client_id: 'cli_test',
-          revoked_at: null,
-          expires_at: expiresAt,
-        } as never)
-        .mockResolvedValueOnce({
-          family_id: 'fam_valid',
-          successor_hash: 'valid_successor',
-        } as never);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        family_id: 'fam_valid',
+        client_id: 'cli_test',
+        revoked_at: null,
+        expires_at: expiresAt,
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         family_id: 'fam_valid',
         client_id: 'cli_test',
@@ -419,7 +419,6 @@ describe('Token Endpoint (/token)', () => {
       } as never);
 
       vi.spyOn(RefreshToken, 'create').mockResolvedValueOnce({} as never);
-      vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValueOnce(1);
 
       const req = new Request('http://localhost:3000/token', {
         method: 'POST',
@@ -510,28 +509,13 @@ describe('Token Endpoint (/token)', () => {
       } as never);
 
       const expiresAt = new Date(Date.now() + 10000);
-      vi.spyOn(RefreshToken, 'findOne')
-        .mockResolvedValueOnce({
-          family_id: 'fam_race',
-          client_id: 'cli_test',
-          revoked_at: null,
-          expires_at: expiresAt,
-        } as never)
-        .mockResolvedValueOnce({
-          family_id: 'fam_race',
-          successor_hash: 'valid',
-        } as never);
-      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
         family_id: 'fam_race',
         client_id: 'cli_test',
-        sub: 'usr_race',
-        scopes: [],
+        revoked_at: null,
         expires_at: expiresAt,
       } as never);
-      vi.spyOn(User, 'findOne').mockResolvedValueOnce({ sub: 'usr_race' } as never);
-      vi.spyOn(RefreshToken, 'create').mockResolvedValueOnce({} as never);
-      // Simulate race where multiple live tokens exist
-      vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValueOnce(2);
+      vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       const updateManySpy = vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
 
       const req = new Request('http://localhost:3000/token', {
@@ -550,7 +534,8 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error_description).toContain('Refresh token reuse detected; family revoked');
       expect(updateManySpy).toHaveBeenCalledWith(
         { family_id: 'fam_race', revoked_at: null },
-        expect.any(Object)
+        expect.any(Object),
+        { session: expect.any(Object) }
       );
     });
   });
@@ -737,7 +722,6 @@ describe('Token Endpoint (/token)', () => {
       } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce(null);
       const updateManySpy = vi.spyOn(RefreshToken, 'updateMany').mockResolvedValueOnce({} as never);
-      vi.spyOn(RefreshToken, 'updateOne').mockResolvedValueOnce({} as never);
 
       const req = new Request('http://localhost:3000/token', {
         method: 'POST',
@@ -755,7 +739,8 @@ describe('Token Endpoint (/token)', () => {
       expect(data.error_description).toBe('Refresh token reuse detected; family revoked');
       expect(updateManySpy).toHaveBeenCalledWith(
         { family_id: 'fam_concurrent', revoked_at: null },
-        expect.any(Object)
+        expect.any(Object),
+        { session: expect.any(Object) }
       );
     });
 
@@ -942,21 +927,15 @@ describe('Token Endpoint (/token)', () => {
       } as never);
 
       vi.spyOn(RefreshToken, 'create').mockResolvedValue({} as never);
-      vi.spyOn(RefreshToken, 'countDocuments').mockResolvedValue(1 as never);
 
       // 1. Scopes without openid
-      vi.spyOn(RefreshToken, 'findOne')
-        .mockResolvedValueOnce({
-          token_hash: sha256Hex('rt_1'),
-          client_id: 'cli_test',
-          family_id: 'fam_1',
-          revoked_at: null,
-          expires_at: new Date(Date.now() + 100000),
-        } as never)
-        .mockResolvedValueOnce({
-          token_hash: sha256Hex('rt_1'),
-          successor_hash: 'valid_successor_1',
-        } as never);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_1'),
+        client_id: 'cli_test',
+        family_id: 'fam_1',
+        revoked_at: null,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         token_hash: sha256Hex('rt_1'),
         client_id: 'cli_test',
@@ -982,18 +961,13 @@ describe('Token Endpoint (/token)', () => {
       expect(data1.id_token).toBeUndefined();
 
       // 2. Scopes undefined (falls back to [])
-      vi.spyOn(RefreshToken, 'findOne')
-        .mockResolvedValueOnce({
-          token_hash: sha256Hex('rt_2'),
-          client_id: 'cli_test',
-          family_id: 'fam_2',
-          revoked_at: null,
-          expires_at: new Date(Date.now() + 100000),
-        } as never)
-        .mockResolvedValueOnce({
-          token_hash: sha256Hex('rt_2'),
-          successor_hash: 'valid_successor_2',
-        } as never);
+      vi.spyOn(RefreshToken, 'findOne').mockResolvedValueOnce({
+        token_hash: sha256Hex('rt_2'),
+        client_id: 'cli_test',
+        family_id: 'fam_2',
+        revoked_at: null,
+        expires_at: new Date(Date.now() + 100000),
+      } as never);
       vi.spyOn(RefreshToken, 'findOneAndUpdate').mockResolvedValueOnce({
         token_hash: sha256Hex('rt_2'),
         client_id: 'cli_test',

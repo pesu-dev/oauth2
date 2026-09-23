@@ -10,6 +10,10 @@ vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('@/lib/db/transaction', () => ({
+  withTransaction: vi.fn(async (fn: (session: unknown) => Promise<unknown>) => fn({ id: 'mock-session' })),
+}));
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     vaultMasterKey: 'super-secret-vault-master-key-32b',
@@ -299,11 +303,14 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(data.redirectTo).toContain('state=abc-state');
       expect(consentSpy).toHaveBeenCalled();
       expect(authCodeSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          client_id: 'cli_test',
-          sub: 'usr_user1',
-          mode: 'identity',
-        })
+        [
+          expect.objectContaining({
+            client_id: 'cli_test',
+            sub: 'usr_user1',
+            mode: 'identity',
+          }),
+        ],
+        { session: expect.any(Object) }
       );
     });
 
@@ -356,11 +363,14 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
         expect.anything()
       );
       expect(authCodeSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          client_id: 'cli_delegated_test',
-          sub: 'usr_user1',
-          mode: 'delegated',
-        })
+        [
+          expect.objectContaining({
+            client_id: 'cli_delegated_test',
+            sub: 'usr_user1',
+            mode: 'delegated',
+          }),
+        ],
+        { session: expect.any(Object) }
       );
     });
 
@@ -750,7 +760,7 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       expect(vaultUpsertSpy).toHaveBeenCalledWith(
         { sub: 'usr_user1' },
         expect.objectContaining({ sub: 'usr_user1', key_version: 1 }),
-        { upsert: true }
+        expect.objectContaining({ upsert: true })
       );
     });
 
@@ -936,10 +946,13 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
       const res = await postConsent(req);
       expect(res.status).toBe(200);
       expect(authCodeSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mode: 'identity',
-          code_challenge_method: 'S256',
-        })
+        [
+          expect.objectContaining({
+            mode: 'identity',
+            code_challenge_method: 'S256',
+          }),
+        ],
+        { session: expect.any(Object) }
       );
       const data = await res.json();
       const targetUrl = new URL(data.redirectTo);

@@ -10,6 +10,13 @@ vi.mock('@/lib/db/connection', () => ({
 describe('Revocation Endpoint (/revoke)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(RefreshToken, 'updateOne').mockResolvedValue({
+      acknowledged: true,
+      matchedCount: 1,
+      modifiedCount: 1,
+      upsertedCount: 0,
+      upsertedId: null,
+    });
   });
 
   it('revokes valid refresh token using urlencoded form data', async () => {
@@ -176,8 +183,11 @@ describe('Revocation Endpoint (/revoke)', () => {
 
     const res = await postRevoke(req);
     expect(res.status).toBe(200);
-    // updateOne must NOT be called for cross-client token
-    expect(updateSpy).not.toHaveBeenCalled();
+    // updateOne is scoped strictly to authenticated client (no-op on victim token)
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ client_id: 'cli_attacker' }),
+      expect.any(Object)
+    );
   });
 
   it('returns 200 for access_token hint without touching refresh tokens', async () => {

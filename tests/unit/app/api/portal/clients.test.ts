@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET as getClients, POST as postClient } from '@/app/api/internal/portal/clients/route';
 import { GET as getClient, PATCH as updateClient } from '@/app/api/internal/portal/clients/[clientId]/route';
-import { Client, ClientTester } from '@/lib/db/models';
+import { Client } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 
 vi.mock('@/lib/db/connection', () => ({
@@ -208,7 +208,7 @@ describe('Portal Clients API', () => {
 
     it('returns 404 when client not found', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_owner' });
-      vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
+      vi.spyOn(Client, 'aggregate').mockResolvedValueOnce([]);
 
       const req = new NextRequest('http://localhost:3000/api/portal/clients/cli_123', {
         headers: { cookie: 'pesu_session=valid' },
@@ -219,13 +219,13 @@ describe('Portal Clients API', () => {
 
     it('returns client and its testers when found', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_owner' });
-      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({
-        client_id: 'cli_123',
-        name: 'My App',
-        owner_sub: 'usr_owner',
-      } as never);
-      vi.spyOn(ClientTester, 'find').mockResolvedValueOnce([
-        { client_id: 'cli_123', sub: 'usr_tester1' },
+      vi.spyOn(Client, 'aggregate').mockResolvedValueOnce([
+        {
+          client_id: 'cli_123',
+          name: 'My App',
+          owner_sub: 'usr_owner',
+          testers: [{ client_id: 'cli_123', sub: 'usr_tester1' }],
+        },
       ] as never);
 
       const req = new NextRequest('http://localhost:3000/api/portal/clients/cli_123', {

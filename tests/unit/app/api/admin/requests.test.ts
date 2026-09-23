@@ -8,6 +8,10 @@ vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('@/lib/db/transaction', () => ({
+  withTransaction: vi.fn(async (fn: (session: unknown) => Promise<unknown>) => fn({ id: 'mock-session' })),
+}));
+
 vi.mock('@/lib/mailer', () => ({
   notifySubQuietly: vi.fn(),
 }));
@@ -39,22 +43,17 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_admin' });
       vi.spyOn(Admin, 'findOne').mockResolvedValueOnce({ sub: 'usr_admin' } as never);
 
-      vi.spyOn(ProductionRequest, 'find').mockReturnValueOnce({
-        sort: vi.fn().mockResolvedValueOnce([
-          {
-            request_id: 'req_1',
-            client_id: 'cli_1',
-            requested_by_sub: 'usr_dev',
-            status: 'pending',
-            delegated_requested: true,
-            justification: 'Production justification',
-            created_at: new Date('2026-01-01'),
-          },
-        ]),
-      } as never);
-
-      vi.spyOn(Client, 'find').mockResolvedValueOnce([
-        { client_id: 'cli_1', name: 'My App', owner_sub: 'usr_dev' },
+      vi.spyOn(ProductionRequest, 'aggregate').mockResolvedValueOnce([
+        {
+          request_id: 'req_1',
+          client_id: 'cli_1',
+          client_name: 'My App',
+          owner_sub: 'usr_dev',
+          status: 'pending',
+          delegated_requested: true,
+          justification: 'Production justification',
+          created_at: new Date('2026-01-01'),
+        },
       ] as never);
 
       const req = new NextRequest('http://localhost:3000/api/admin/requests', {
@@ -182,44 +181,37 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_admin' });
       vi.spyOn(Admin, 'findOne').mockResolvedValueOnce({ sub: 'usr_admin' } as never);
 
-      vi.spyOn(ProductionRequest, 'find').mockReturnValueOnce({
-        sort: vi.fn().mockResolvedValueOnce([
-          {
-            request_id: 'req_fallback_1',
-            client_id: 'cli_unknown',
-            requested_by_sub: undefined,
-            owner_sub: 'usr_owner_field',
-            status: 'pending',
-            delegated_requested: false,
-            justification: undefined,
-            created_at: new Date('2026-01-01'),
-          },
-          {
-            request_id: 'req_fallback_2',
-            client_id: 'cli_client_owner',
-            requested_by_sub: undefined,
-            owner_sub: undefined,
-            status: 'pending',
-            delegated_requested: false,
-            justification: undefined,
-            created_at: new Date('2026-01-01'),
-          },
-          {
-            request_id: 'req_fallback_3',
-            client_id: 'cli_no_owner',
-            requested_by_sub: undefined,
-            owner_sub: undefined,
-            status: 'pending',
-            delegated_requested: false,
-            justification: undefined,
-            created_at: new Date('2026-01-01'),
-          },
-        ]),
-      } as never);
-
-      vi.spyOn(Client, 'find').mockResolvedValueOnce([
-        { client_id: 'cli_client_owner', name: 'App With Owner', owner_sub: 'usr_client_owner' },
-        { client_id: 'cli_no_owner', name: 'App No Owner', owner_sub: undefined },
+      vi.spyOn(ProductionRequest, 'aggregate').mockResolvedValueOnce([
+        {
+          request_id: 'req_fallback_1',
+          client_id: 'cli_unknown',
+          client_name: 'cli_unknown',
+          owner_sub: 'usr_owner_field',
+          status: 'pending',
+          delegated_requested: false,
+          justification: '',
+          created_at: new Date('2026-01-01'),
+        },
+        {
+          request_id: 'req_fallback_2',
+          client_id: 'cli_client_owner',
+          client_name: 'App With Owner',
+          owner_sub: 'usr_client_owner',
+          status: 'pending',
+          delegated_requested: false,
+          justification: '',
+          created_at: new Date('2026-01-01'),
+        },
+        {
+          request_id: 'req_fallback_3',
+          client_id: 'cli_no_owner',
+          client_name: 'App No Owner',
+          owner_sub: 'Unknown',
+          status: 'pending',
+          delegated_requested: false,
+          justification: '',
+          created_at: new Date('2026-01-01'),
+        },
       ] as never);
 
       const req = new NextRequest('http://localhost:3000/api/admin/requests', {
@@ -279,7 +271,7 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
       expect(res2.status).toBe(200);
     });
 
-    it('reverts production request to pending when client update fails', async () => {
+    it('aborts transaction when client update fails', async () => {
       vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValueOnce({ sub: 'usr_admin' });
       vi.spyOn(Admin, 'findOne').mockResolvedValueOnce({ sub: 'usr_admin' } as never);
 
@@ -289,7 +281,6 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
         status: 'approved',
       } as never);
 
-      const rollbackSpy = vi.spyOn(ProductionRequest, 'updateOne').mockResolvedValueOnce({} as never);
       vi.spyOn(Client, 'findOneAndUpdate').mockRejectedValueOnce(new Error('Database write error'));
 
       const req = new NextRequest('http://localhost:3000/api/admin/requests', {
@@ -299,18 +290,6 @@ describe('Admin Production Requests API (/api/admin/requests)', () => {
       });
 
       await expect(POST(req)).rejects.toThrow('Database write error');
-      expect(rollbackSpy).toHaveBeenCalledWith(
-        { request_id: 'req_1' },
-        {
-          $set: {
-            status: 'pending',
-            resolved_at: null,
-            resolved_by_sub: null,
-            reviewed_at: null,
-            reviewer_sub: null,
-          },
-        }
-      );
     });
   });
 });

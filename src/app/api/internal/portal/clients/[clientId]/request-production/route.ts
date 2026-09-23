@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
+import { withTransaction } from '@/lib/db/transaction';
 import { Client, ProductionRequest } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newRequestId } from '@/lib/id/nanoid';
@@ -51,25 +52,31 @@ export async function POST(
     );
   }
 
-  // Create production request
-  const prodRequest = await ProductionRequest.create({
-    request_id: newRequestId(),
-    client_id: clientId,
-    requested_by_sub: session.sub,
-    owner_sub: session.sub,
-    status: 'pending',
-    delegated_requested: Boolean(delegatedRequested),
-    justification,
-    created_at: new Date(),
-  });
+  const userSub = session.sub;
 
-  try {
+  // Create production request and update client publishing status in a transaction
+  const prodRequest = await withTransaction(async (dbSession) => {
+    const [doc] = await ProductionRequest.create(
+      [
+        {
+          request_id: newRequestId(),
+          client_id: clientId,
+          requested_by_sub: userSub,
+          owner_sub: userSub,
+          status: 'pending',
+          delegated_requested: Boolean(delegatedRequested),
+          justification,
+          created_at: new Date(),
+        },
+      ],
+      { session: dbSession }
+    );
+
     client.publishing_status = 'pending_production';
-    await client.save();
-  } catch (err) {
-    await ProductionRequest.deleteOne({ request_id: prodRequest.request_id });
-    throw err;
-  }
+    await client.save({ session: dbSession });
+
+    return doc;
+  });
 
   notifySubQuietly({
     sub: session.sub,

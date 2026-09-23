@@ -114,13 +114,10 @@ export async function POST(request: NextRequest | Request) {
 
   // Check if token exists and was issued to THIS authenticated client
   const tokenHash = sha256Hex(token);
-  const existing = await RefreshToken.findOne({ token_hash: tokenHash });
-  if (existing && existing.client_id === client.client_id) {
-    await RefreshToken.updateOne(
-      { token_hash: tokenHash, revoked_at: null },
-      { $set: { revoked_at: new Date() } }
-    );
-  }
+  await RefreshToken.updateOne(
+    { token_hash: tokenHash, client_id: client.client_id, revoked_at: null },
+    { $set: { revoked_at: new Date() } }
+  );
 
   // RFC 7009: 200 OK even if already invalid / unowned to prevent probing
   return new Response(null, { status: 200 });

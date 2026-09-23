@@ -142,11 +142,15 @@ export async function POST(request: NextRequest | Request) {
   await connectToDatabase();
   const sub = tokenClaims.sub;
 
-  // Verify delegated consent exists for the first party client
-  const consent = await Consent.findOne({
-    sub,
-    client_id: config.firstPartyApiClientId,
-  });
+  // Verify delegated consent and fetch vault credentials in parallel
+  const [consent, vaultDoc] = await Promise.all([
+    Consent.findOne({
+      sub,
+      client_id: config.firstPartyApiClientId,
+    }),
+    Vault.findOne({ sub }),
+  ]);
+
   if (!consent || consent.mode !== 'delegated') {
     return NextResponse.json(
       { error: 'forbidden', error_description: 'Delegated consent required' },
@@ -161,7 +165,6 @@ export async function POST(request: NextRequest | Request) {
     );
   }
 
-  const vaultDoc = await Vault.findOne({ sub });
   if (!vaultDoc) {
     return NextResponse.json(
       { error: 'forbidden', error_description: 'No vault credentials for subject' },

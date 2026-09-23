@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
+import { withTransaction } from '@/lib/db/transaction';
 import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';
@@ -16,25 +17,38 @@ export async function GET(request: NextRequest) {
   }
 
   await connectToDatabase();
+
   const user = await User.findOne({ sub: session.sub, deleted_at: null });
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const vault = await Vault.findOne({ sub: session.sub });
-  const consents = await Consent.find({ sub: session.sub });
-
-  const clientIds = consents.map((c) => c.client_id);
-  const clients = await Client.find({ client_id: { $in: clientIds } });
-  const clientMap = new Map(clients.map((c) => [c.client_id, c.name]));
-
-  const enrichedConsents = consents.map((c) => ({
-    client_id: c.client_id,
-    client_name: clientMap.get(c.client_id) || c.client_id,
-    scopes: c.scopes,
-    mode: c.mode,
-    granted_at: c.granted_at,
-  }));
+  const [vault, enrichedConsents] = await Promise.all([
+    Vault.findOne({ sub: session.sub }),
+    Consent.aggregate([
+      { $match: { sub: session.sub } },
+      {
+        $lookup: {
+          from: 'clients',
+          localField: 'client_id',
+          foreignField: 'client_id',
+          as: 'client_docs',
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          client_id: 1,
+          client_name: {
+            $ifNull: [{ $arrayElemAt: ['$client_docs.name', 0] }, '$client_id'],
+          },
+          scopes: 1,
+          mode: 1,
+          granted_at: 1,
+        },
+      },
+    ]),
+  ]);
 
   return NextResponse.json({
     user,
@@ -71,22 +85,21 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (action === 'consent' && clientId) {
-    await Consent.deleteOne({ sub: session.sub, client_id: clientId });
-
-    // Revoke all live refresh tokens for this subject and client
-    await RefreshToken.updateMany(
-      { sub: session.sub, client_id: clientId, revoked_at: null },
-      { $set: { revoked_at: new Date() } }
-    );
-
-    // If no delegated consents remain, purge vault credentials
-    const remainingDelegated = await Consent.countDocuments({
-      sub: session.sub,
-      mode: 'delegated',
+    await withTransaction(async (dbSession) => {
+      await Consent.deleteOne({ sub: session.sub, client_id: clientId }, { session: dbSession });
+      await RefreshToken.updateMany(
+        { sub: session.sub, client_id: clientId, revoked_at: null },
+        { $set: { revoked_at: new Date() } },
+        { session: dbSession }
+      );
+      const remainingDelegated = await Consent.countDocuments(
+        { sub: session.sub, mode: 'delegated' },
+        { session: dbSession }
+      );
+      if (remainingDelegated === 0) {
+        await Vault.deleteOne({ sub: session.sub }, { session: dbSession });
+      }
     });
-    if (remainingDelegated === 0) {
-      await Vault.deleteOne({ sub: session.sub });
-    }
 
     const client = await Client.findOne({ client_id: clientId });
     const appName = client?.name || clientId;
@@ -118,23 +131,27 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 1. Tombstone user record (never reuse sub)
-    await User.updateOne(
-      { sub: session.sub, deleted_at: null },
-      { $set: { deleted_at: new Date() } }
-    );
+    await withTransaction(async (dbSession) => {
+      // 1. Tombstone user record (never reuse sub)
+      await User.updateOne(
+        { sub: session.sub, deleted_at: null },
+        { $set: { deleted_at: new Date() } },
+        { session: dbSession }
+      );
 
-    // 2. Revoke all live refresh tokens
-    await RefreshToken.updateMany(
-      { sub: session.sub, revoked_at: null },
-      { $set: { revoked_at: new Date() } }
-    );
+      // 2. Revoke all live refresh tokens
+      await RefreshToken.updateMany(
+        { sub: session.sub, revoked_at: null },
+        { $set: { revoked_at: new Date() } },
+        { session: dbSession }
+      );
 
-    // 3. Delete all consents
-    await Consent.deleteMany({ sub: session.sub });
+      // 3. Delete all consents
+      await Consent.deleteMany({ sub: session.sub }, { session: dbSession });
 
-    // 4. Delete vault credentials
-    await Vault.deleteOne({ sub: session.sub });
+      // 4. Delete vault credentials
+      await Vault.deleteOne({ sub: session.sub }, { session: dbSession });
+    });
 
     notifySubQuietly({
       sub: session.sub,

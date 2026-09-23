@@ -10,6 +10,10 @@ vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('@/lib/db/transaction', () => ({
+  withTransaction: vi.fn(async (fn: (session: unknown) => Promise<unknown>) => fn({ id: 'mock-session' })),
+}));
+
 vi.mock('@/lib/academy/client');
 
 vi.mock('@/lib/config', () => ({
@@ -51,12 +55,9 @@ describe('Settings API (/api/settings)', () => {
         sub: 'usr_test',
         updated_at: undefined,
       } as never);
-      vi.spyOn(Consent, 'find').mockResolvedValueOnce([
-        { client_id: 'cli_1', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
-        { client_id: 'cli_unknown', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
-      ] as never);
-      vi.spyOn(Client, 'find').mockResolvedValueOnce([
-        { client_id: 'cli_1', name: 'My App' },
+      vi.spyOn(Consent, 'aggregate').mockResolvedValueOnce([
+        { client_id: 'cli_1', client_name: 'My App', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
+        { client_id: 'cli_unknown', client_name: 'cli_unknown', scopes: ['openid'], mode: 'identity', granted_at: new Date() },
       ] as never);
 
       const req = new NextRequest('http://localhost:3000/api/settings', {
@@ -128,12 +129,19 @@ describe('Settings API (/api/settings)', () => {
 
       const res = await deleteSettings(req);
       expect(res.status).toBe(200);
-      expect(deleteConsentSpy).toHaveBeenCalledWith({ sub: 'usr_test_del', client_id: 'cli_1' });
+      expect(deleteConsentSpy).toHaveBeenCalledWith(
+        { sub: 'usr_test_del', client_id: 'cli_1' },
+        { session: expect.any(Object) }
+      );
       expect(revokeTokensSpy).toHaveBeenCalledWith(
         { sub: 'usr_test_del', client_id: 'cli_1', revoked_at: null },
-        expect.any(Object)
+        expect.any(Object),
+        { session: expect.any(Object) }
       );
-      expect(deleteVaultSpy).toHaveBeenCalledWith({ sub: 'usr_test_del' });
+      expect(deleteVaultSpy).toHaveBeenCalledWith(
+        { sub: 'usr_test_del' },
+        { session: expect.any(Object) }
+      );
     });
 
     it('account deletion requires DELETE confirmation string', async () => {
@@ -187,14 +195,22 @@ describe('Settings API (/api/settings)', () => {
       expect(res.status).toBe(200);
       expect(userUpdateSpy).toHaveBeenCalledWith(
         { sub: 'usr_test_del', deleted_at: null },
-        expect.objectContaining({ $set: { deleted_at: expect.any(Date) } })
+        expect.objectContaining({ $set: { deleted_at: expect.any(Date) } }),
+        { session: expect.any(Object) }
       );
       expect(revokeTokensSpy).toHaveBeenCalledWith(
         { sub: 'usr_test_del', revoked_at: null },
-        expect.any(Object)
+        expect.any(Object),
+        { session: expect.any(Object) }
       );
-      expect(deleteConsentsSpy).toHaveBeenCalledWith({ sub: 'usr_test_del' });
-      expect(deleteVaultSpy).toHaveBeenCalledWith({ sub: 'usr_test_del' });
+      expect(deleteConsentsSpy).toHaveBeenCalledWith(
+        { sub: 'usr_test_del' },
+        { session: expect.any(Object) }
+      );
+      expect(deleteVaultSpy).toHaveBeenCalledWith(
+        { sub: 'usr_test_del' },
+        { session: expect.any(Object) }
+      );
 
       // Session cookie is cleared
       const setCookie = res.headers.get('set-cookie');
