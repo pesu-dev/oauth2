@@ -62,9 +62,9 @@ jobs:
 
       - name: Retag commit image as staging
         run: |
-          docker pull "${IMAGE}:${SHA_TAG}"
-          docker tag "${IMAGE}:${SHA_TAG}" "${IMAGE}:staging"
-          docker push "${IMAGE}:staging"
+          docker buildx imagetools create \
+            --tag "${IMAGE}:staging" \
+            "${IMAGE}:${SHA_TAG}"
 
   cleanup_ghcr:
     name: Cleanup old package versions in GHCR
