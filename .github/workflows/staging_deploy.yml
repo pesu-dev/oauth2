@@ -63,6 +63,7 @@ jobs:
       - name: Retag commit image as staging
         run: |
           docker buildx imagetools create \
+            --prefer-index=false \
             --tag "${IMAGE}:staging" \
             "${IMAGE}:${SHA_TAG}"
 
