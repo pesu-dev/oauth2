@@ -5,8 +5,8 @@ import { CookieJar } from 'tough-cookie';
 export const LOGIN_URL = 'https://www.pesuacademy.com/MAcademy/mobile/mobilelogin/auth';
 export const DISPATCHER_URL = 'https://www.pesuacademy.com/MAcademy/mobile/dispatcher';
 
-const DISPATCHER_ACTION_ADMIN = '27';
-const DISPATCHER_MODE_SEARCH_BY_SRN = '1';
+const ACTION = '27';
+const MODE = '1';
 
 export const PROGRAM_MAPPING: Record<string, string> = {
   'B.Tech.': 'Bachelor of Technology',
@@ -211,10 +211,11 @@ export class AcademyClient {
     const accessToken = accessRaw ? String(accessRaw) : null;
     const userId = mobileObj.userId ? String(mobileObj.userId) : null;
 
-    let profileDetails: Record<string, unknown> | null = null;
-    if (token && userId && accessToken) {
-      profileDetails = await this.fetchProfileDetails(token, accessToken);
+    if (!token || !accessToken) {
+      throw new AcademyAuthError('Incomplete session metadata from authentication');
     }
+
+    const profileDetails = await this.fetchProfileDetails(token, accessToken);
 
     const profile = mapProfile(mobileObj, username, profileDetails);
     const session: AcademySession = {
@@ -230,10 +231,10 @@ export class AcademyClient {
   private async fetchProfileDetails(
     token: string,
     accessToken: string
-  ): Promise<Record<string, unknown> | null> {
+  ): Promise<Record<string, unknown>> {
     const formData = new FormData();
-    formData.append('action', DISPATCHER_ACTION_ADMIN);
-    formData.append('mode', DISPATCHER_MODE_SEARCH_BY_SRN);
+    formData.append('action', ACTION);
+    formData.append('mode', MODE);
     formData.append('menuId', '11172');
 
     const headers: Record<string, string> = {
@@ -260,13 +261,21 @@ export class AcademyClient {
         }
       }
 
-      if (typeof data?.MESSAGE === 'string' && data.MESSAGE.includes('SUCCESS')) {
-        return (data.STUDENT_PHOTO as Record<string, unknown>) || null;
+      const studentPhoto = data?.STUDENT_PHOTO as Record<string, unknown> | undefined;
+      const nameAsInSSLC = studentPhoto?.nameAsInSSLC;
+
+      if (
+        typeof data?.MESSAGE === 'string' &&
+        data.MESSAGE.includes('SUCCESS') &&
+        studentPhoto &&
+        typeof nameAsInSSLC === 'string' &&
+        nameAsInSSLC.trim() !== ''
+      ) {
+        return studentPhoto;
       }
-      
-      // If we got a 200 but no success message, it might not be a system outage,
-      // but we shouldn't fail the whole login if they just don't have a photo/record here.
-      return null;
+
+      // Accounts without a student SSLC record (e.g. faculty, staff, library) are not supported
+      throw new AcademyAuthError('Only student accounts are supported');
     } catch (err) {
       if (err instanceof AcademyAuthError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
