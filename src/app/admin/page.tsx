@@ -28,6 +28,7 @@ import {
   RotateCcw,
   Layers,
   Inbox,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface RequestItem {
@@ -46,6 +47,7 @@ interface RequestItem {
 interface ClientItem {
   client_id: string;
   name: string;
+  logo_image_id?: string | null;
   owner_sub: string;
   publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   delegated_allowed: boolean;
@@ -58,7 +60,27 @@ interface ClientItem {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = React.useState<'requests' | 'clients'>('requests');
+  const [activeTab, setActiveTab] = React.useState<'requests' | 'clients' | 'logos'>('requests');
+  const [pendingLogos, setPendingLogos] = React.useState<ClientItem[]>([]);
+
+  const fetchLogos = async () => {
+    try {
+      const res = await fetch('/api/internal/admin/clients?logos=pending');
+      const data = await res.json();
+      if (res.ok) setPendingLogos(data.clients || []);
+    } catch {
+      // ignore
+    }
+  };
+
+  const reviewLogo = async (clientId: string, approve: boolean) => {
+    const res = await fetch('/api/internal/admin/clients', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, action: approve ? 'approve_logo' : 'reject_logo' }),
+    });
+    if (res.ok) setPendingLogos((prev) => prev.filter((c) => c.client_id !== clientId));
+  };
   const [requests, setRequests] = React.useState<RequestItem[]>([]);
   const [clients, setClients] = React.useState<ClientItem[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -245,7 +267,66 @@ export default function AdminPage() {
             </span>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('logos');
+            fetchLogos();
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md border text-sm transition-colors cursor-pointer ${
+            activeTab === 'logos'
+              ? 'bg-surface-soft text-fg border-line-strong'
+              : 'border-transparent text-soft hover:text-fg'
+          }`}
+        >
+          <ImageIcon className="w-4 h-4" />
+          Logo Reviews
+        </button>
       </div>
+
+      {activeTab === 'logos' && (
+        <div className="space-y-4">
+          {pendingLogos.length === 0 ? (
+            <Card className="text-center py-16">
+              <EmptyState
+                icon={<ImageIcon className="w-10 h-10 opacity-60" />}
+                title="No logos to review"
+                description="New and replaced app logos appear here before students can see them."
+              />
+            </Card>
+          ) : (
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 list-none p-0">
+              {pendingLogos.map((c) => (
+                <li key={c.client_id}>
+                  <Card className="flex items-center gap-4">
+                    {c.logo_image_id ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- same-origin uploaded logo under review
+                      <img
+                        src={`/img/${c.logo_image_id}`}
+                        alt={`${c.name} logo`}
+                        className="w-20 h-20 rounded-md border border-line object-cover shrink-0"
+                      />
+                    ) : null}
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <p className="font-serif text-lg text-fg truncate">{c.name}</p>
+                      <p className="font-mono text-[11px] text-muted truncate">{c.client_id}</p>
+                      <p className="text-[11px] text-soft">Reject logos that imitate PESU, PES University or another club.</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="destructive" onClick={() => reviewLogo(c.client_id, false)}>
+                          Reject
+                        </Button>
+                        <Button size="sm" onClick={() => reviewLogo(c.client_id, true)}>
+                          Approve
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Tab: Requests */}
       {activeTab === 'requests' && (
