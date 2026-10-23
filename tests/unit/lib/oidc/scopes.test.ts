@@ -28,6 +28,7 @@ describe('scope registry', () => {
       'timetable:read',
       'announcements:read',
       'assignments:read',
+      'photo:read',
       'seating:read',
     ]);
     for (const name of resource) {

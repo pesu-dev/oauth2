@@ -123,6 +123,15 @@ export const SCOPES: readonly ScopeDefinition[] = [
     claims: ['/api/v1/assignments'],
   },
   {
+    name: 'photo:read',
+    kind: 'resource',
+    consentLabel: 'See your student photo',
+    description: 'Your PESU Academy profile photo, fetched live and never stored by this service.',
+    sensitive: true,
+    requiresDelegated: true,
+    claims: ['picture', '/api/v1/photo'],
+  },
+  {
     name: 'seating:read',
     kind: 'resource',
     consentLabel: 'Read your exam seating',
