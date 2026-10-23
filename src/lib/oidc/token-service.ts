@@ -1,9 +1,11 @@
 import {
   AuthCode,
   Client,
+  DeviceCode,
   RefreshToken,
   User,
   type IClient,
+  type IUser,
 } from '@/lib/db/models';
 import { sha256Hex, verifyClientSecret } from '@/lib/crypto/hash';
 import { verifyPkce } from '@/lib/crypto/pkce';
@@ -237,8 +239,26 @@ export async function exchangeAuthorizationCode(
     };
   }
 
-  const scopes = authCode.scopes || [];
+  return issueTokens({ client, user, scopes: authCode.scopes || [], nonce: authCode.nonce, config });
+}
 
+/**
+ * Mints the access token, optional ID token (openid) and optional refresh token family
+ * (offline_access) for a freshly authorized grant.
+ */
+export async function issueTokens({
+  client,
+  user,
+  scopes,
+  nonce,
+  config,
+}: {
+  client: IClient;
+  user: IUser;
+  scopes: string[];
+  nonce?: string;
+  config: AppConfig;
+}): Promise<TokenServiceResult> {
   const accessToken = await mintAccessToken({
     issuer: config.issuerUrl,
     sub: user.sub,
@@ -256,7 +276,7 @@ export async function exchangeAuthorizationCode(
       user,
       scopes,
       accessToken,
-      nonce: authCode.nonce,
+      nonce,
       ttlSeconds: config.idTokenTtlSeconds,
     });
   }
@@ -293,6 +313,71 @@ export async function exchangeAuthorizationCode(
       scope: scopes.join(' '),
     },
   };
+}
+
+export const DEVICE_CODE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
+const SLOW_DOWN_STEP_SECONDS = 5;
+
+/**
+ * RFC 8628 §3.4–3.5 device access token request. Polls are throttled per device code:
+ * polling faster than the interval returns slow_down and raises the interval.
+ */
+export async function exchangeDeviceCode(
+  params: Record<string, string>,
+  client: IClient,
+  config: AppConfig
+): Promise<TokenServiceResult> {
+  const deviceCode = params.device_code;
+  if (!deviceCode) {
+    return { status: 400, body: { error: 'invalid_request', error_description: 'Missing device_code' } };
+  }
+
+  if (!client.device_flow_enabled) {
+    return {
+      status: 400,
+      body: { error: 'unauthorized_client', error_description: 'Device flow is not enabled for this client' },
+    };
+  }
+
+  const codeHash = sha256Hex(deviceCode);
+  const now = new Date();
+  const record = await DeviceCode.findOne({ device_code_hash: codeHash, client_id: client.client_id });
+
+  if (!record || record.expires_at <= now) {
+    return { status: 400, body: { error: 'expired_token', error_description: 'The device code has expired' } };
+  }
+
+  if (record.status === 'denied') {
+    await DeviceCode.deleteOne({ device_code_hash: codeHash });
+    return { status: 400, body: { error: 'access_denied', error_description: 'The user denied the request' } };
+  }
+
+  if (record.status === 'pending') {
+    const tooSoon =
+      record.last_polled_at && now.getTime() - record.last_polled_at.getTime() < record.interval * 1000;
+    await DeviceCode.updateOne(
+      { device_code_hash: codeHash },
+      tooSoon
+        ? { $set: { last_polled_at: now }, $inc: { interval: SLOW_DOWN_STEP_SECONDS } }
+        : { $set: { last_polled_at: now } }
+    );
+    return tooSoon
+      ? { status: 400, body: { error: 'slow_down', error_description: 'Polling too fast', interval: record.interval + SLOW_DOWN_STEP_SECONDS } }
+      : { status: 400, body: { error: 'authorization_pending', error_description: 'Waiting for the user to approve' } };
+  }
+
+  // Approved: claim it atomically so the code can be redeemed only once
+  const claimed = await DeviceCode.findOneAndDelete({ device_code_hash: codeHash, status: 'approved' });
+  if (!claimed?.sub) {
+    return { status: 400, body: { error: 'expired_token', error_description: 'The device code was already used' } };
+  }
+
+  const user = await User.findOne({ sub: claimed.sub, deleted_at: null });
+  if (!user) {
+    return { status: 400, body: { error: 'invalid_grant', error_description: 'User not found or deleted' } };
+  }
+
+  return issueTokens({ client, user, scopes: claimed.scopes || [], config });
 }
 
 /**
