@@ -6,6 +6,7 @@
  *   node scripts/seed_client.mjs [--name "Local Test App"] \
  *     [--redirect-uri http://localhost:9000/callback] \
  *     [--status production|testing] [--owner usr_...] [--delegated]
+ *     [--scopes attendance:read,results:read]   # pre-approved resource scopes (implies delegated)
  *
  * Environment:
  *   MONGODB_URI - defaults to mongodb://localhost:27017/?directConnection=true
@@ -31,6 +32,7 @@ const opts = {
   status: 'production',
   owner: 'usr_local_seed',
   delegated: false,
+  scopes: [],
 };
 
 for (let i = 0; i < args.length; i++) {
@@ -39,6 +41,12 @@ for (let i = 0; i < args.length; i++) {
   else if (args[i] === '--status') opts.status = args[++i];
   else if (args[i] === '--owner') opts.owner = args[++i];
   else if (args[i] === '--delegated') opts.delegated = true;
+  else if (args[i] === '--scopes') opts.scopes = args[++i].split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+if (opts.scopes.some((x) => !/^[a-z]+:read$/.test(x))) {
+  console.error('--scopes takes resource scopes such as attendance:read');
+  process.exit(1);
 }
 
 if (!['production', 'testing'].includes(opts.status)) {
@@ -69,7 +77,8 @@ try {
     owner_sub: opts.owner,
     redirect_uris: [opts.redirectUri],
     publishing_status: opts.status,
-    delegated_allowed: opts.delegated,
+    delegated_allowed: opts.delegated || opts.scopes.length > 0,
+    allowed_scopes: opts.scopes,
     token_endpoint_auth_method: 'client_secret_post',
     created_at: now,
     updated_at: now,
@@ -79,7 +88,8 @@ try {
   console.log(`  client_id:     ${clientId}`);
   console.log(`  client_secret: ${clientSecret}`);
   console.log(`  redirect_uri:  ${opts.redirectUri}`);
-  console.log(`  status:        ${opts.status}${opts.delegated ? ' (delegated allowed)' : ''}`);
+  console.log(`  status:        ${opts.status}${opts.delegated || opts.scopes.length ? ' (delegated allowed)' : ''}`);
+  if (opts.scopes.length) console.log(`  scopes:        ${opts.scopes.join(', ')}`);
 } catch (err) {
   console.error(`Failed to seed client: ${err.message}`);
   process.exit(1);

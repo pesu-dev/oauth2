@@ -34,7 +34,7 @@ Tests directly mirror the `src/` directory layout:
   - `mongo-indexes.test.ts`: Real MongoDB compound uniqueness and TTL index enforcement.
   - `oidc-code-flow.test.ts`: Complete code exchange, S256 PKCE verification, replay defense, and `/userinfo`.
   - `refresh-token-rotation.test.ts`: Refresh token rotation, compromise detection, and family-wide revocation.
-  - `delegated-exchange.test.ts`: Delegated envelope encryption, vault persistence, and `/oauth/token-exchange`.
+  - `delegated-exchange.test.ts`: Delegated envelope encryption, vault persistence, and `/oauth2/token-exchange`.
   - `production-gate.test.ts`: Testing mode gates, tester addition, and admin review queue approval.
   - `settings-lifecycle.test.ts`: Consent revocation, vault credential purging, and account tombstoning.
   - `admin-suspension.test.ts`: Live client suspension, consent blocking, and administrative reinstatement.
@@ -43,29 +43,30 @@ Tests directly mirror the `src/` directory layout:
   - `client-secret-rotation.test.ts`: Live client secret rotation and immediate credential hash invalidation.
   - `vault-password-update.test.ts`: Vault resealing and credential lifecycle across user password changes.
   - `tombstoned-user-cleanup.test.ts`: Tombstoned user state and live token invalidation across all endpoints.
+  - `resource-api.test.ts`: Scope request → admin approval → delegated consent → `/api/v1/attendance` allowlisted data, `insufficient_scope`, and immediate revocation.
 - `tests/unit/`:
   - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.
     - `api/admin/`:
-      - `requests.test.ts`: `/api/admin/requests` production request review, CAS concurrency protection, and approval/rejection.
+      - `requests.test.ts`: `/api/internal/admin/requests` production request review, CAS concurrency protection, and approval/rejection.
     - `api/auth/`:
-      - `login.test.ts`: `/api/auth/login` query guards, Academy authentication, user upsert, and redirect sanitization.
-      - `logout.test.ts`: `/api/auth/logout` session/pending cookie clearing and safe redirects.
-      - `status.test.ts`: `/api/auth/status` authentication and admin role status with error resilience.
+      - `login.test.ts`: `/api/internal/auth/login` query guards, Academy authentication, user upsert, and redirect sanitization.
+      - `logout.test.ts`: `/api/internal/auth/logout` session/pending cookie clearing and safe redirects.
+      - `status.test.ts`: `/api/internal/auth/status` authentication and admin role status with error resilience.
     - `api/oidc/`:
-      - `consent.test.ts`: `/api/oidc/consent` validation, client testing mode guards, and delegated vault resealing.
+      - `consent.test.ts`: `/api/internal/consent` validation, client testing mode guards, and delegated vault resealing.
     - `api/portal/`:
-      - `clients.test.ts`: `/api/portal/clients` creation privilege rules and redirect URI updates.
-      - `production.test.ts`: `/api/portal/clients/[clientId]/request-production` status gating, duplicate guards, and notification.
-      - `secret.test.ts`: `/api/portal/clients/[clientId]/rotate-secret` client secret rotation.
-      - `testers.test.ts`: `/api/portal/clients/[clientId]/testers` PRN/SRN/sub tester authorization and removal.
-    - `api/settings.test.ts`: `/api/settings` details retrieval, vault deletion, password re-encryption, and consent revocation.
+      - `clients.test.ts`: `/api/internal/portal/clients` creation privilege rules and redirect URI updates.
+      - `production.test.ts`: `/api/internal/portal/clients/[clientId]/request-production` status gating, duplicate guards, and notification.
+      - `secret.test.ts`: `/api/internal/portal/clients/[clientId]/rotate-secret` client secret rotation.
+      - `testers.test.ts`: `/api/internal/portal/clients/[clientId]/testers` PRN/SRN/sub tester authorization and removal.
+    - `api/settings.test.ts`: `/api/internal/settings` details retrieval, vault deletion, password re-encryption, and consent revocation.
     - `routes/`: Top-level OIDC protocol and service route handlers.
       - `discovery.test.ts`: `/.well-known/openid-configuration` discovery endpoint metadata.
       - `health.test.ts`: `/health` service liveness check.
       - `jwks.test.ts`: `/jwks.json` public key set endpoint.
       - `revoke.test.ts`: `/revoke` RFC 7009 token revocation, client auth, and timing safety.
       - `token.test.ts`: `/token` authorization code exchange, PKCE verification, refresh token grant, reuse detection, and client auth.
-      - `token-exchange.test.ts`: `/oauth/token-exchange` internal token exchange, cached session decryption, and Academy session refresh.
+      - `token-exchange.test.ts`: `/oauth2/token-exchange` internal token exchange, cached session decryption, and Academy session refresh.
       - `userinfo.test.ts`: `/userinfo` Bearer token verification and claims delivery.
     - `admin-page.test.tsx`: `/admin` admin queue rendering, delegated allowance toggling, and review actions.
     - `authorize.test.tsx`: `/authorize` page and `ConsentClient` interactive consent, scope filtering, testing-mode gates, and PKCE requirements.

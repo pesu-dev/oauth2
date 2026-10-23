@@ -170,6 +170,20 @@ describe('Next.js Proxy', () => {
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
       expect(res.headers.get('x-middleware-rewrite')).toContain(`/api/${CURRENT_API_VERSION}/userinfo`);
     });
+
+    it('rewrites unversioned resource sub-paths and keeps the query string', async () => {
+      const req = new NextRequest('http://localhost:3000/api/results/isa?x=1');
+      const res = await proxy(req);
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      const rewrite = res.headers.get('x-middleware-rewrite') ?? '';
+      expect(rewrite).toContain(`/api/${CURRENT_API_VERSION}/results/isa`);
+      expect(rewrite).toContain('x=1');
+    });
+
+    it('does not alias look-alike paths', async () => {
+      const res = await proxy(new NextRequest('http://localhost:3000/api/attendance-export'));
+      expect(res.headers.get('x-middleware-rewrite')).toBeNull();
+    });
   });
 
   describe('CSRF & Cross-Origin Defense', () => {

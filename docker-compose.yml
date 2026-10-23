@@ -36,6 +36,9 @@ services:
       APP_ENV: local
       MONGODB_URI: mongodb://mongo:27017/?replicaSet=rs0
       ISSUER_URL: http://localhost:8080
+      # Local-only fallback so delegated consent works out of the box; set a real value in .env.
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:-local-dev-only-vault-master-key}
+      ACADEMY_MENU_IDS: ${ACADEMY_MENU_IDS:-}
     depends_on:
       mongo:
         condition: service_healthy
