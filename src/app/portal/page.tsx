@@ -125,7 +125,7 @@ export default function PortalPage() {
           }}
         >
           <DrawerTrigger asChild>
-            <Button className="shadow-md">
+            <Button className="">
               <Plus className="w-4 h-4 mr-1.5" /> Register Application
             </Button>
           </DrawerTrigger>
@@ -137,7 +137,7 @@ export default function PortalPage() {
               </DrawerDescription>
             </DrawerHeader>
 
-            <form onSubmit={handleCreate} className="space-y-4 px-4 pb-6">
+            <form onSubmit={handleCreate} className="space-y-4">
               {createError ? (
                 <InlineAlert variant="error" message={createError} className="p-3 text-xs" />
               ) : null}
@@ -156,18 +156,18 @@ export default function PortalPage() {
                   id="acceptedTerms"
                   checked={acceptedTerms}
                   onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  className="mt-0.5 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
+                  className="mt-0.5 rounded border-line-strong text-get focus:ring-line-strong w-4 h-4 cursor-pointer shrink-0"
                   required
                 />
                 <label
                   htmlFor="acceptedTerms"
-                  className="text-xs text-zinc-600 dark:text-zinc-400 select-none cursor-pointer leading-relaxed"
+                  className="text-xs text-soft select-none cursor-pointer leading-relaxed"
                 >
                   I accept the{' '}
                   <Link
                     href="/terms"
                     target="_blank"
-                    className="text-blue-600 dark:text-blue-400 font-medium underline hover:opacity-80"
+                    className="text-get font-medium underline hover:opacity-80"
                   >
                     Terms of Service
                   </Link>{' '}
@@ -175,7 +175,7 @@ export default function PortalPage() {
                   <Link
                     href="/privacy"
                     target="_blank"
-                    className="text-blue-600 dark:text-blue-400 font-medium underline hover:opacity-80"
+                    className="text-get font-medium underline hover:opacity-80"
                   >
                     Privacy Policy
                   </Link>
@@ -183,7 +183,7 @@ export default function PortalPage() {
                 </label>
               </div>
 
-              <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 p-3 text-xs text-zinc-500 dark:text-zinc-400">
+              <div className="rounded-md bg-surface-soft border border-line p-3 text-xs text-muted">
                 All applications start with Identity mode in testing. Delegated credential vault access can be requested when submitting for production review. Redirect URIs can be configured in your application settings.
               </div>
 
@@ -199,12 +199,12 @@ export default function PortalPage() {
 
       {/* Secret Generation Callout */}
       {createdSecret ? (
-        <Card className="bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200 p-6 space-y-4">
+        <Card className="bg-warning/5 border-warning/40 text-warning p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <ShieldAlert className="w-5 h-5 text-warning shrink-0 mt-0.5" />
             <div className="space-y-1">
               <h4 className="font-semibold text-sm">Save your Client Secret immediately</h4>
-              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              <p className="text-xs text-warning leading-relaxed">
                 This secret will never be shown again. Store it securely in your environment variables.
               </p>
             </div>
@@ -218,7 +218,7 @@ export default function PortalPage() {
           <Button
             size="sm"
             variant="outline"
-            className="text-xs mt-2"
+            className="mt-2"
             onClick={() => setCreatedSecret(null)}
           >
             I have saved the secret
@@ -246,10 +246,10 @@ export default function PortalPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {clients.map((app) => (
             <Link key={app.client_id} href={`/portal/${app.client_id}`}>
-              <Card className="hover:border-black/20 dark:hover:border-white/25 transition-all cursor-pointer h-full flex flex-col justify-between group">
+              <Card className="hover:border-line-strong transition-all cursor-pointer h-full flex flex-col justify-between group">
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <CardTitle className="group-hover:text-get transition-colors">
                       {app.name}
                     </CardTitle>
                     <Badge variant={app.publishing_status}>
@@ -261,9 +261,9 @@ export default function PortalPage() {
                   </CardDescription>
                 </div>
 
-                <div className="pt-6 flex items-center justify-between text-xs text-zinc-400">
+                <div className="pt-6 flex items-center justify-between text-xs text-muted">
                   <span>{app.redirect_uris.length} redirect URI(s)</span>
-                  <span className="flex items-center text-zinc-600 dark:text-zinc-300 font-medium group-hover:translate-x-0.5 transition-transform">
+                  <span className="flex items-center text-soft font-medium group-hover:translate-x-0.5 transition-transform">
                     Manage <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
                   </span>
                 </div>

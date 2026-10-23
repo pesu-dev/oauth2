@@ -463,5 +463,97 @@ describe('DocsPage & DocsClient', () => {
       vi.useRealTimers();
     }
   });
-});
 
+  describe('request panel', () => {
+    beforeEach(() => {
+      Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    });
+
+    it('sends a public request same-origin and pretty-prints JSON', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, text: async () => '{"issuer":"x"}' });
+      vi.stubGlobal('fetch', fetchMock);
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+
+      expect(screen.queryByLabelText('Bearer token')).toBeNull();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith('/jwks.json', { method: 'GET', headers: { Accept: 'application/json' } });
+      expect(screen.getByText('HTTP 200')).toBeDefined();
+      expect(screen.getByTitle('Copy response')).toBeDefined();
+      expect(document.body.textContent).toContain('"issuer": "x"');
+      vi.unstubAllGlobals();
+    });
+
+    it('adds the bearer token for userinfo and shows raw non-JSON bodies', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 401, ok: false, text: async () => 'unauthorized' });
+      vi.stubGlobal('fetch', fetchMock);
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="userinfo" />);
+
+      fireEvent.change(screen.getByLabelText('Bearer token'), { target: { value: '  tok123  ' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/userinfo', {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: 'Bearer tok123' },
+      });
+      expect(screen.getByText('HTTP 401')).toBeDefined();
+      expect(screen.getByText('unauthorized')).toBeDefined();
+      vi.unstubAllGlobals();
+    });
+
+    it('omits Authorization when no bearer token is entered', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 401, ok: false, text: async () => '{}' });
+      vi.stubGlobal('fetch', fetchMock);
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="userinfo" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(fetchMock.mock.calls[0][1].headers).toEqual({ Accept: 'application/json' });
+      vi.unstubAllGlobals();
+    });
+
+    it('reports network errors', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(screen.getByText('Network error')).toBeDefined();
+      expect(screen.getByText('offline')).toBeDefined();
+      vi.unstubAllGlobals();
+    });
+
+    it('reports non-Error rejections', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue('boom'));
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(screen.getByText('boom')).toBeDefined();
+      vi.unstubAllGlobals();
+    });
+
+    it('explains endpoints that cannot be sent and copies the request sample', async () => {
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="token" />);
+      expect(screen.queryByRole('button', { name: /send request/i })).toBeNull();
+      expect(screen.getByText(/can.t be sent from here/i)).toBeDefined();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /copy request/i }));
+      });
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('curl -X POST'));
+      expect(screen.getByText('Copied request')).toBeDefined();
+    });
+
+    it('marks the selected code tab as pressed', () => {
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="token" />);
+      const python = screen.getByRole('button', { name: /python \(requests\)/i });
+      fireEvent.click(python);
+      expect(python.getAttribute('aria-pressed')).toBe('true');
+    });
+  });
+});

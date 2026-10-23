@@ -59,7 +59,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!clientId || !redirectUri || responseType !== 'code') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         Invalid authorization request. Required: client_id, redirect_uri, and response_type=code.
       </div>
     );
@@ -68,7 +68,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   // PKCE is strictly required (RFC 7636)
   if (!codeChallenge || !codeChallengeMethod) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         Authorization requires PKCE with code_challenge and code_challenge_method=S256.
       </div>
     );
@@ -76,7 +76,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (codeChallengeMethod !== 'S256') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         Only code_challenge_method=S256 is supported.
       </div>
     );
@@ -84,7 +84,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!PKCE_CHALLENGE_RE.test(codeChallenge)) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         code_challenge must be a valid BASE64URL (S256) string (43–128 characters).
       </div>
     );
@@ -97,7 +97,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!requestedScopes.includes('openid')) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         A valid openid scope is required in the scope parameter.
       </div>
     );
@@ -107,7 +107,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   const client = await Client.findOne({ client_id: clientId });
   if (!client) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         Client application not found.
       </div>
     );
@@ -115,7 +115,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!client.redirect_uris.includes(redirectUri)) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
         Redirect URI is not registered for this client application.
       </div>
     );
@@ -126,14 +126,14 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   if (params.mode) {
     if (params.mode !== 'identity' && params.mode !== 'delegated') {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
           Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
         </div>
       );
     }
     if (params.mode === 'delegated' && !client.delegated_allowed) {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 text-sm">
+        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
           Delegated access not permitted: This client application is not approved for delegated vault access.
         </div>
       );
@@ -156,8 +156,8 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   // Check Suspension Gate: suspended clients cannot be authorized
   if (client.publishing_status === 'suspended') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-sm space-y-2">
-        <h3 className="font-semibold text-base">Application Suspended</h3>
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm space-y-2">
+        <h3 className="font-serif text-xl font-normal">Application Suspended</h3>
         <p>
           This application has been suspended by an administrator and cannot be authorized at this time.
         </p>
@@ -171,8 +171,8 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     const isTester = await ClientTester.findOne({ client_id: clientId, sub: session.sub });
     if (!isOwner && !isTester) {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-sm space-y-2">
-          <h3 className="font-semibold text-base">Application in Testing Mode</h3>
+        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-warning/5 border border-warning/40 text-warning text-sm space-y-2">
+          <h3 className="font-serif text-xl font-normal">Application in Testing Mode</h3>
           <p>
             This application is currently in development. Only the owner or designated testers can authorize it.
           </p>

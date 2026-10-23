@@ -1,55 +1,77 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
-import { ThemeProvider } from '@/components/ui/theme-provider';
+import { ThemeProvider, THEME_STORAGE_KEY } from '@/components/ui/theme-provider';
 
 const mockSetTheme = vi.fn();
-let mockResolvedTheme = 'light';
+let mockTheme: string | undefined = 'light';
+const providerProps = vi.fn();
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({
-    resolvedTheme: mockResolvedTheme,
+    theme: mockTheme,
     setTheme: mockSetTheme,
   }),
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ThemeProvider: ({ children, ...props }: { children: React.ReactNode }) => {
+    providerProps(props);
+    return <div>{children}</div>;
+  },
 }));
 
 describe('Theme Components', () => {
-  it('renders ThemeProvider with children', () => {
+  beforeEach(() => {
+    mockSetTheme.mockClear();
+    providerProps.mockClear();
+  });
+
+  it('renders ThemeProvider with the data-theme attribute and pesu storage key', () => {
     render(
       <ThemeProvider>
         <div>Child Content</div>
       </ThemeProvider>
     );
     expect(screen.getByText('Child Content')).toBeDefined();
+    expect(providerProps).toHaveBeenCalledWith(
+      expect.objectContaining({ attribute: 'data-theme', storageKey: THEME_STORAGE_KEY, defaultTheme: 'system' })
+    );
   });
 
-  it('renders ThemeToggle and switches from light to dark', () => {
-    mockResolvedTheme = 'light';
+  it('renders a three-way radiogroup with the current theme checked', () => {
+    mockTheme = 'light';
     render(<ThemeToggle />);
 
-    const button = screen.getByRole('button', { name: /toggle theme/i });
-    expect(button).toBeDefined();
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeDefined();
+    const radios = screen.getAllByRole('radio');
+    expect(radios).toHaveLength(3);
+    expect(screen.getByRole('radio', { name: 'Use light theme' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Use dark theme' }).getAttribute('aria-checked')).toBe('false');
+  });
 
-    fireEvent.click(button);
+  it('switches to dark, light and system', () => {
+    mockTheme = 'light';
+    render(<ThemeToggle />);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Use dark theme' }));
     expect(mockSetTheme).toHaveBeenCalledWith('dark');
-  });
-
-  it('renders ThemeToggle and switches from dark to light', () => {
-    mockResolvedTheme = 'dark';
-    render(<ThemeToggle />);
-
-    const button = screen.getByRole('button', { name: /toggle theme/i });
-    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('radio', { name: 'Use system theme' }));
+    expect(mockSetTheme).toHaveBeenCalledWith('system');
+    fireEvent.click(screen.getByRole('radio', { name: 'Use light theme' }));
     expect(mockSetTheme).toHaveBeenCalledWith('light');
   });
 
-  it('renders placeholder skeleton in SSR via renderToString', async () => {
+  it('treats an unset theme as system', () => {
+    mockTheme = undefined;
+    render(<ThemeToggle />);
+    expect(screen.getByRole('radio', { name: 'Use system theme' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('server-renders with system checked before hydration', async () => {
+    mockTheme = 'dark';
     const { renderToString } = await import('react-dom/server');
     const html = renderToString(<ThemeToggle />);
-    expect(html).toContain('w-9 h-9 rounded-full');
-    expect(html).not.toContain('<button');
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toMatch(/aria-checked="true" aria-label="Use system theme"/);
   });
 });

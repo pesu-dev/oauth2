@@ -167,21 +167,21 @@ export default function SettingsPage() {
             <CardDescription className="text-xs">{user?.prn} • {user?.srn}</CardDescription>
           </CardHeader>
 
-          <div className="space-y-2 pt-2 text-xs text-zinc-600 dark:text-zinc-300">
-            <div className="flex justify-between py-1.5 border-b border-black/5 dark:border-white/5">
-              <span className="text-zinc-400">Program</span>
+          <div className="space-y-2 pt-2 text-xs text-soft">
+            <div className="flex justify-between py-1.5 border-b border-line">
+              <span className="text-muted">Program</span>
               <span className="font-medium">{user?.program || 'N/A'}</span>
             </div>
-            <div className="flex justify-between py-1.5 border-b border-black/5 dark:border-white/5">
-              <span className="text-zinc-400">Branch</span>
+            <div className="flex justify-between py-1.5 border-b border-line">
+              <span className="text-muted">Branch</span>
               <span className="font-medium">{user?.branch || 'N/A'}</span>
             </div>
-            <div className="flex justify-between py-1.5 border-b border-black/5 dark:border-white/5">
-              <span className="text-zinc-400">Semester / Section</span>
+            <div className="flex justify-between py-1.5 border-b border-line">
+              <span className="text-muted">Semester / Section</span>
               <span className="font-medium">{user?.semester} - {user?.section}</span>
             </div>
-            <div className="flex justify-between py-1.5 border-b border-black/5 dark:border-white/5">
-              <span className="text-zinc-400">Campus</span>
+            <div className="flex justify-between py-1.5 border-b border-line">
+              <span className="text-muted">Campus</span>
               <span className="font-medium">{user?.campus} Campus</span>
             </div>
           </div>
@@ -200,7 +200,7 @@ export default function SettingsPage() {
               </Badge>
             </div>
 
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+            <p className="text-xs text-muted leading-relaxed">
               {hasVault
                 ? `Your PESU Academy credentials are encrypted with AES-256-GCM envelope encryption. Last updated on ${new Date(vaultUpdatedAt!).toLocaleDateString()}.`
                 : 'You have not granted delegated credential storage to any application. Your password is not stored.'}
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                       </DrawerDescription>
                     </DrawerHeader>
 
-                    <form onSubmit={handleUpdatePassword} className="space-y-4 px-4 pb-6">
+                    <form onSubmit={handleUpdatePassword} className="space-y-4">
                       {passwordMessage ? (
                         <InlineAlert variant="error" message={passwordMessage} className="p-3 text-xs" />
                       ) : null}
@@ -256,7 +256,7 @@ export default function SettingsPage() {
                 </Button>
               </>
             ) : (
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-medium">
+              <span className="text-xs text-success flex items-center gap-1.5 font-medium">
                 <CheckCircle2 className="w-4 h-4" /> Identity-only mode active
               </span>
             )}
@@ -271,9 +271,9 @@ export default function SettingsPage() {
           Third-party apps you have granted permission to access your profile or resources.
         </CardDescription>
 
-        <div className="mt-6 divide-y divide-black/5 dark:divide-white/5">
+        <div className="mt-6 divide-y divide-line">
           {consents.length === 0 ? (
-            <p className="text-xs text-zinc-400 py-6 text-center">
+            <p className="text-xs text-muted py-6 text-center">
               You haven&apos;t authorized any third-party applications yet.
             </p>
           ) : (
@@ -284,14 +284,14 @@ export default function SettingsPage() {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
+                    <span className="font-semibold text-sm text-fg">
                       {c.client_name}
                     </span>
                     <Badge variant={c.mode === 'delegated' ? 'delegated' : 'identity'}>
                       {c.mode}
                     </Badge>
                   </div>
-                  <div className="text-xs text-zinc-400">
+                  <div className="text-xs text-muted">
                     Granted scopes: {c.scopes.join(', ')} • Granted on{' '}
                     {new Date(c.granted_at).toLocaleDateString()}
                   </div>
@@ -311,9 +311,9 @@ export default function SettingsPage() {
       </Card>
 
       {/* Danger Zone: Account Deletion */}
-      <Card className="border-red-500/20 bg-red-500/[0.02]">
-        <CardTitle className="text-lg text-red-600 dark:text-red-400">Danger Zone</CardTitle>
-        <CardDescription className="mt-1 text-zinc-500">
+      <Card className="border-danger/40 bg-danger/5">
+        <CardTitle className="text-lg text-danger">Danger Zone</CardTitle>
+        <CardDescription className="mt-1 text-muted">
           Permanently delete your PESU OAuth2 account, revoke all application grants, and wipe all stored credentials. Your account identifier will be permanently tombstoned and never reused.
         </CardDescription>
 
@@ -322,8 +322,8 @@ export default function SettingsPage() {
             <InlineAlert variant="error" message={deleteError} className="p-3 text-xs" />
           )}
           <div className="space-y-2">
-            <label className="text-xs text-zinc-400">
-              Type <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">DELETE</span> to confirm:
+            <label className="text-xs text-muted">
+              Type <span className="font-mono font-bold text-fg">DELETE</span> to confirm:
             </label>
             <Input
               value={deleteConfirm}

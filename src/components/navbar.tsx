@@ -3,8 +3,33 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Shield, Menu, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Menu, X } from 'lucide-react';
+
+const linkBase = 'font-mono text-[10px] uppercase tracking-[0.02em] transition-colors';
+
+function NavLink({
+  href,
+  pathname,
+  children,
+  onClick,
+}: {
+  href: string;
+  pathname: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  const active = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={`${linkBase} ${active ? 'text-fg' : 'text-muted hover:text-fg'}`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -48,138 +73,63 @@ export function Navbar() {
     setMobileMenuOpen(false);
   }
 
+  const close = () => setMobileMenuOpen(false);
+  const links = (
+    <>
+      <NavLink href="/docs" pathname={pathname} onClick={close}>Docs</NavLink>
+      <NavLink href="/portal" pathname={pathname} onClick={close}>Portal</NavLink>
+      <NavLink href="/settings" pathname={pathname} onClick={close}>Settings</NavLink>
+      <NavLink href="/faq" pathname={pathname} onClick={close}>FAQ</NavLink>
+      {isAdmin && (
+        <NavLink href="/admin" pathname={pathname} onClick={close}>
+          <span className="text-warning">Admin</span>
+        </NavLink>
+      )}
+      {isAuthenticated ? (
+        <button
+          type="button"
+          onClick={() => {
+            close();
+            handleLogout();
+          }}
+          className={`${linkBase} text-muted hover:text-fg cursor-pointer text-left`}
+        >
+          Sign Out
+        </button>
+      ) : (
+        <NavLink href="/login" pathname={pathname} onClick={close}>Sign In</NavLink>
+      )}
+    </>
+  );
+
   return (
     <>
       {/* Desktop Navigation */}
-      <nav className="hidden sm:flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-        <Link
-          href="/portal"
-          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          Portal
-        </Link>
-        <Link
-          href="/settings"
-          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          Settings
-        </Link>
-        <Link
-          href="/docs"
-          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          Documentation
-        </Link>
-        <Link
-          href="/faq"
-          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          FAQ
-        </Link>
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-semibold transition-colors flex items-center gap-1"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>Admin</span>
-          </Link>
-        )}
-        {isAuthenticated ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="h-auto p-0 font-normal text-sm hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-transparent"
-          >
-            Sign Out
-          </Button>
-        ) : (
-          <Link
-            href="/login"
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-          >
-            Sign In
-          </Link>
-        )}
+      <nav aria-label="Primary" className="hidden min-[701px]:flex items-center gap-[22px]">
+        {links}
       </nav>
 
       {/* Mobile Menu Trigger */}
-      <div className="flex sm:hidden items-center">
-        <Button
-          variant="ghost"
-          size="sm"
+      <div className="flex min-[701px]:hidden items-center">
+        <button
+          type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="h-8 w-8 p-0 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          className="grid place-items-center h-8 w-8 rounded-[5px] text-muted hover:text-fg cursor-pointer"
           aria-label="Toggle navigation menu"
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        </button>
       </div>
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="fixed inset-x-0 top-14 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-b border-black/[0.08] dark:border-white/[0.08] p-4 flex flex-col gap-3 text-sm font-medium sm:hidden z-50 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150">
-          <Link
-            href="/portal"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
-          >
-            Portal
-          </Link>
-          <Link
-            href="/settings"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
-          >
-            Settings
-          </Link>
-          <Link
-            href="/docs"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
-          >
-            Documentation
-          </Link>
-          <Link
-            href="/faq"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
-          >
-            FAQ
-          </Link>
-          {isAdmin && (
-            <Link
-              href="/admin"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-semibold py-1 flex items-center gap-1.5"
-            >
-              <Shield className="w-4 h-4" />
-              <span>Admin Dashboard</span>
-            </Link>
-          )}
-          {isAuthenticated ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleLogout();
-            }}
-            className="h-auto p-0 py-1 font-normal text-sm text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-transparent justify-start"
-          >
-            Sign Out
-          </Button>
-          ) : (
-            <Link
-              href="/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white py-1"
-            >
-              Sign In
-            </Link>
-          )}
-        </div>
+        <nav
+          aria-label="Primary mobile"
+          className="fixed inset-x-0 top-[62px] z-50 flex flex-col gap-4 p-5 bg-bg border-b border-line min-[701px]:hidden"
+        >
+          {links}
+        </nav>
       )}
     </>
   );
