@@ -3,7 +3,9 @@ import { connectToDatabase } from '@/lib/db/connection';
 import { getConfig } from '@/lib/config';
 import {
   authenticateClientForToken,
+  DEVICE_CODE_GRANT,
   exchangeAuthorizationCode,
+  exchangeDeviceCode,
   exchangeRefreshToken,
   parseTokenRequestParams,
 } from '@/lib/oidc/token-service';
@@ -57,6 +59,11 @@ export async function POST(request: NextRequest | Request) {
 
   if (grantType === 'refresh_token') {
     const result = await exchangeRefreshToken(params, client, config);
+    return tokenResponse(result.body, result.status);
+  }
+
+  if (grantType === DEVICE_CODE_GRANT) {
+    const result = await exchangeDeviceCode(params, client, config);
     return tokenResponse(result.body, result.status);
   }
 

@@ -12,6 +12,8 @@ export interface IClient extends Document {
   delegated_allowed: boolean;
   /** Resource scopes an admin approved (identity scopes are always allowed). */
   allowed_scopes: string[];
+  /** Allows the RFC 8628 device authorization grant (TVs, CLIs, kiosks). */
+  device_flow_enabled: boolean;
   token_endpoint_auth_method: string;
   suspension_reason?: string | null;
   suspended_at?: Date | null;
@@ -34,6 +36,7 @@ export const ClientSchema = new Schema<IClient>(
     },
     delegated_allowed: { type: Boolean, default: false },
     allowed_scopes: { type: [String], default: [] },
+    device_flow_enabled: { type: Boolean, default: false },
     token_endpoint_auth_method: { type: String, default: 'client_secret_post' },
     suspension_reason: { type: String, default: null },
     suspended_at: { type: Date, default: null },
