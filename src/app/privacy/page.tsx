@@ -5,18 +5,18 @@ export default function PrivacyPage() {
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h1 className="display text-fg">
           Privacy Policy & Data Security
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted">
           Last updated: September 2026 • PESU OAuth2 Identity Service
         </p>
       </div>
 
-      <div className="space-y-6 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+      <div className="space-y-6 text-sm text-soft leading-relaxed">
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <EyeOff className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <EyeOff className="w-5 h-5 text-get" />
             1. Zero-Exposure Credential Policy
           </div>
           <p>
@@ -25,8 +25,8 @@ export default function PrivacyPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <Lock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <Lock className="w-5 h-5 text-json-key" />
             2. Delegated Credential Vault
           </div>
           <p>
@@ -35,14 +35,14 @@ export default function PrivacyPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <Server className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <Server className="w-5 h-5 text-success" />
             3. Data Minimization & Scopes
           </div>
           <p>
             We adhere strictly to data minimization principles. Applications only receive the specific claims you grant:
           </p>
-          <ul className="list-disc pl-5 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <ul className="list-disc pl-5 space-y-1 text-xs text-muted">
             <li><strong>openid:</strong> Opaque user identifier (<code className="font-mono">usr_...</code>).</li>
             <li><strong>profile:</strong> Name, PRN, SRN, program, branch, semester, section, and campus.</li>
             <li><strong>email:</strong> Official university email address (only if granted).</li>
@@ -51,8 +51,8 @@ export default function PrivacyPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <ShieldCheck className="w-5 h-5 text-warning" />
             4. User Control & Consent Revocation
           </div>
           <p>

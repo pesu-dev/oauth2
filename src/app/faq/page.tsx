@@ -42,7 +42,7 @@ export default function FaqPage() {
         {FAQS.map((faq, idx) => (
           <Card key={idx} className="p-6">
             <CardTitle className="text-base font-semibold">{faq.q}</CardTitle>
-            <CardDescription className="text-sm mt-2 text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            <CardDescription className="text-sm mt-2 text-soft leading-relaxed">
               {faq.a}
             </CardDescription>
           </Card>

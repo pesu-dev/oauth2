@@ -41,8 +41,10 @@ describe('Public Static Pages', () => {
       </RootLayout>
     );
     expect(screen.getByTestId('page-child')).toBeDefined();
-    expect(screen.getByText('PESU OAuth2')).toBeDefined();
-    expect(screen.getByText('Terms of Service')).toBeDefined();
+    expect(screen.getByRole('link', { name: /PESU OAuth2/ })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Terms' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'GitHub repository' })).toBeDefined();
+    expect(screen.getByTestId('dot-grid')).toBeDefined();
     expect(screen.getByText(/PESU Developer Community/i)).toBeDefined();
   });
   it('renders HomePage with hero and features', () => {
