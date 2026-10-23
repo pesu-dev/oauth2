@@ -14,7 +14,7 @@ import { PageLoader } from '@/components/ui/page-loader';
 type Role = 'owner' | 'admin' | 'developer';
 
 interface TeamDetail {
-  team: { team_id: string; name: string; slug: string };
+  team: { team_id: string; name: string; slug: string; avatar_id?: string | null };
   role: Role;
   members: { sub: string; role: Role; name: string | null; srn: string | null }[];
   clients: { client_id: string; name: string; publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended' }[];
@@ -37,8 +37,25 @@ export default function TeamPage() {
   const [newRole, setNewRole] = React.useState<Role>('developer');
   const [teamName, setTeamName] = React.useState('');
   const [me, setMe] = React.useState<string | null>(null);
+  const avatarInput = React.useRef<HTMLInputElement>(null);
 
-  const load = React.useCallback(async () => {
+  const uploadAvatar = async (file: File) => {
+    setError(null);
+    setNotice(null);
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`/api/internal/teams/${teamId}/avatar`, { method: 'POST', body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || 'Upload failed');
+    } else {
+      setNotice('Avatar updated');
+      await load();
+    }
+    if (avatarInput.current) avatarInput.current.value = '';
+  };
+
+  async function load() {
     const res = await fetch(`/api/internal/teams/${teamId}`);
     const data = await res.json();
     if (!res.ok) {
@@ -48,7 +65,7 @@ export default function TeamPage() {
       setTeamName(data.team.name);
     }
     setLoading(false);
-  }, [teamId]);
+  }
 
   React.useEffect(() => {
     let active = true;
@@ -104,6 +121,14 @@ export default function TeamPage() {
           <ArrowLeft className="w-3 h-3" /> Back to portal
         </Link>
         <div className="flex flex-wrap items-center gap-3">
+          {detail.team.avatar_id ? (
+            // eslint-disable-next-line @next/next/no-img-element -- same-origin uploaded avatar
+            <img
+              src={`/img/${detail.team.avatar_id}`}
+              alt={`${detail.team.name} avatar`}
+              className="w-14 h-14 rounded-md border border-line object-cover"
+            />
+          ) : null}
           <h1 className="display text-fg">{detail.team.name}</h1>
           <Badge variant="neutral">{detail.role}</Badge>
         </div>
@@ -124,6 +149,30 @@ export default function TeamPage() {
           >
             <Input label="Team name" value={teamName} onChange={(e) => setTeamName(e.target.value)} required />
             <Button type="submit" variant="secondary" className="shrink-0">Rename</Button>
+            <input
+              ref={avatarInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              aria-label="Choose team avatar"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadAvatar(file);
+              }}
+            />
+            <Button type="button" variant="secondary" className="shrink-0" onClick={() => avatarInput.current?.click()}>
+              {detail.team.avatar_id ? 'Change avatar' : 'Add avatar'}
+            </Button>
+            {detail.team.avatar_id ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => call(`/api/internal/teams/${teamId}/avatar`, { method: 'DELETE' }, 'Avatar removed')}
+              >
+                Remove avatar
+              </Button>
+            ) : null}
           </form>
         </Card>
       ) : null}

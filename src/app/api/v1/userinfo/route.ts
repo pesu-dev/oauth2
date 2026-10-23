@@ -38,7 +38,7 @@ async function handleUserInfo(request: NextRequest | Request) {
   }
 
   const scopes = payload.scope ? payload.scope.split(' ') : [];
-  const claims = profileClaims(user, scopes);
+  const claims = profileClaims(user, scopes, config.issuerUrl);
   return NextResponse.json(claims);
 }
 

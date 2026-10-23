@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       team_id: t.team_id,
       name: t.name,
       slug: t.slug,
+      avatar_id: t.avatar_id ?? null,
       role: roleOf.get(t.team_id),
       member_count: members.get(t.team_id) ?? 0,
       client_count: clients.get(t.team_id) ?? 0,

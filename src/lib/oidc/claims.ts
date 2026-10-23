@@ -2,7 +2,8 @@ import { IUser } from '@/lib/db/models';
 
 export function profileClaims(
   user: IUser,
-  scopes: string[] | Set<string>
+  scopes: string[] | Set<string>,
+  issuer?: string
 ): Record<string, unknown> {
   const scopeSet = new Set(scopes);
   const claims: Record<string, unknown> = {
@@ -28,6 +29,11 @@ export function profileClaims(
 
   if (scopeSet.has('phone') && user.phone) {
     claims.phone_number = user.phone;
+  }
+
+  // The photo is served live by the resource API (Bearer token with photo:read), not embedded
+  if (scopeSet.has('photo:read') && issuer) {
+    claims.picture = `${issuer.replace(/\/+$/, '')}/api/v1/photo`;
   }
 
   return claims;
