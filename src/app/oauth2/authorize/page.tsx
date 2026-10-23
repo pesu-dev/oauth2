@@ -8,11 +8,10 @@ import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
+import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
 import { ConsentClient } from './consent-client';
 
 const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
-
-const KNOWN_SCOPES = new Set(['openid', 'profile', 'email', 'phone', 'offline_access']);
 
 function computeExpiresAt(ttlSeconds: number): Date {
   return new Date(Date.now() + ttlSeconds * 1000);
@@ -98,10 +97,8 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
-  // Filter requested scopes against known valid OIDC scopes
-  const requestedScopes = (scope || '')
-    .split(/\s+/)
-    .filter((s) => KNOWN_SCOPES.has(s));
+  // Filter requested scopes against the scope registry (unknown scopes are dropped)
+  const requestedScopes = parseScopes(scope);
 
   if (!requestedScopes.includes('openid')) {
     return (
@@ -129,7 +126,18 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
-  // Mode validation & derivation
+  // Resource scopes must be approved by an admin for this client
+  const blockedScopes = unapprovedScopes(requestedScopes, client.allowed_scopes);
+  if (blockedScopes.length > 0) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+        invalid_scope: this application is not approved for {blockedScopes.join(', ')}.
+      </div>
+    );
+  }
+
+  // Mode validation & derivation: resource scopes always need the delegated vault
+  const needsDelegated = requiresDelegated(requestedScopes);
   let targetMode: 'identity' | 'delegated';
   if (params.mode) {
     if (params.mode !== 'identity' && params.mode !== 'delegated') {
@@ -137,6 +145,13 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         <AuthorizeError>
           Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
         </AuthorizeError>
+      );
+    }
+    if (params.mode === 'identity' && needsDelegated) {
+      return (
+        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+          PESU Academy data scopes need delegated mode; mode=identity cannot be combined with them.
+        </div>
       );
     }
     if (params.mode === 'delegated' && !client.delegated_allowed) {
@@ -148,7 +163,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     }
     targetMode = params.mode;
   } else {
-    targetMode = client.delegated_allowed ? 'delegated' : 'identity';
+    targetMode = needsDelegated || client.delegated_allowed ? 'delegated' : 'identity';
   }
 
   // Check user authentication

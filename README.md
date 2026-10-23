@@ -7,10 +7,11 @@ Unofficial OAuth2 / OpenID Connect authorization server for PESU Academy. Third-
 | Area | State |
 | --- | --- |
 | Design (canonical) | Approved — [docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md](docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) |
-| Implementation plan | [docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md](docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) (Tasks 1–16) |
+| Implementation plan | [docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md](docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md) (Next.js; the earlier [Python MVP plan](docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) is historical) |
+| Resource API & scopes | [docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) — `resource:read` scopes, admin approval, `/api/v1/*` (beta: Academy menu ids pending) |
 | Product ADRs (historical) | [docs/plans/architecture.md](docs/plans/architecture.md) — **outdated for build detail**; ADRs remain useful background |
 | Bootstrap tech notes | [docs/plans/technical.md](docs/plans/technical.md) — **outdated stub**; hosting/Mongo choices still generally valid |
-| HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; portal, admin, settings; public FAQ/privacy/docs |
+| HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; resource API (`/api/v1/*`); portal, admin, settings; public FAQ/privacy/docs |
 | Hosting target | Render (staging + prod) |
 | Database | MongoDB Atlas `oauth2` (X.509; staging + prod clusters); Testcontainers Mongo in CI |
 
@@ -33,6 +34,12 @@ pnpm dev
 ```
 
 MongoDB runs as a replica set because transactions require one, and is published on `127.0.0.1` only because it has no authentication. `docker compose down` stops it; add `-v` to wipe the data.
+
+Local notes:
+
+- Without `TOKEN_SIGNING_KEY_PATH`, the RS256 key is generated per process, so restarting the app invalidates issued tokens.
+- Seed a client with pre-approved data scopes via `--scopes attendance:read,results:read`.
+- Resource endpoints answer `501 resource_unavailable` until their PESU Academy menu ids are known; verified ids can be supplied with `ACADEMY_MENU_IDS='{"attendance":"…"}'` (see the [resource API design](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md)).
 
 ## Development
 

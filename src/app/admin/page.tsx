@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getScope } from '@/lib/oidc/scopes';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageLoader } from '@/components/ui/page-loader';
@@ -36,6 +37,8 @@ interface RequestItem {
   owner_sub: string;
   status: string;
   delegated_requested: boolean;
+  production_requested?: boolean;
+  requested_scopes?: string[];
   justification: string;
   created_at: string;
 }
@@ -61,6 +64,8 @@ export default function AdminPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [delegatedToggles, setDelegatedToggles] = React.useState<Record<string, boolean>>({});
+  // Per-request scope approvals; everything requested starts approved and admins untick
+  const [scopeApprovals, setScopeApprovals] = React.useState<Record<string, string[]>>({});
 
   // Client search & suspension drawer state
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -81,6 +86,7 @@ export default function AdminPage() {
           initialToggles[r.request_id] = Boolean(r.delegated_requested);
         }
         setDelegatedToggles(initialToggles);
+        setScopeApprovals(Object.fromEntries(reqs.map((r) => [r.request_id, r.requested_scopes ?? []])));
       } else {
         setError(data.error || 'Access restricted to administrators');
       }
@@ -117,7 +123,12 @@ export default function AdminPage() {
       const res = await fetch('/api/internal/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, action, allowDelegated }),
+        body: JSON.stringify({
+          requestId,
+          action,
+          allowDelegated,
+          approvedScopes: scopeApprovals[requestId] ?? [],
+        }),
       });
       if (res.ok) {
         await Promise.all([fetchRequests(), fetchClients()]);
@@ -255,7 +266,9 @@ export default function AdminPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <CardTitle className="text-lg">{r.client_name}</CardTitle>
-                        <Badge variant="pending">Pending Review</Badge>
+                        <Badge variant="pending">
+                          {r.production_requested === false ? 'API Access Review' : 'Pending Review'}
+                        </Badge>
                         <Badge variant={r.delegated_requested ? 'delegated' : 'identity'}>
                           {r.delegated_requested ? 'Delegated Requested' : 'Identity Only'}
                         </Badge>
@@ -299,6 +312,38 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
+
+                  {(r.requested_scopes ?? []).length > 0 ? (
+                    <fieldset className="mt-4 space-y-2">
+                      <legend className="eyebrow mb-1">Requested PESU Academy scopes</legend>
+                      <div className="flex flex-wrap gap-2">
+                        {(r.requested_scopes ?? []).map((name) => {
+                          const checked = (scopeApprovals[r.request_id] ?? []).includes(name);
+                          return (
+                            <label
+                              key={name}
+                              className="flex items-center gap-2 px-2 py-1 rounded-[5px] border border-line text-xs cursor-pointer"
+                              title={getScope(name)?.description}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) =>
+                                  setScopeApprovals((prev) => ({
+                                    ...prev,
+                                    [r.request_id]: e.target.checked
+                                      ? [...(prev[r.request_id] ?? []), name]
+                                      : (prev[r.request_id] ?? []).filter((s) => s !== name),
+                                  }))
+                                }
+                              />
+                              <code className={`font-mono ${getScope(name)?.sensitive ? 'text-warning' : 'text-fg'}`}>{name}</code>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  ) : null}
 
                   <div className="mt-4 p-3.5 rounded-md bg-surface-soft border border-line text-xs text-soft leading-relaxed">
                     <span className="font-semibold block mb-1 text-fg">

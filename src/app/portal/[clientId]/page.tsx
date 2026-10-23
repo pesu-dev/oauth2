@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getScope, resourceScopeNames } from '@/lib/oidc/scopes';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,6 +39,7 @@ interface ClientData {
   publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   redirect_uris: string[];
   delegated_allowed: boolean;
+  allowed_scopes?: string[];
   suspension_reason?: string | null;
   suspended_at?: string | null;
 }
@@ -77,6 +79,8 @@ export default function ClientDetailPage() {
   const [isProdDrawerOpen, setIsProdDrawerOpen] = React.useState(false);
   const [justification, setJustification] = React.useState('');
   const [delegatedRequested, setDelegatedRequested] = React.useState(false);
+  const [requestedScopes, setRequestedScopes] = React.useState<string[]>([]);
+  const [prodError, setProdError] = React.useState<string | null>(null);
   const [prodLoading, setProdLoading] = React.useState(false);
 
   const [copiedId, setCopiedId] = React.useState(false);
@@ -205,18 +209,29 @@ export default function ClientDetailPage() {
   const handleRequestProduction = async (e: React.FormEvent) => {
     e.preventDefault();
     setProdLoading(true);
+    setProdError(null);
 
     try {
       const res = await fetch(`/api/internal/portal/clients/${clientId}/request-production`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ justification, delegatedRequested }),
+        body: JSON.stringify({
+          justification,
+          delegatedRequested,
+          requestedScopes,
+          // Testing apps ask for Production; live apps ask for extra API scopes only
+          productionRequested: client?.publishing_status === 'testing',
+        }),
       });
       if (res.ok) {
         setIsProdDrawerOpen(false);
         setJustification('');
         setDelegatedRequested(false);
+        setRequestedScopes([]);
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setProdError(data.error || 'Request failed');
       }
     } finally {
       setProdLoading(false);
@@ -282,49 +297,100 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
-          {client.publishing_status === 'testing' ? (
+          {client.publishing_status === 'testing' || client.publishing_status === 'production' ? (
             <Drawer open={isProdDrawerOpen} onOpenChange={setIsProdDrawerOpen}>
               <DrawerTrigger asChild>
-                <Button variant="primary">
-                  <Rocket className="w-4 h-4 mr-1.5" /> Request Production
+                <Button variant={client.publishing_status === 'testing' ? 'primary' : 'secondary'}>
+                  {client.publishing_status === 'testing' ? (
+                    <>
+                      <Rocket className="w-4 h-4 mr-1.5" /> Request Production
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4 mr-1.5" /> Request API Access
+                    </>
+                  )}
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="max-w-xl mx-auto">
                 <DrawerHeader>
-                  <DrawerTitle>Request Production Publishing</DrawerTitle>
+                  <DrawerTitle>
+                    {client.publishing_status === 'testing' ? 'Request Production Publishing' : 'Request API Access'}
+                  </DrawerTitle>
                   <DrawerDescription>
-                    Production approval removes tester restrictions so any authenticated student can sign in.
+                    {client.publishing_status === 'testing'
+                      ? 'Production approval removes tester restrictions so any authenticated student can sign in.'
+                      : 'Ask an admin to approve additional PESU Academy data scopes for this app.'}
                   </DrawerDescription>
                 </DrawerHeader>
 
                 <form onSubmit={handleRequestProduction} className="space-y-4">
+                  {prodError ? <InlineAlert variant="error" message={prodError} className="text-xs" /> : null}
                   <Textarea
                     label="Justification & Club / Project Context"
                     rows={4}
-                    placeholder="Explain your app's purpose, target audience, and why production access is needed..."
+                    placeholder="Explain your app's purpose, target audience, and why each requested scope is needed..."
                     value={justification}
                     onChange={(e) => setJustification(e.target.value)}
                     required
                   />
 
-                  <div className="flex items-start gap-2.5 pt-1">
-                    <input
-                      type="checkbox"
-                      id="delegatedRequested"
-                      checked={delegatedRequested}
-                      onChange={(e) => setDelegatedRequested(e.target.checked)}
-                      className="mt-0.5 rounded border-line-strong text-get focus:ring-line-strong w-4 h-4"
-                    />
-                    <label
-                      htmlFor="delegatedRequested"
-                      className="text-xs text-soft cursor-pointer select-none"
-                    >
-                      <span className="font-medium text-fg">Request Delegated Credential Vault Access</span>
-                      <p className="text-muted text-[11px] mt-0.5">
-                        Enables token exchange for encrypted Academy student credentials. Requires explicit justification and review.
-                      </p>
-                    </label>
-                  </div>
+                  <fieldset className="space-y-2">
+                    <legend className="eyebrow mb-1">PESU Academy data scopes (optional)</legend>
+                    <p className="text-[11px] text-muted">
+                      Each scope lets your app read that data through the resource API. Students see every scope on
+                      the consent screen, and their credentials are stored in the vault.
+                    </p>
+                    <div className="grid grid-cols-1 min-[701px]:grid-cols-2 gap-2">
+                      {resourceScopeNames().map((name) => {
+                        const def = getScope(name)!;
+                        const approved = (client.allowed_scopes ?? []).includes(name);
+                        return (
+                          <label
+                            key={name}
+                            className={`flex items-start gap-2 p-2 rounded-[5px] border border-line text-xs ${approved ? 'opacity-60' : 'cursor-pointer hover:bg-surface-soft'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 w-4 h-4"
+                              disabled={approved}
+                              checked={approved || requestedScopes.includes(name)}
+                              onChange={(e) =>
+                                setRequestedScopes((prev) =>
+                                  e.target.checked ? [...prev, name] : prev.filter((s) => s !== name)
+                                )
+                              }
+                            />
+                            <span>
+                              <code className="font-mono text-fg">{name}</code>
+                              <span className="block text-muted">{approved ? 'Already approved' : def.description}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+
+                  {client.publishing_status === 'testing' ? (
+                    <div className="flex items-start gap-2.5 pt-1">
+                      <input
+                        type="checkbox"
+                        id="delegatedRequested"
+                        checked={delegatedRequested}
+                        onChange={(e) => setDelegatedRequested(e.target.checked)}
+                        className="mt-0.5 rounded border-line-strong w-4 h-4"
+                      />
+                      <label
+                        htmlFor="delegatedRequested"
+                        className="text-xs text-soft cursor-pointer select-none"
+                      >
+                        <span className="font-medium text-fg">Request Delegated Credential Vault Access</span>
+                        <p className="text-muted text-[11px] mt-0.5">
+                          Enables token exchange for encrypted Academy student credentials. Requires explicit justification and review.
+                        </p>
+                      </label>
+                    </div>
+                  ) : null}
 
                   <DrawerActions
                     onCancel={() => setIsProdDrawerOpen(false)}
@@ -456,6 +522,29 @@ export default function ClientDetailPage() {
               </Button>
             </div>
           </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-lg">API Scopes</CardTitle>
+            <CardDescription className="mt-1">
+              Identity scopes (openid, profile, email, phone, offline_access) are always available. PESU Academy data
+              scopes need admin approval.
+            </CardDescription>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-4">
+          {(client.allowed_scopes ?? []).length === 0 ? (
+            <p className="text-xs text-muted">No PESU Academy data scopes approved yet.</p>
+          ) : (
+            (client.allowed_scopes ?? []).map((name) => (
+              <Badge key={name} variant="delegated" title={getScope(name)?.description}>
+                {name}
+              </Badge>
+            ))
+          )}
         </div>
       </Card>
 

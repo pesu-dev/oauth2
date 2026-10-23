@@ -18,7 +18,11 @@ vi.mock('@/lib/mailer', () => ({
 
 describe('Admin Production Requests API (/api/admin/requests)', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+    // The approval path reads the client's current scopes before updating it
+    vi.spyOn(Client, 'findOne').mockResolvedValue(null);
+    vi.spyOn(ProductionRequest, 'updateOne').mockResolvedValue({} as never);
   });
 
   describe('GET /api/admin/requests', () => {

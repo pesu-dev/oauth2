@@ -317,12 +317,13 @@ describe('DocsPage & DocsClient', () => {
 
   it('omits next button on the last item in documentation', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');
-    expect(userinfoBtn).toBeDefined();
-    fireEvent.click(userinfoBtn!);
+    const seatingBtn = screen.getAllByText('/api/seating')[0].closest('button');
+    expect(seatingBtn).toBeDefined();
+    fireEvent.click(seatingBtn!);
 
-    // Since /api/v1/userinfo is the last item, Next button should not be present
+    // The last resource endpoint has no Next item
     expect(screen.queryByText('Next')).toBeNull();
+    expect(screen.getByText('Exam Seating')).toBeDefined();
   });
 
   it('renders and navigates to API Versioning guide and handles version selector', () => {

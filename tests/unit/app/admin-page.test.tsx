@@ -102,6 +102,7 @@ describe('AdminPage Component', () => {
           requestId: 'req_123',
           action: 'approve',
           allowDelegated: false,
+          approvedScopes: [],
         }),
       });
     });
@@ -117,6 +118,7 @@ describe('AdminPage Component', () => {
           requestId: 'req_123',
           action: 'reject',
           allowDelegated: true,
+          approvedScopes: [],
         }),
       });
     });
