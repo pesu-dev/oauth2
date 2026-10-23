@@ -37,6 +37,7 @@ interface TeamItem {
   team_id: string;
   name: string;
   slug: string;
+  avatar_id?: string | null;
   role: 'owner' | 'admin' | 'developer';
   member_count: number;
   client_count: number;
@@ -393,7 +394,13 @@ export default function PortalPage() {
                   className="block p-4 rounded-md border border-line bg-surface hover:border-line-strong transition-colors no-underline"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-serif text-lg text-fg">{t.name}</span>
+                    <span className="flex items-center gap-2 min-w-0">
+                      {t.avatar_id ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- same-origin uploaded avatar
+                        <img src={`/img/${t.avatar_id}`} alt="" className="w-8 h-8 rounded-[5px] border border-line object-cover shrink-0" />
+                      ) : null}
+                      <span className="font-serif text-lg text-fg truncate">{t.name}</span>
+                    </span>
                     <Badge variant="neutral">{t.role}</Badge>
                   </div>
                   <p className="eyebrow mt-2">
