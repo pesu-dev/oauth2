@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client } from '@/lib/db/models';
+import { Client, Team } from '@/lib/db/models';
+import { canManageClient, findManageableClient } from '@/lib/authz/client-access';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { parseAndValidateRedirectUris } from '@/lib/validation/redirect-uri';
 
@@ -17,8 +18,13 @@ export async function GET(
   }
 
   await connectToDatabase();
+  const manageable = await findManageableClient(clientId, session.sub, 'view');
+  if (!manageable) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  }
+
   const results = await Client.aggregate([
-    { $match: { client_id: clientId, owner_sub: session.sub } },
+    { $match: { client_id: clientId } },
     {
       $lookup: {
         from: 'client_testers',
@@ -36,7 +42,19 @@ export async function GET(
   }
 
   const { testers, ...client } = results[0];
-  return NextResponse.json({ client, testers });
+  const [canManageSecrets, canPublish, team] = await Promise.all([
+    canManageClient(session.sub, manageable, 'secrets'),
+    canManageClient(session.sub, manageable, 'publish'),
+    manageable.owner_type === 'team' && manageable.owner_team_id
+      ? Team.findOne({ team_id: manageable.owner_team_id }).lean()
+      : null,
+  ]);
+  return NextResponse.json({
+    client,
+    testers,
+    permissions: { secrets: canManageSecrets, publish: canPublish },
+    team: team ? { team_id: team.team_id, name: team.name, slug: team.slug } : null,
+  });
 }
 
 export async function PATCH(
@@ -70,11 +88,14 @@ export async function PATCH(
   }
 
   await connectToDatabase();
-  const client = await Client.findOneAndUpdate(
-    { client_id: clientId, owner_sub: session.sub },
-    update,
-    { returnDocument: 'after', projection: { client_secret_hash: 0 } }
-  );
+  const manageable = await findManageableClient(clientId, session.sub, 'edit');
+  const client = manageable
+    ? await Client.findOneAndUpdate(
+        { client_id: clientId },
+        update,
+        { returnDocument: 'after', projection: { client_secret_hash: 0 } }
+      )
+    : null;
 
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });

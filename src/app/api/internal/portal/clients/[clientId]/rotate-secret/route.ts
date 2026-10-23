@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
 import { Client } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { findManageableClient } from '@/lib/authz/client-access';
 import { newClientSecret } from '@/lib/id/nanoid';
 import { hashClientSecret } from '@/lib/crypto/hash';
 
@@ -23,11 +24,14 @@ export async function POST(
     hashClientSecret(rawSecret),
   ]);
 
-  const client = await Client.findOneAndUpdate(
-    { client_id: clientId, owner_sub: session.sub },
-    { client_secret_hash: secretHash, updated_at: new Date() },
-    { returnDocument: 'after' }
-  );
+  const manageable = await findManageableClient(clientId, session.sub, 'secrets');
+  const client = manageable
+    ? await Client.findOneAndUpdate(
+        { client_id: clientId },
+        { client_secret_hash: secretHash, updated_at: new Date() },
+        { returnDocument: 'after' }
+      )
+    : null;
 
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
