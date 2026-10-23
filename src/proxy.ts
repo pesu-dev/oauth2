@@ -13,6 +13,7 @@ const PROTECTED_API_PREFIXES = [
   '/api/internal/portal',
   '/api/internal/settings',
   '/api/internal/admin',
+  '/api/internal/teams',
 ];
 
 export const CURRENT_API_VERSION = 'v1';
