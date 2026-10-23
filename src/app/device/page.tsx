@@ -6,6 +6,7 @@ import { Client, DeviceCode } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { formatUserCode, normalizeUserCode } from '@/lib/id/nanoid';
 import { requiresDelegated } from '@/lib/oidc/scopes';
+import { publisherName } from '@/lib/authz/client-access';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { controlStyles, labelStyles } from '@/components/ui/input';
 
@@ -100,6 +101,7 @@ export default async function DevicePage({ searchParams }: DevicePageProps) {
         publishingStatus: client.publishing_status,
         delegatedAllowed: client.delegated_allowed,
         ownerSub: client.owner_sub,
+        publisher: await publisherName(client),
       }}
       userName={session.name}
       requestedScopes={device.scopes}

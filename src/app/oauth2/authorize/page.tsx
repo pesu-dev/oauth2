@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client, ClientTester, Consent, AuthCode, Vault } from '@/lib/db/models';
+import { Client, Consent, AuthCode, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
+import { isAllowedTester, publisherName } from '@/lib/authz/client-access';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
 import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
 import { ConsentClient } from './consent-client';
@@ -190,9 +191,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
   if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
-    const isOwner = client.owner_sub === session.sub;
-    const isTester = await ClientTester.findOne({ client_id: clientId, sub: session.sub });
-    if (!isOwner && !isTester) {
+    // Owner, owning team members, or explicit testers
+    const allowed = await isAllowedTester(client, session.sub);
+    if (!allowed) {
       return (
         <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-warning/5 border border-warning/40 text-warning text-sm space-y-2">
           <h3 className="font-serif text-xl font-normal">Application in Testing Mode</h3>
@@ -312,6 +313,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         publishingStatus: client.publishing_status,
         delegatedAllowed: client.delegated_allowed,
         ownerSub: client.owner_sub,
+        publisher: await publisherName(client),
       }}
       userName={session.name}
       requestedScopes={requestedScopes}

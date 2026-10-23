@@ -35,6 +35,8 @@ interface ConsentClientProps {
     publishingStatus: 'testing' | 'pending_production' | 'production' | 'suspended';
     delegatedAllowed: boolean;
     ownerSub?: string;
+    /** Team name when a team publishes the app. */
+    publisher?: string | null;
   };
   userName: string;
   requestedScopes: string[];
@@ -163,7 +165,12 @@ export function ConsentClient({
           ) : null}
 
           <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-2 p-5 border-b border-line text-xs">
-            {client.ownerSub ? (
+            {client.publisher ? (
+              <>
+                <dt className="eyebrow pt-0.5">Published by</dt>
+                <dd className="text-fg break-words">{client.publisher}</dd>
+              </>
+            ) : client.ownerSub ? (
               <>
                 <dt className="eyebrow pt-0.5">Developer</dt>
                 <dd className="font-mono text-soft break-all">{client.ownerSub}</dd>
