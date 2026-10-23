@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Input, controlStyles, labelStyles } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -28,7 +28,18 @@ interface ClientItem {
   publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   redirect_uris: string[];
   delegated_allowed: boolean;
+  owner_type?: 'user' | 'team';
+  owner_team_id?: string | null;
   created_at: string;
+}
+
+interface TeamItem {
+  team_id: string;
+  name: string;
+  slug: string;
+  role: 'owner' | 'admin' | 'developer';
+  member_count: number;
+  client_count: number;
 }
 
 export default function PortalPage() {
@@ -41,6 +52,13 @@ export default function PortalPage() {
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
   const [createLoading, setCreateLoading] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
+  const [ownerTeamId, setOwnerTeamId] = React.useState('');
+
+  // Teams
+  const [teams, setTeams] = React.useState<TeamItem[]>([]);
+  const [newTeamName, setNewTeamName] = React.useState('');
+  const [teamError, setTeamError] = React.useState<string | null>(null);
+  const [teamLoading, setTeamLoading] = React.useState(false);
 
   // Created secret callout state
   const [createdSecret, setCreatedSecret] = React.useState<{
@@ -60,9 +78,53 @@ export default function PortalPage() {
     }
   };
 
+  const fetchTeams = async () => {
+    try {
+      const res = await fetch('/api/internal/teams');
+      const data = await res.json();
+      if (res.ok && data.teams) setTeams(data.teams);
+    } catch {
+      // teams are optional; ignore
+    }
+  };
+
   React.useEffect(() => {
     fetchClients();
+    let active = true;
+    fetch('/api/internal/teams')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.teams) setTeams(data.teams);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamError(null);
+    setTeamLoading(true);
+    try {
+      const res = await fetch('/api/internal/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTeamName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create team');
+      setNewTeamName('');
+      fetchTeams();
+    } catch (err: unknown) {
+      setTeamError(err instanceof Error ? err.message : 'Failed to create team');
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const managedTeams = teams.filter((t) => t.role === 'owner' || t.role === 'admin');
+  const teamName = (id?: string | null) => teams.find((t) => t.team_id === id)?.name;
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +143,7 @@ export default function PortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          ...(ownerTeamId ? { teamId: ownerTeamId } : {}),
         }),
       });
 
@@ -95,6 +158,7 @@ export default function PortalPage() {
       });
 
       setName('');
+      setOwnerTeamId('');
       setAcceptedTerms(false);
       setIsDrawerOpen(false);
       fetchClients();
@@ -149,6 +213,25 @@ export default function PortalPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+
+              {managedTeams.length > 0 ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="ownerTeam" className={labelStyles}>Owner</label>
+                  <select
+                    id="ownerTeam"
+                    value={ownerTeamId}
+                    onChange={(e) => setOwnerTeamId(e.target.value)}
+                    className={controlStyles}
+                  >
+                    <option value="">Just me</option>
+                    {managedTeams.map((t) => (
+                      <option key={t.team_id} value={t.team_id}>
+                        Team: {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <div className="flex items-start gap-2.5 pt-1">
                 <input
@@ -252,9 +335,14 @@ export default function PortalPage() {
                     <CardTitle className="group-hover:text-get transition-colors">
                       {app.name}
                     </CardTitle>
-                    <Badge variant={app.publishing_status}>
-                      {app.publishing_status.replace('_', ' ')}
-                    </Badge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {app.owner_type === 'team' ? (
+                        <Badge variant="neutral">{teamName(app.owner_team_id) ?? 'Team'}</Badge>
+                      ) : null}
+                      <Badge variant={app.publishing_status}>
+                        {app.publishing_status.replace('_', ' ')}
+                      </Badge>
+                    </div>
                   </div>
                   <CardDescription className="font-mono text-xs mt-2">
                     {app.client_id}
@@ -270,8 +358,53 @@ export default function PortalPage() {
               </Card>
             </Link>
           ))}
-        </div>
+                </div>
       )}
+
+      {/* Teams */}
+      <section aria-labelledby="teams-heading" className="space-y-4 pt-4 border-t border-line">
+        <div className="flex flex-col min-[701px]:flex-row min-[701px]:items-end justify-between gap-4">
+          <div className="space-y-1">
+            <h2 id="teams-heading" className="font-serif text-[27px] font-normal">Teams</h2>
+            <p className="text-sm text-soft">Share apps with your club: members can manage them together.</p>
+          </div>
+          <form onSubmit={handleCreateTeam} className="flex gap-2 w-full min-[701px]:w-auto">
+            <Input
+              aria-label="New team name"
+              placeholder="e.g. Robotics Club"
+              value={newTeamName}
+              onChange={(e) => setNewTeamName(e.target.value)}
+              required
+            />
+            <Button type="submit" variant="secondary" loading={teamLoading} className="shrink-0">
+              <Plus className="w-3.5 h-3.5" /> New team
+            </Button>
+          </form>
+        </div>
+        {teamError ? <InlineAlert variant="error" message={teamError} className="text-xs" /> : null}
+        {teams.length === 0 ? (
+          <p className="text-sm text-muted">You are not on any teams yet.</p>
+        ) : (
+          <ul className="grid grid-cols-1 md:grid-cols-3 gap-3 list-none p-0">
+            {teams.map((t) => (
+              <li key={t.team_id}>
+                <Link
+                  href={`/portal/teams/${t.team_id}`}
+                  className="block p-4 rounded-md border border-line bg-surface hover:border-line-strong transition-colors no-underline"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-serif text-lg text-fg">{t.name}</span>
+                    <Badge variant="neutral">{t.role}</Badge>
+                  </div>
+                  <p className="eyebrow mt-2">
+                    {t.member_count} member{t.member_count === 1 ? '' : 's'} · {t.client_count} app{t.client_count === 1 ? '' : 's'}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
