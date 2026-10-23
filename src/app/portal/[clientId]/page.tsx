@@ -41,6 +41,8 @@ interface ClientData {
   delegated_allowed: boolean;
   allowed_scopes?: string[];
   device_flow_enabled?: boolean;
+  logo_image_id?: string | null;
+  logo_status?: 'pending' | 'approved' | 'rejected' | null;
   suspension_reason?: string | null;
   suspended_at?: string | null;
 }
@@ -85,6 +87,42 @@ export default function ClientDetailPage() {
   const [deviceSaving, setDeviceSaving] = React.useState(false);
   const [permissions, setPermissions] = React.useState<{ secrets: boolean; publish: boolean }>({ secrets: true, publish: true });
   const [team, setTeam] = React.useState<{ team_id: string; name: string } | null>(null);
+  const [logoError, setLogoError] = React.useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = React.useState(false);
+  const logoInput = React.useRef<HTMLInputElement>(null);
+
+  const uploadLogo = async (file: File) => {
+    setLogoError(null);
+    if (file.size > 256 * 1024) {
+      setLogoError('Images must be 256 KB or smaller');
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`/api/internal/portal/clients/${clientId}/logo`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setLogoError(data.error || 'Upload failed');
+      } else {
+        setClient((prev) => (prev ? { ...prev, logo_image_id: data.logo.image_id, logo_status: 'pending' } : prev));
+      }
+    } finally {
+      setLogoBusy(false);
+      if (logoInput.current) logoInput.current.value = '';
+    }
+  };
+
+  const removeLogo = async () => {
+    setLogoBusy(true);
+    try {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}/logo`, { method: 'DELETE' });
+      if (res.ok) setClient((prev) => (prev ? { ...prev, logo_image_id: null, logo_status: null } : prev));
+    } finally {
+      setLogoBusy(false);
+    }
+  };
 
   const toggleDeviceFlow = async (enabled: boolean) => {
     setDeviceSaving(true);
@@ -596,6 +634,54 @@ export default function ClientDetailPage() {
             </span>
           </span>
         </label>
+      </Card>
+
+      <Card>
+        <div className="flex flex-col min-[701px]:flex-row gap-5 min-[701px]:items-center">
+          <div className="w-20 h-20 shrink-0 rounded-md border border-line bg-surface-soft grid place-items-center overflow-hidden">
+            {client.logo_image_id ? (
+              // eslint-disable-next-line @next/next/no-img-element -- same-origin uploaded logo preview
+              <img src={`/img/${client.logo_image_id}`} alt={`${client.name} logo`} className="w-full h-full object-cover" />
+            ) : (
+              <span className="eyebrow">No logo</span>
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-lg">App logo</CardTitle>
+              {client.logo_status === 'pending' ? <Badge variant="pending">Awaiting review</Badge> : null}
+              {client.logo_status === 'approved' ? <Badge variant="production">Shown on consent</Badge> : null}
+              {client.logo_status === 'rejected' ? <Badge variant="suspended">Not approved</Badge> : null}
+            </div>
+            <CardDescription>
+              Square PNG, JPEG or WebP, 64–2048 px, up to 256 KB. An admin reviews each logo before students see it,
+              so apps can&apos;t impersonate PESU or other clubs.
+            </CardDescription>
+            {logoError ? <InlineAlert variant="error" message={logoError} className="text-xs" /> : null}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <input
+                ref={logoInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                id="logo-file"
+                aria-label="Choose logo file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadLogo(file);
+                }}
+              />
+              <Button size="sm" variant="secondary" loading={logoBusy} onClick={() => logoInput.current?.click()}>
+                {client.logo_image_id ? 'Replace logo' : 'Upload logo'}
+              </Button>
+              {client.logo_image_id ? (
+                <Button size="sm" variant="ghost" disabled={logoBusy} onClick={removeLogo}>
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </Card>
 
       {/* Secret Rotation Confirmation Drawer */}

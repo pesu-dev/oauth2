@@ -10,6 +10,7 @@ import { getConfig } from '@/lib/config';
 import { isAllowedTester, publisherName } from '@/lib/authz/client-access';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
 import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
+import { imageUrl } from '@/lib/images';
 import { ConsentClient } from './consent-client';
 
 const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
@@ -314,6 +315,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         delegatedAllowed: client.delegated_allowed,
         ownerSub: client.owner_sub,
         publisher: await publisherName(client),
+        logoUrl: client.logo_status === 'approved' && client.logo_image_id ? imageUrl(client.logo_image_id) : null,
       }}
       userName={session.name}
       requestedScopes={requestedScopes}
