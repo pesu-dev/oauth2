@@ -8,6 +8,7 @@ import { sha256Hex } from '@/lib/crypto/hash';
 import { formatUserCode, normalizeUserCode } from '@/lib/oidc/device-code';
 import { requiresDelegated } from '@/lib/oidc/scopes';
 import { publisherName } from '@/lib/authz/client-access';
+import { imageUrl } from '@/lib/images';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { controlStyles, labelStyles } from '@/components/ui/input';
 
@@ -103,6 +104,7 @@ export default async function DevicePage({ searchParams }: DevicePageProps) {
         delegatedAllowed: client.delegated_allowed,
         ownerSub: client.owner_sub,
         publisher: await publisherName(client),
+        logoUrl: client.logo_status === 'approved' && client.logo_image_id ? imageUrl(client.logo_image_id) : null,
       }}
       userName={session.name}
       requestedScopes={device.scopes}

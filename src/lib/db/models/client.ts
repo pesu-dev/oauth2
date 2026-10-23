@@ -17,6 +17,9 @@ export interface IClient extends Document {
   delegated_allowed: boolean;
   /** Allows the RFC 8628 device authorization grant (CLIs and devices). */
   device_flow_enabled: boolean;
+  /** Uploaded logo; shown on consent only once an admin approves it (anti-impersonation). */
+  logo_image_id?: string | null;
+  logo_status?: 'pending' | 'approved' | 'rejected' | null;
   token_endpoint_auth_method: string;
   suspension_reason?: string | null;
   suspended_at?: Date | null;
@@ -41,6 +44,8 @@ export const ClientSchema = new Schema<IClient>(
     },
     delegated_allowed: { type: Boolean, default: false },
     device_flow_enabled: { type: Boolean, default: false },
+    logo_image_id: { type: String, default: null },
+    logo_status: { type: String, enum: ['pending', 'approved', 'rejected', null], default: null },
     token_endpoint_auth_method: { type: String, default: 'client_secret_post' },
     suspension_reason: { type: String, default: null },
     suspended_at: { type: Date, default: null },

@@ -32,6 +32,10 @@ export function newTeamId(): string {
   return `team_${nanoid()}`;
 }
 
+export function newImageId(): string {
+  return `img_${nanoid(24)}`;
+}
+
 export function newRequestId(): string {
   return `req_${nanoid()}`;
 }

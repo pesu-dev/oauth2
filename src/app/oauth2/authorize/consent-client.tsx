@@ -37,6 +37,8 @@ interface ConsentClientProps {
     ownerSub?: string;
     /** Team name when a team publishes the app. */
     publisher?: string | null;
+    /** Admin-approved logo URL. */
+    logoUrl?: string | null;
   };
   userName: string;
   requestedScopes: string[];
@@ -151,7 +153,19 @@ export function ConsentClient({
               {client.publishingStatus.replace('_', ' ')}
             </Badge>
           </div>
-          <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg break-words">{client.name}</h1>
+          <div className="flex items-center gap-4">
+            {client.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- small same-origin logo, sized explicitly
+              <img
+                src={client.logoUrl}
+                alt={`${client.name} logo`}
+                width={56}
+                height={56}
+                className="w-14 h-14 rounded-md border border-line bg-surface object-cover shrink-0"
+              />
+            ) : null}
+            <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg break-words min-w-0">{client.name}</h1>
+          </div>
           <p className="text-sm text-soft">
             wants to sign you in. You are signed in as <span className="text-fg">{userName}</span>.
           </p>
