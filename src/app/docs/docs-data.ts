@@ -898,6 +898,46 @@ user = response.json()
 print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
     },
     ...resourceEndpointDocs(cleanBase, apiVersion),
+    {
+      id: 'photo',
+      method: 'GET',
+      path: `/api/${apiVersion}/photo`,
+      title: 'Student Photo',
+      category: 'Resource Server',
+      summary: "The student's PESU Academy profile photo as an image.",
+      description:
+        'Returns image bytes (usually image/jpeg), fetched live from PESU Academy and never stored by this service. Requires the `photo:read` scope, admin approval of that scope, and delegated consent. The ID token and userinfo include `picture` pointing here when photo:read is granted; fetch it server-side with the access token, and do not cache it publicly.',
+      auth: 'Bearer <access_token> with photo:read',
+      tryIt: 'bearer',
+      headers: [
+        {
+          name: 'Authorization',
+          location: 'header',
+          type: 'string',
+          required: true,
+          description: 'Bearer access token whose scope includes photo:read.',
+          example: 'Bearer eyJhbGciOiJSUzI1NiIs...',
+        },
+      ],
+      params: [],
+      responses: [
+        { status: 200, statusText: 'OK', description: 'Image bytes with Cache-Control: private, no-store.', sample: { 'Content-Type': 'image/jpeg' } },
+        { status: 404, statusText: 'Not Found', description: 'The student has no profile photo.', sample: { error: 'not_found', error_description: 'No profile photo is available for this student' } },
+        { status: 403, statusText: 'Forbidden', description: 'Missing photo:read, or stored credentials are gone.', sample: { error: 'insufficient_scope', error_description: 'This endpoint requires the photo:read scope' } },
+      ],
+      curlSample: `curl -o photo.jpg ${cleanBase}/api/${apiVersion}/photo \\
+  -H "Authorization: Bearer $ACCESS_TOKEN"`,
+      fetchSample: `const res = await fetch("${cleanBase}/api/${apiVersion}/photo", {
+  headers: { Authorization: \`Bearer \${accessToken}\` },
+});
+const photo = Buffer.from(await res.arrayBuffer()); // serve to your user, don't store it`,
+      pythonSample: `import requests
+
+r = requests.get("${cleanBase}/api/${apiVersion}/photo",
+                 headers={"Authorization": f"Bearer {access_token}"})
+r.raise_for_status()
+photo_bytes = r.content`,
+    },
   ];
 }
 

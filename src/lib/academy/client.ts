@@ -335,6 +335,19 @@ export class AcademyClient {
     return unwrapJsonStrings(data);
   }
 
+  /**
+   * Fetches the student's profile photo from the profile dispatcher call (the only menu id
+   * known to work). Returns raw image bytes, or null when the account has no photo.
+   */
+  async fetchStudentPhoto(session: AcademySession): Promise<Buffer | null> {
+    const data = await this.dispatch(session, { action: ACTION, mode: MODE, menuId: '11172' });
+    const photo = (data as { STUDENT_PHOTO?: { profilePicture?: unknown } } | null)?.STUDENT_PHOTO?.profilePicture;
+    if (typeof photo !== 'string' || !photo.trim()) return null;
+    const base64 = photo.includes(',') && photo.trim().startsWith('data:') ? photo.slice(photo.indexOf(',') + 1) : photo;
+    const bytes = Buffer.from(base64.replace(/\s/g, ''), 'base64');
+    return bytes.length > 0 ? bytes : null;
+  }
+
   private async fetchProfileDetails(
     token: string,
     accessToken: string
