@@ -26,7 +26,7 @@ export function buildAuthorizeUrl(rawParams: Record<string, string | undefined>)
     }
   }
   const query = search.toString();
-  return `/authorize${query ? `?${query}` : ''}`;
+  return `/oauth2/authorize${query ? `?${query}` : ''}`;
 }
 
 interface AuthorizePageProps {

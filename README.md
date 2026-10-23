@@ -30,6 +30,20 @@ pnpm dev
 # Server running at http://localhost:3000
 ```
 
+## Quick start (Docker)
+
+Runs the production image against a single-node Mongo replica set (transactions require one). No host Node or pnpm needed.
+
+```bash
+docker compose up -d --build                        # app on http://localhost:8080
+docker compose run --rm tools node scripts/seed_client.mjs   # prints a test client_id + secret
+docker compose run --rm tools pnpm test:unit        # any pnpm script works through `tools`
+docker compose down                                 # add -v to wipe the Mongo volume
+```
+
+For hot reload, run only Mongo (`docker compose up -d mongo`) and start `pnpm dev` with
+`MONGODB_URI=mongodb://localhost:27017/?directConnection=true`.
+
 ## Development
 
 ```bash
