@@ -381,6 +381,7 @@ describe('portal device flow toggle', () => {
     );
 
   it('toggles device flow without touching redirect URIs and never returns the secret hash', async () => {
+    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', owner_sub: 'usr_dev', owner_type: 'user' } as never);
     const update = vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValue({ client_id: 'cli_tv' } as never);
     expect((await patch({ deviceFlowEnabled: true })).status).toBe(200);
     const [, set, options] = update.mock.calls[0];
