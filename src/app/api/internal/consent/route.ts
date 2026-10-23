@@ -15,6 +15,7 @@ import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext, SealedBlob } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
+import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,7 +67,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    const targetMode = mode || (client.delegated_allowed ? 'delegated' : 'identity');
+    // Unknown scopes are silently dropped; resource scopes always need the delegated vault.
+    const scopes = parseScopes(scope || 'openid');
+    const needsDelegated = requiresDelegated(scopes);
+    if (mode === 'identity' && needsDelegated) {
+      return NextResponse.json(
+        { error: 'invalid_request', error_description: 'PESU Academy data scopes need delegated mode' },
+        { status: 400 }
+      );
+    }
+    const targetMode = mode || (needsDelegated || client.delegated_allowed ? 'delegated' : 'identity');
+    // Resource scopes must be admin-approved for this client
+    const blockedScopes = unapprovedScopes(scopes, client.allowed_scopes);
+    if (blockedScopes.length > 0) {
+      return NextResponse.json(
+        { error: 'invalid_scope', error_description: `Client is not approved for: ${blockedScopes.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
     if (!client.redirect_uris || !client.redirect_uris.includes(redirectUri)) {
       return NextResponse.json({ error: 'Invalid redirect URI' }, { status: 400 });
@@ -133,11 +151,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ redirectTo: targetUrl.toString() });
     }
 
-    // Filter requested scopes.
-    // Unknown scopes are silently dropped; missing openid is a hard error.
-    const KNOWN_SCOPES = new Set(['openid', 'profile', 'email', 'phone', 'offline_access']);
-    const rawScopes = (scope || 'openid').split(' ').filter(Boolean);
-    const scopes = rawScopes.filter((s: string) => KNOWN_SCOPES.has(s));
+    // Missing openid is a hard error.
     if (!scopes.includes('openid')) {
       return NextResponse.json(
         { error: 'invalid_scope', error_description: 'OIDC requires the openid scope' },
