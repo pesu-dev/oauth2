@@ -7,6 +7,7 @@ export interface OpenIdConfiguration {
   userinfo_endpoint: string;
   jwks_uri: string;
   revocation_endpoint: string;
+  device_authorization_endpoint: string;
   response_types_supported: string[];
   subject_types_supported: string[];
   id_token_signing_alg_values_supported: string[];
@@ -25,12 +26,13 @@ export function buildOpenIdConfiguration(issuerUrl: string): OpenIdConfiguration
     userinfo_endpoint: `${issuer}/api/v1/userinfo`,
     jwks_uri: `${issuer}/jwks.json`,
     revocation_endpoint: `${issuer}/oauth2/revoke`,
+    device_authorization_endpoint: `${issuer}/oauth2/device_authorization`,
     response_types_supported: ['code'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256'],
     code_challenge_methods_supported: ['S256'],
     scopes_supported: allScopeNames(),
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
   };
 }
