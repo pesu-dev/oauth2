@@ -4,7 +4,6 @@ import { withTransaction } from '@/lib/db/transaction';
 import {
   AuthCode,
   Client,
-  ClientTester,
   Consent,
   Vault,
 } from '@/lib/db/models';
@@ -13,6 +12,7 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
+import { isAllowedTester } from '@/lib/authz/client-access';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext, SealedBlob } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
 import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
@@ -100,9 +100,9 @@ export async function POST(request: NextRequest) {
 
     // Check Publishing Gate: testing and pending_production restrict authorization to owner and testers
     if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
-      const isOwner = client.owner_sub === session.sub;
-      const isTester = await ClientTester.findOne({ client_id: clientId, sub: session.sub });
-      if (!isOwner && !isTester) {
+      // Owner, owning team members, or explicit testers
+      const allowed = await isAllowedTester(client, session.sub);
+      if (!allowed) {
         return NextResponse.json(
           { error: 'Application in testing mode. Only the owner and designated testers can authorize it.' },
           { status: 403 }

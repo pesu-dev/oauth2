@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
 import { withTransaction } from '@/lib/db/transaction';
-import { Client, ClientTester, Consent, DeviceCode, Vault } from '@/lib/db/models';
+import { Client, Consent, DeviceCode, Vault } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { sealPendingCredentials } from '@/lib/session/vault-seal';
 import { normalizeUserCode } from '@/lib/id/nanoid';
 import { requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
 import { getConfig } from '@/lib/config';
+import { isAllowedTester } from '@/lib/authz/client-access';
 import { notifySubQuietly } from '@/lib/mailer';
 
 /** Approves or denies a pending RFC 8628 device code for the signed-in student. */
@@ -41,9 +42,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (client.publishing_status === 'testing' || client.publishing_status === 'pending_production') {
-      const isOwner = client.owner_sub === session.sub;
-      const isTester = await ClientTester.findOne({ client_id: client.client_id, sub: session.sub });
-      if (!isOwner && !isTester) {
+      // Owner, owning team members, or explicit testers
+      const allowed = await isAllowedTester(client, session.sub);
+      if (!allowed) {
         return NextResponse.json(
           { error: 'Application in testing mode. Only the owner and designated testers can authorize it.' },
           { status: 403 }
