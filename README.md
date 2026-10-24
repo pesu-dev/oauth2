@@ -11,7 +11,7 @@ Unofficial OAuth2 / OpenID Connect authorization server for PESU Academy. Third-
 | Resource API & scopes | [docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) — `resource:read` scopes, admin approval, `/api/v1/*` (beta: Academy menu ids pending) |
 | Product ADRs (historical) | [docs/plans/architecture.md](docs/plans/architecture.md) — **outdated for build detail**; ADRs remain useful background |
 | Bootstrap tech notes | [docs/plans/technical.md](docs/plans/technical.md) — **outdated stub**; hosting/Mongo choices still generally valid |
-| HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; device flow ([RFC 8628](docs/superpowers/specs/2026-10-23-device-flow-design.md)); [team-owned apps](docs/superpowers/specs/2026-10-23-team-ownership-design.md); resource API (`/api/v1/*`); portal, admin, settings; public FAQ/privacy/docs |
+| HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; device flow ([RFC 8628](docs/superpowers/specs/2026-10-23-device-flow-design.md)); [team-owned apps](docs/superpowers/specs/2026-10-23-team-ownership-design.md); [logos, avatars & student photo](docs/superpowers/specs/2026-10-23-images-design.md); resource API (`/api/v1/*`); portal, admin, settings; public FAQ/privacy/docs |
 | Hosting target | Render (staging + prod) |
 | Database | MongoDB Atlas `oauth2` (X.509; staging + prod clusters); Testcontainers Mongo in CI |
 
