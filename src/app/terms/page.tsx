@@ -5,18 +5,18 @@ export default function TermsPage() {
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h1 className="display text-fg">
           Terms of Service
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted">
           Last updated: September 2026 • PESU OAuth2 Identity Service
         </p>
       </div>
 
-      <div className="space-y-6 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+      <div className="space-y-6 text-sm text-soft leading-relaxed">
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
             1. Unofficial Community Project & Non-Affiliation
           </div>
           <p>
@@ -25,14 +25,14 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <ShieldAlert className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <ShieldAlert className="w-5 h-5 text-get shrink-0" />
             2. Developer Obligations & Acceptable Use
           </div>
           <p>
             Developers registering OAuth2 client applications on this platform agree to strictly adhere to the following obligations:
           </p>
-          <ul className="list-disc pl-5 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <ul className="list-disc pl-5 space-y-1 text-xs text-muted">
             <li><strong>Minimal Scopes:</strong> Only request scopes and user data strictly necessary for your application&apos;s features.</li>
             <li><strong>Credential Safety:</strong> Never harvest, phish, log, or store plain-text student credentials or circumvent authentication safeguards.</li>
             <li><strong>Infrastructure Respect:</strong> Do not subject the identity provider, upstream university APIs, or authentication endpoints to denial-of-service, automated abuse, or rate-limit circumvention.</li>
@@ -42,8 +42,8 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <Scale className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <Scale className="w-5 h-5 text-json-key shrink-0" />
             3. Disclaimer of Warranties & Limitation of Liability
           </div>
           <p>
@@ -55,8 +55,8 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <Ban className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <Ban className="w-5 h-5 text-danger shrink-0" />
             4. Client Suspension & Service Revocation
           </div>
           <p>
@@ -65,8 +65,8 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-6 space-y-3">
-          <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-base">
-            <Code className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-base">
+            <Code className="w-5 h-5 text-success shrink-0" />
             5. Intellectual Property & Trademarks
           </div>
           <p>

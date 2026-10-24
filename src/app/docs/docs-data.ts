@@ -25,6 +25,8 @@ export interface EndpointDoc {
   description: string;
   auth: string;
   category: 'Discovery & Keys' | 'Authentication & Tokens' | 'Resource Server';
+  /** Whether the docs explorer can send this request from the browser (same origin). */
+  tryIt?: 'public' | 'bearer';
   headers: ParamDoc[];
   params: ParamDoc[];
   responses: ResponseDoc[];
@@ -54,6 +56,7 @@ export function createEndpoints(
       description:
         'Provides OpenID Connect clients with dynamic server metadata. Libraries such as NextAuth.js, OpenID Client, and Passport automatically ingest this document to configure endpoints, cryptographic signing algorithms, and supported scopes.',
       auth: 'None (Public)',
+      tryIt: 'public',
       headers: [
         {
           name: 'Accept',
@@ -108,6 +111,7 @@ print("Token endpoint:", discovery["token_endpoint"])`,
       description:
         'Exposes the public RSA key components required to mathematically verify tokens minted by PESU OAuth2. OIDC validation libraries cache this set and automatically match the "kid" (Key ID) header in signed JWTs.',
       auth: 'None (Public)',
+      tryIt: 'public',
       headers: [],
       params: [],
       responses: [
@@ -552,6 +556,7 @@ print("Revocation response:", response.json())`,
       description:
         `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student. Note: /api/userinfo is also available as an unversioned alias pointing to the latest version (${apiVersion}).`,
       auth: 'Bearer <access_token>',
+      tryIt: 'bearer',
       headers: [
         {
           name: 'Authorization',

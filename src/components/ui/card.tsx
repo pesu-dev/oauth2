@@ -16,8 +16,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'relative rounded-2xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-black/[0.08] dark:border-white/[0.12] shadow-sm p-6 overflow-hidden transition-colors',
-        'before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-white/50 dark:before:via-white/20 before:to-transparent',
+        'relative rounded-md bg-surface border border-line p-6 overflow-hidden',
         className
       )}
       {...props}
@@ -29,6 +28,7 @@ export function Card({
 
 export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   icon?: React.ReactNode;
+  /** Accepted for backwards compatibility; icons render in the neutral palette. */
   iconColor?: string;
 }
 
@@ -36,15 +36,14 @@ export function CardHeader({
   className,
   children,
   icon,
-  iconColor = 'blue',
+  iconColor: _iconColor,
   ...props
 }: CardHeaderProps) {
+  void _iconColor;
   if (icon) {
     return (
-      <div className={cn('flex items-center gap-2.5 mb-4', className)} {...props}>
-        <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${iconColor}-600/10 text-${iconColor}-600 dark:text-${iconColor}-400 shrink-0`}
-        >
+      <div className={cn('flex items-center gap-3 mb-4', className)} {...props}>
+        <div className="w-9 h-9 rounded-md flex items-center justify-center border border-line bg-surface-soft text-soft shrink-0">
           {icon}
         </div>
         <div>{children}</div>
@@ -65,10 +64,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn(
-        'text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50',
-        className
-      )}
+      className={cn('font-serif text-[22px] font-normal leading-tight text-fg', className)}
       {...props}
     >
       {children}
@@ -82,10 +78,7 @@ export function CardDescription({
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p
-      className={cn('text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed', className)}
-      {...props}
-    >
+    <p className={cn('text-sm text-soft leading-relaxed', className)} {...props}>
       {children}
     </p>
   );

@@ -8,6 +8,8 @@ export interface PageLoaderProps {
 
 export function PageLoader({ message = 'Loading…' }: PageLoaderProps) {
   return (
-    <div className="py-16 text-center text-sm text-zinc-400">{message}</div>
+    <div role="status" className="py-16 text-center eyebrow">
+      {message}
+    </div>
   );
 }

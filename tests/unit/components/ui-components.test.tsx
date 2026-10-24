@@ -84,7 +84,7 @@ describe('UI Primitives & Navigation', () => {
       });
 
       expect(screen.getAllByText('Portal').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Documentation').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Docs').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Sign In').length).toBeGreaterThan(0);
 
       await waitFor(() => {
@@ -168,8 +168,8 @@ describe('UI Primitives & Navigation', () => {
       const toggleBtn = screen.getByLabelText('Toggle navigation menu');
       fireEvent.click(toggleBtn);
 
-      // Click Admin Dashboard in mobile menu
-      const adminLinks = screen.getAllByText('Admin Dashboard');
+      // Click Admin in mobile menu
+      const adminLinks = screen.getAllByText('Admin');
       expect(adminLinks.length).toBeGreaterThan(0);
       fireEvent.click(adminLinks[0]);
 
@@ -226,7 +226,7 @@ describe('UI Primitives & Navigation', () => {
       const toggleBtn = screen.getByLabelText('Toggle navigation menu');
       fireEvent.click(toggleBtn);
 
-      // Click Portal, Settings, Documentation, FAQ, Sign In
+      // Click Portal, Settings, Docs, FAQ, Sign In
       const portalLinks = screen.getAllByText('Portal');
       fireEvent.click(portalLinks[portalLinks.length - 1]);
 
@@ -235,7 +235,7 @@ describe('UI Primitives & Navigation', () => {
       fireEvent.click(settingsLinks[settingsLinks.length - 1]);
 
       fireEvent.click(toggleBtn);
-      const docLinks = screen.getAllByText('Documentation');
+      const docLinks = screen.getAllByText('Docs');
       fireEvent.click(docLinks[docLinks.length - 1]);
 
       fireEvent.click(toggleBtn);

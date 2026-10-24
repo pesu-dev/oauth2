@@ -10,32 +10,32 @@ const NAV_LINKS = [
     title: 'Documentation',
     subtitle: 'Integration guide and API reference',
     icon: <BookOpen className="w-4 h-4" />,
-    iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    hoverText: 'group-hover:text-blue-600 dark:group-hover:text-blue-400',
+    iconBg: 'bg-get/5 text-get ',
+    hoverText: 'group-hover:text-get ',
   },
   {
     href: '/portal',
     title: 'Developer Portal',
     subtitle: 'Register and manage OAuth 2.0 clients',
     icon: <KeyRound className="w-4 h-4" />,
-    iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-    hoverText: 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400',
+    iconBg: 'bg-get/5 text-get ',
+    hoverText: 'group-hover:text-get ',
   },
   {
     href: '/faq',
     title: 'Frequently Asked Questions',
     subtitle: 'Common inquiries and troubleshooting',
     icon: <HelpCircle className="w-4 h-4" />,
-    iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-    hoverText: 'group-hover:text-purple-600 dark:group-hover:text-purple-400',
+    iconBg: 'bg-json-key/5 text-json-key ',
+    hoverText: 'group-hover:text-json-key ',
   },
   {
     href: '/privacy',
     title: 'Privacy & Data Security',
     subtitle: 'Learn about credential encryption and zero-knowledge storage',
     icon: <ShieldCheck className="w-4 h-4" />,
-    iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    hoverText: 'group-hover:text-emerald-600 dark:group-hover:text-emerald-400',
+    iconBg: 'bg-success/5 text-success ',
+    hoverText: 'group-hover:text-success ',
   },
 ];
 
@@ -50,21 +50,21 @@ export default function NotFound() {
           className="text-center"
         />
 
-        <Card className="p-4 text-left divide-y divide-black/[0.06] dark:divide-white/[0.06]">
+        <Card className="p-4 text-left divide-y divide-line">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors group"
+              className="flex items-center gap-3 py-2.5 px-2 rounded-md hover:bg-surface-soft transition-colors group"
             >
               <div className={`p-2 rounded-md ${link.iconBg}`}>
                 {link.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <div className={`text-xs font-medium text-zinc-900 dark:text-zinc-100 ${link.hoverText} transition-colors`}>
+                <div className={`text-xs font-medium text-fg ${link.hoverText} transition-colors`}>
                   {link.title}
                 </div>
-                <div className="text-[11px] text-zinc-500">
+                <div className="text-[11px] text-muted">
                   {link.subtitle}
                 </div>
               </div>
