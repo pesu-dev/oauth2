@@ -4,6 +4,7 @@ import {
   loginLimiter,
   tokenLimiter,
   exchangeLimiter,
+  deviceLimiter,
   getClientIp,
 } from '@/lib/rate-limit';
 
@@ -36,6 +37,7 @@ const OIDC_ROUTES = [
   '/.well-known/openid-configuration',
   '/jwks.json',
   '/oauth2/token',
+  '/oauth2/device_authorization',
   '/oauth2/revoke',
   '/oauth2/token-exchange',
   ...RESOURCE_ROUTES,
@@ -71,6 +73,13 @@ export async function proxy(request: NextRequest) {
     }
 
     if (pathname === '/oauth2/token' && !tokenLimiter.allow(`token:${ip}`)) {
+      return NextResponse.json(
+        { error: 'temporarily_unavailable', error_description: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': '60' } }
+      );
+    }
+
+    if (pathname === '/oauth2/device_authorization' && !deviceLimiter.allow(`device:${ip}`)) {
       return NextResponse.json(
         { error: 'temporarily_unavailable', error_description: 'Too many requests' },
         { status: 429, headers: { 'Retry-After': '60' } }
