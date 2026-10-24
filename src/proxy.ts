@@ -15,7 +15,17 @@ const PROTECTED_API_PREFIXES = [
 ];
 
 export const CURRENT_API_VERSION = 'v1';
-export const RESOURCE_ENDPOINTS = ['userinfo'];
+export const RESOURCE_ENDPOINTS = [
+  'userinfo',
+  'semesters',
+  'courses',
+  'attendance',
+  'results',
+  'timetable',
+  'announcements',
+  'assignments',
+  'seating',
+];
 
 const RESOURCE_ROUTES = RESOURCE_ENDPOINTS.flatMap((ep) => [
   `/api/${ep}`,
@@ -147,12 +157,14 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 6. Scalable resource endpoint alias rewrite: /api/:resource rewrites internally to /api/:version/:resource
-  const matchedResource = RESOURCE_ENDPOINTS.find((ep) => pathname === `/api/${ep}`);
+  // 6. Scalable resource endpoint alias rewrite: /api/:resource[/...] rewrites internally to /api/:version/:resource[/...]
+  const matchedResource = RESOURCE_ENDPOINTS.find(
+    (ep) => pathname === `/api/${ep}` || pathname.startsWith(`/api/${ep}/`)
+  );
   let response: NextResponse;
   if (matchedResource) {
     const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/api/${CURRENT_API_VERSION}/${matchedResource}`;
+    rewriteUrl.pathname = `/api/${CURRENT_API_VERSION}${pathname.slice('/api'.length)}`;
     response = NextResponse.rewrite(rewriteUrl, {
       request: {
         headers: requestHeaders,

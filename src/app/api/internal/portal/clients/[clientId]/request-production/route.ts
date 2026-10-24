@@ -5,6 +5,7 @@ import { Client, ProductionRequest } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newRequestId } from '@/lib/id/nanoid';
 import { notifySubQuietly } from '@/lib/mailer';
+import { isResourceScope } from '@/lib/oidc/scopes';
 
 export async function POST(
   request: NextRequest,
@@ -20,6 +21,24 @@ export async function POST(
 
   const body = await request.json();
   const { justification, delegatedRequested } = body;
+  // Scope-only requests (productionRequested: false) ask for API access without leaving Testing.
+  const productionRequested = body.productionRequested !== false;
+  const rawScopes: unknown = body.requestedScopes ?? [];
+
+  if (!Array.isArray(rawScopes) || rawScopes.some((s) => typeof s !== 'string' || !isResourceScope(s))) {
+    return NextResponse.json(
+      { error: 'requestedScopes must be a list of resource scopes (e.g. attendance:read)' },
+      { status: 400 }
+    );
+  }
+  const requestedScopes = [...new Set(rawScopes as string[])];
+
+  if (!productionRequested && requestedScopes.length === 0) {
+    return NextResponse.json(
+      { error: 'Request Production or at least one API scope' },
+      { status: 400 }
+    );
+  }
 
   if (!justification || justification.length < 10) {
     return NextResponse.json(
@@ -34,11 +53,20 @@ export async function POST(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  if (client.publishing_status !== 'testing') {
+  if (productionRequested && client.publishing_status !== 'testing') {
     return NextResponse.json(
       { error: 'Only Testing clients can request Production approval.' },
       { status: 400 }
     );
+  }
+
+  if (client.publishing_status === 'suspended') {
+    return NextResponse.json({ error: 'Suspended clients cannot request access.' }, { status: 400 });
+  }
+
+  const newScopes = requestedScopes.filter((s) => !(client.allowed_scopes ?? []).includes(s));
+  if (!productionRequested && newScopes.length === 0) {
+    return NextResponse.json({ error: 'All requested scopes are already approved.' }, { status: 400 });
   }
 
   const existingPending = await ProductionRequest.findOne({
@@ -64,7 +92,10 @@ export async function POST(
           requested_by_sub: userSub,
           owner_sub: userSub,
           status: 'pending',
-          delegated_requested: Boolean(delegatedRequested),
+          delegated_requested: Boolean(delegatedRequested) || newScopes.length > 0,
+          production_requested: productionRequested,
+          requested_scopes: newScopes,
+          approved_scopes: [],
           justification,
           created_at: new Date(),
         },
@@ -72,16 +103,18 @@ export async function POST(
       { session: dbSession }
     );
 
-    client.publishing_status = 'pending_production';
-    await client.save({ session: dbSession });
+    if (productionRequested) {
+      client.publishing_status = 'pending_production';
+      await client.save({ session: dbSession });
+    }
 
     return doc;
   });
 
   notifySubQuietly({
     sub: session.sub,
-    subject: `Production review requested for ${client.name}`,
-    body: `Your client ${client.name} (${client.client_id}) was submitted for Production review. An admin will approve or reject the request.`,
+    subject: `${productionRequested ? 'Production review' : 'API access review'} requested for ${client.name}`,
+    body: `Your client ${client.name} (${client.client_id}) was submitted for ${productionRequested ? 'Production' : 'API access'} review${newScopes.length ? ` (scopes: ${newScopes.join(', ')})` : ''}. An admin will approve or reject the request.`,
   });
 
   return NextResponse.json({ request: prodRequest });

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Check, Copy, Sparkles, Code2, Key, ExternalLink, Server, Database } from 'lucide-react';
+import { SCOPES } from '@/lib/oidc/scopes';
 
 export interface GuideDoc {
   id: string;
@@ -415,59 +416,33 @@ async function generatePkcePair() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                <tr>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-get">
-                    openid
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-soft">sub</td>
-                  <td className="py-2.5 px-3 text-soft">
-                    Mandatory for OpenID Connect. Issues an RS256-signed ID token containing the stable user identifier.
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-get">
-                    profile
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-soft">
-                    name, prn, srn, program, branch, semester, section, campus
-                  </td>
-                  <td className="py-2.5 px-3 text-soft">
-                    Student academic registration attributes synced directly with PESU Academy records.
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-get">
-                    email
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-soft">email</td>
-                  <td className="py-2.5 px-3 text-soft">
-                    Official verified student PES University email address (e.g. name@pesu.pes.edu).
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-get">
-                    phone
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-soft">
-                    phone_number
-                  </td>
-                  <td className="py-2.5 px-3 text-soft">
-                    Student contact telephone number registered on file.
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-get">
-                    offline_access
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-soft">
-                    refresh_token
-                  </td>
-                  <td className="py-2.5 px-3 text-soft">
-                    Issues a long-lived refresh token supporting automatic family rotation and reuse detection.
-                  </td>
-                </tr>
+                {SCOPES.map((def) => (
+                  <tr key={def.name}>
+                    <td className="py-2.5 px-3 font-mono font-semibold text-get whitespace-nowrap">{def.name}</td>
+                    <td className="py-2.5 px-3 font-mono text-soft">{def.claims.join(', ')}</td>
+                    <td className="py-2.5 px-3 text-soft">
+                      {def.description}
+                      {def.kind === 'resource' ? (
+                        <span className="block mt-1 text-[11px] text-json-key">Needs admin approval and delegated consent.</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
+          </div>
+          <div className="p-4 rounded-md bg-surface-soft border border-line space-y-2 text-xs text-soft leading-relaxed">
+            <h3 className="font-serif text-xl font-normal text-fg">PESU Academy data scopes</h3>
+            <p>
+              Scopes ending in <code className="font-mono">:read</code> let your app call the resource API on the
+              student&apos;s behalf. They are not available by default: request them from your app&apos;s page in the
+              portal, and an admin approves each one. Students then see every data scope on the consent screen, and
+              their PESU Academy credentials are stored encrypted in the vault so the API can fetch fresh data.
+            </p>
+            <p>
+              Request only what you use. A revoked consent stops API access immediately, even for access tokens that
+              have not expired yet.
+            </p>
           </div>
         </div>
       )}

@@ -1,3 +1,5 @@
+import { allScopeNames } from '@/lib/oidc/scopes';
+
 export interface ParamDoc {
   name: string;
   location: 'query' | 'body' | 'header';
@@ -38,6 +40,185 @@ export interface EndpointDoc {
 export const DEFAULT_PROD_ISSUER_URL = 'https://pesu-oauth2.onrender.com';
 export const CURRENT_API_VERSION = 'v1';
 export const AVAILABLE_API_VERSIONS = ['v1'] as const;
+
+interface ResourceDocSpec {
+  id: string;
+  path: string;
+  title: string;
+  scope: string;
+  /** Value of `resource` in responses when it differs from the id. */
+  resource?: string;
+  summary: string;
+  query?: ParamDoc[];
+  sample: Record<string, unknown>[];
+}
+
+const RESOURCE_DOCS: ResourceDocSpec[] = [
+  {
+    id: 'semesters',
+    path: 'semesters',
+    title: 'Semesters',
+    scope: 'courses:read',
+    summary: "The student's semesters, used as the semester filter for courses and attendance.",
+    sample: [{ id: '2291', name: 'Sem-6' }],
+  },
+  {
+    id: 'courses',
+    path: 'courses',
+    title: 'Courses',
+    scope: 'courses:read',
+    summary: 'Courses the student is enrolled in, optionally for one semester.',
+    query: [
+      { name: 'semester', location: 'query', type: 'string (digits)', required: false, description: 'Semester id from /semesters. Defaults to the current semester.', example: '2291' },
+    ],
+    sample: [{ id: '20412', code: 'UE20CS351', name: 'Cloud Computing', faculty: 'Dr. A. Rao', status: 'Enrolled' }],
+  },
+  {
+    id: 'attendance',
+    path: 'attendance',
+    title: 'Attendance',
+    scope: 'attendance:read',
+    summary: 'Classes held and attended per course.',
+    query: [
+      { name: 'semester', location: 'query', type: 'string (digits)', required: false, description: 'Semester id from /semesters.', example: '2291' },
+    ],
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: '90' }],
+  },
+  {
+    id: 'results-isa',
+    path: 'results/isa',
+    title: 'ISA Results',
+    scope: 'results:read',
+    resource: 'isa_results',
+    summary: 'In-semester assessment marks per course and assessment.',
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: 34, maxMarks: 40 }],
+  },
+  {
+    id: 'results-esa',
+    path: 'results/esa',
+    title: 'ESA Results',
+    scope: 'results:read',
+    resource: 'esa_results',
+    summary: 'End-semester grades, credits, SGPA and CGPA.',
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', semester: 'Sem-5', grade: 'A', credits: 4, sgpa: 8.9, cgpa: 8.6 }],
+  },
+  {
+    id: 'timetable',
+    path: 'timetable',
+    title: 'Timetable',
+    scope: 'timetable:read',
+    summary: "The student's weekly timetable, or a single day.",
+    query: [
+      { name: 'day', location: 'query', type: 'string', required: false, description: 'Limit to one day: mon..sun or 1..7.', example: 'mon' },
+    ],
+    sample: [{ day: 'Monday', start: '09:00', end: '10:00', code: 'UE20CS351', name: 'Cloud Computing', faculty: 'Dr. A. Rao', room: 'B-402' }],
+  },
+  {
+    id: 'announcements',
+    path: 'announcements',
+    title: 'Announcements',
+    scope: 'announcements:read',
+    summary: 'Announcements posted to the student, newest first.',
+    query: [
+      { name: 'page', location: 'query', type: 'integer', required: false, defaultValue: '1', description: 'Page number, starting at 1.', example: '2' },
+    ],
+    sample: [{ id: '88213', title: 'ISA 2 schedule', date: '2026-10-20' }],
+  },
+  {
+    id: 'assignments',
+    path: 'assignments',
+    title: 'Assignments',
+    scope: 'assignments:read',
+    summary: 'Assignments and their due dates.',
+    sample: [{ id: '5521', title: 'Lab 4: Containers', code: 'UE20CS351', name: 'Cloud Computing', dueDate: '2026-10-30', status: 'Pending' }],
+  },
+  {
+    id: 'seating',
+    path: 'seating',
+    title: 'Exam Seating',
+    scope: 'seating:read',
+    summary: 'Exam hall and seat allocations.',
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', date: '2026-11-18', time: '09:30', room: 'MRD-301', seat: '42' }],
+  },
+];
+
+function resourceEndpointDocs(cleanBase: string, apiVersion: string): EndpointDoc[] {
+  return RESOURCE_DOCS.map((spec) => {
+    const path = `/api/${apiVersion}/${spec.path}`;
+    const query = spec.query ?? [];
+    const exampleQuery = query.length ? `?${query[0].name}=${query[0].example}` : '';
+    return {
+      id: spec.id,
+      method: 'GET' as const,
+      path,
+      title: spec.title,
+      category: 'Resource Server' as const,
+      summary: spec.summary,
+      description: `${spec.summary} Requires the \`${spec.scope}\` scope, admin approval of that scope for your app, and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned. Beta: field coverage depends on what PESU Academy returns for each account.`,
+      auth: `Bearer <access_token> with ${spec.scope}`,
+      tryIt: 'bearer' as const,
+      headers: [
+        {
+          name: 'Authorization',
+          location: 'header' as const,
+          type: 'string',
+          required: true,
+          description: `Bearer access token whose scope includes ${spec.scope}.`,
+          example: 'Bearer eyJhbGciOiJSUzI1NiIs...',
+        },
+      ],
+      params: query,
+      responses: [
+        {
+          status: 200,
+          statusText: 'OK',
+          description: 'Normalized rows. Unknown or sensitive Academy fields are never passed through.',
+          sample: { resource: spec.resource ?? spec.id, data: spec.sample, fetched_at: '2026-10-23T09:30:00.000Z' },
+        },
+        {
+          status: 403,
+          statusText: 'Forbidden',
+          description: 'The token lacks the scope (insufficient_scope), or the stored credentials are gone (consent_required).',
+          sample: { error: 'insufficient_scope', error_description: `This endpoint requires the ${spec.scope} scope` },
+        },
+        {
+          status: 401,
+          statusText: 'Unauthorized',
+          description: 'Invalid or expired token, or the student revoked consent (takes effect immediately).',
+          sample: { error: 'invalid_token', error_description: 'Consent for this scope was revoked' },
+        },
+        {
+          status: 501,
+          statusText: 'Not Implemented',
+          description: 'This resource is not available from PESU Academy yet.',
+          sample: { error: 'resource_unavailable', error_description: 'PESU Academy data is not available yet' },
+        },
+        {
+          status: 502,
+          statusText: 'Bad Gateway',
+          description: 'PESU Academy did not answer or rejected the request. Retry later.',
+          sample: { error: 'academy_unavailable', error_description: 'PESU Academy did not return this resource' },
+        },
+      ],
+      curlSample: `curl -X GET "${cleanBase}${path}${exampleQuery}" \\
+  -H "Authorization: Bearer $ACCESS_TOKEN"`,
+      fetchSample: `const response = await fetch("${cleanBase}${path}${exampleQuery}", {
+  headers: { Authorization: \`Bearer \${accessToken}\` },
+});
+if (response.status === 403) throw new Error("Ask for ${spec.scope} again");
+const { data } = await response.json();
+console.log(data);`,
+      pythonSample: `import requests
+
+response = requests.get(
+    "${cleanBase}${path}${exampleQuery}",
+    headers={"Authorization": f"Bearer {access_token}"},
+)
+response.raise_for_status()
+print(response.json()["data"])`,
+    };
+  });
+}
 
 export function createEndpoints(
   baseUrl: string = DEFAULT_PROD_ISSUER_URL,
@@ -84,7 +265,7 @@ export function createEndpoints(
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['RS256'],
             code_challenge_methods_supported: ['S256'],
-            scopes_supported: ['openid', 'profile', 'email', 'phone', 'offline_access'],
+            scopes_supported: allScopeNames(),
             grant_types_supported: ['authorization_code', 'refresh_token'],
             token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
           },
@@ -616,6 +797,7 @@ response = requests.get("${cleanBase}/api/${apiVersion}/userinfo", headers=heade
 user = response.json()
 print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
     },
+    ...resourceEndpointDocs(cleanBase, apiVersion),
   ];
 }
 

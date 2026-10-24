@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Consent, User, Vault } from '@/lib/db/models';
+import { Consent } from '@/lib/db/models';
 import { getConfig } from '@/lib/config';
 import { verifyAccessToken } from '@/lib/oidc/jwt';
-import {
-  masterKeyFromSecret,
-  open,
-  seal,
-  SealedBlob,
-  packVaultPlaintext,
-  unpackVaultPlaintext,
-  VaultPlaintext,
-} from '@/lib/crypto/envelope';
-import { AcademyClient } from '@/lib/academy/client';
+import { getAcademySession, VaultSessionError, type VaultErrorCode } from '@/lib/academy/session';
+
+const VAULT_ERROR_RESPONSES: Record<VaultErrorCode, { status: number; error: string }> = {
+  misconfigured: { status: 503, error: 'misconfigured' },
+  no_vault: { status: 403, error: 'forbidden' },
+  vault_unreadable: { status: 403, error: 'forbidden' },
+  user_missing: { status: 403, error: 'forbidden' },
+  academy_unavailable: { status: 502, error: 'academy_unavailable' },
+};
 
 function checkExchangeSecret(request: Request, configuredSecret?: string): boolean {
   if (!configuredSecret) return false;
@@ -142,14 +141,10 @@ export async function POST(request: NextRequest | Request) {
   await connectToDatabase();
   const sub = tokenClaims.sub;
 
-  // Verify delegated consent and fetch vault credentials in parallel
-  const [consent, vaultDoc] = await Promise.all([
-    Consent.findOne({
-      sub,
-      client_id: config.firstPartyApiClientId,
-    }),
-    Vault.findOne({ sub }),
-  ]);
+  const consent = await Consent.findOne({
+    sub,
+    client_id: config.firstPartyApiClientId,
+  });
 
   if (!consent || consent.mode !== 'delegated') {
     return NextResponse.json(
@@ -158,90 +153,14 @@ export async function POST(request: NextRequest | Request) {
     );
   }
 
-  if (!config.vaultMasterKey) {
-    return NextResponse.json(
-      { error: 'misconfigured', error_description: 'Vault master key unavailable' },
-      { status: 503 }
-    );
-  }
-
-  if (!vaultDoc) {
-    return NextResponse.json(
-      { error: 'forbidden', error_description: 'No vault credentials for subject' },
-      { status: 403 }
-    );
-  }
-
-  const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-  const sealedBlob: SealedBlob = {
-    nonce: vaultDoc.nonce,
-    ciphertext: vaultDoc.ciphertext,
-    wrapNonce: vaultDoc.wrap_nonce,
-    wrappedDek: vaultDoc.wrapped_dek,
-    keyVersion: vaultDoc.key_version,
-  };
-
-  let plaintext: VaultPlaintext;
   try {
-    const decrypted = open(masterKey, sealedBlob);
-    plaintext = unpackVaultPlaintext(decrypted);
-  } catch {
-    return NextResponse.json(
-      { error: 'forbidden', error_description: 'Vault credentials unreadable' },
-      { status: 403 }
-    );
-  }
-
-  // Check cached session validity: return if no expiry set (freshly stored) or at least 60s remaining
-  const now = Date.now();
-  if (
-    plaintext.session?.token &&
-    (!vaultDoc.session_expires_at ||
-      vaultDoc.session_expires_at.getTime() > now + 60000)
-  ) {
-    return sessionResponse(plaintext.session);
-  }
-
-  const user = await User.findOne({ sub, deleted_at: null });
-  if (!user) {
-    return NextResponse.json(
-      { error: 'forbidden', error_description: 'User not found or deleted' },
-      { status: 403 }
-    );
-  }
-
-  // Refresh Academy session using stored username if available
-  const loginIdentifier = plaintext.username || user.prn || user.srn;
-  const academy = new AcademyClient();
-  try {
-    const authResult = await academy.login(loginIdentifier, plaintext.password);
-
-    const sessionData = {
-      token: authResult.session.token,
-      access_token: authResult.session.accessToken || null,
-      user_id: authResult.session.userId || null,
-    };
-
-    plaintext.session = sessionData;
-    const newSealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
-
-    vaultDoc.nonce = newSealed.nonce;
-    vaultDoc.ciphertext = newSealed.ciphertext;
-    vaultDoc.wrap_nonce = newSealed.wrapNonce;
-    vaultDoc.wrapped_dek = newSealed.wrappedDek;
-    vaultDoc.key_version = newSealed.keyVersion;
-    vaultDoc.session_expires_at = authResult.session.expiresAt || null;
-    vaultDoc.updated_at = new Date();
-    await vaultDoc.save();
-
-    return sessionResponse(sessionData);
-  } catch {
-    return NextResponse.json(
-      {
-        error: 'academy_unavailable',
-        error_description: 'Could not refresh Academy session',
-      },
-      { status: 502 }
-    );
+    const { session } = await getAcademySession(sub);
+    return sessionResponse(session);
+  } catch (err) {
+    if (err instanceof VaultSessionError) {
+      const { status, error } = VAULT_ERROR_RESPONSES[err.code];
+      return NextResponse.json({ error, error_description: err.message }, { status });
+    }
+    throw err;
   }
 }
