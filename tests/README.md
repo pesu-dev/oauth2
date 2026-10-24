@@ -18,6 +18,13 @@ pnpm test:unit:watch
 pnpm test:coverage
 ```
 
+Without Node on the host, run the same scripts through the Docker `tools` service. It mounts the Docker socket, so Testcontainers works too:
+
+```bash
+docker compose run --rm tools pnpm test:coverage
+docker compose run --rm tools pnpm test:integration
+```
+
 ## Structure
 
 Tests directly mirror the `src/` directory layout:

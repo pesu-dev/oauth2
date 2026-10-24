@@ -89,7 +89,7 @@ describe('Auth Login Route (/api/auth/login)', () => {
       body: JSON.stringify({
         username: 'PES1UG20CS001',
         password: 'valid_password',
-        returnTo: '/authorize?client_id=cli_1',
+        returnTo: '/oauth2/authorize?client_id=cli_1',
       }),
     });
 
@@ -97,7 +97,7 @@ describe('Auth Login Route (/api/auth/login)', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
-    expect(data.redirectTo).toBe('/authorize?client_id=cli_1');
+    expect(data.redirectTo).toBe('/oauth2/authorize?client_id=cli_1');
     expect(createSpy).toHaveBeenCalled();
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'pesu_session',
@@ -140,14 +140,14 @@ describe('Auth Login Route (/api/auth/login)', () => {
       body: JSON.stringify({
         username: 'PES1UG20CS002',
         password: 'vault_delegated_password',
-        returnTo: '/authorize?client_id=cli_1&mode=delegated',
+        returnTo: '/oauth2/authorize?client_id=cli_1&mode=delegated',
       }),
     });
 
     const res = await postLogin(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.redirectTo).toBe('/authorize?client_id=cli_1&mode=delegated');
+    expect(data.redirectTo).toBe('/oauth2/authorize?client_id=cli_1&mode=delegated');
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'pesu_pending',
       expect.any(String),
@@ -188,14 +188,14 @@ describe('Auth Login Route (/api/auth/login)', () => {
       body: JSON.stringify({
         username: 'PES1UG20CS003',
         password: 'vault_implicit_password',
-        returnTo: '/authorize?client_id=cli_delegated_app&response_type=code',
+        returnTo: '/oauth2/authorize?client_id=cli_delegated_app&response_type=code',
       }),
     });
 
     const res = await postLogin(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.redirectTo).toBe('/authorize?client_id=cli_delegated_app&response_type=code');
+    expect(data.redirectTo).toBe('/oauth2/authorize?client_id=cli_delegated_app&response_type=code');
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'pesu_pending',
       expect.any(String),
@@ -414,7 +414,7 @@ describe('Auth Login Route (/api/auth/login)', () => {
         body: JSON.stringify({
           username: 'PRN1',
           password: 'pwd',
-          returnTo: '/authorize?client_id=c1&mode=identity',
+          returnTo: '/oauth2/authorize?client_id=c1&mode=identity',
         }),
       });
       const res1 = await postLogin(req1);

@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     let isDelegatedFlow = false;
     try {
       const url = new URL(safeRedirect, 'http://localhost');
-      if (url.pathname === '/authorize') {
+      if (url.pathname === '/oauth2/authorize') {
         const modeParam = url.searchParams.get('mode');
         const clientIdParam = url.searchParams.get('client_id');
         if (modeParam === 'delegated') {
