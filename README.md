@@ -32,7 +32,7 @@ pnpm dev
 
 ## Quick start (Docker)
 
-Runs the production image against a single-node Mongo replica set (transactions require one). No host Node or pnpm needed.
+Runs the production image against a single-node Mongo replica set (transactions require one). No host Node or pnpm needed. Ports are published on `127.0.0.1` only, because this Mongo has no authentication and the app serves plain HTTP.
 
 ```bash
 docker compose up -d --build                        # app on http://localhost:8080
