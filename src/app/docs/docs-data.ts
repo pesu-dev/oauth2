@@ -16,9 +16,12 @@ export interface ResponseDoc {
   sample: unknown;
 }
 
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
 export interface EndpointDoc {
   id: string;
-  method: 'GET' | 'POST' | 'GET / POST';
+  /** One method, or two joined with " / " when an endpoint accepts both (e.g. userinfo). */
+  method: HttpMethod | `${HttpMethod} / ${HttpMethod}`;
   path: string;
   title: string;
   summary: string;

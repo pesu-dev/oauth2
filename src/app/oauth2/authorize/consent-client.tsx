@@ -146,7 +146,7 @@ export function ConsentClient({
                 <ScopePermissionRow
                   icon={<Mail className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
                   title="View your Email Address"
-                  description="Your official university email registered on PESU Academy."
+                  description="Your email registered on PESU Academy."
                 />
               ) : null}
 

@@ -10,6 +10,7 @@ import {
   generateEndpointMarkdownForLlm,
   generateFullApiReferenceMarkdown,
   type EndpointDoc,
+  type HttpMethod,
   type ParamDoc,
 } from './docs-data';
 import { GUIDES, GuideView } from './docs-guides';
@@ -29,9 +30,18 @@ const CODE_TABS: { id: CodeTab; label: string }[] = [
 
 const CATEGORIES: EndpointDoc['category'][] = ['Discovery & Keys', 'Authentication & Tokens', 'Resource Server'];
 
-/** pesu-auth method colors: GET blue, POST amber. */
-function methodColor(method: string): string {
-  return method.startsWith('POST') ? 'text-post' : 'text-get';
+const METHOD_COLORS: Record<HttpMethod, string> = {
+  GET: 'text-get',
+  POST: 'text-post',
+  PUT: 'text-put',
+  PATCH: 'text-patch',
+  DELETE: 'text-danger',
+};
+
+/** Colors a method badge by its first method, so "GET / POST" reads as GET. */
+export function methodColor(method: string): string {
+  const first = method.split('/')[0].trim().toUpperCase();
+  return METHOD_COLORS[first as HttpMethod] ?? 'text-muted';
 }
 
 function displayPath(ep: EndpointDoc): string {

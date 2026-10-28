@@ -21,9 +21,9 @@ const PRINCIPLES = [
 ];
 
 const STEPS = [
-  ['01', 'Register an app', 'Create a client in the portal and add your redirect URI. It starts in Testing, open to you and your testers.'],
-  ['02', 'Point your OIDC library here', 'NextAuth, Lucia, Passport and AppAuth read everything from the discovery document.'],
-  ['03', 'Request Production', 'When it works, an admin reviews it and opens sign-in to every PESU student.'],
+  { title: 'Register an app', body: 'Create a client in the portal and add your redirect URI. It starts in Testing, open to you and your testers.' },
+  { title: 'Point your OIDC library here', body: 'NextAuth, Lucia, Passport and AppAuth read everything from the discovery document.' },
+  { title: 'Request Production', body: 'When it works, an admin reviews it and opens sign-in to every PESU student.' },
 ];
 
 export default function HomePage() {
@@ -75,13 +75,10 @@ export default function HomePage() {
           <Link href="/docs" className="eyebrow underline hover:text-fg">Integration examples →</Link>
         </div>
         <ol className="border border-line rounded-md bg-surface divide-y divide-line list-none p-0">
-          {STEPS.map(([n, title, body]) => (
-            <li key={n} className="grid grid-cols-[44px_1fr] gap-2 p-5">
-              <span className="font-mono text-[11px] font-bold text-post pt-1">{n}</span>
-              <div className="space-y-1">
-                <p className="font-serif text-lg text-fg">{title}</p>
-                <p className="text-sm text-soft leading-[1.65]">{body}</p>
-              </div>
+          {STEPS.map(({ title, body }) => (
+            <li key={title} className="p-5 space-y-1">
+              <p className="font-serif text-lg text-fg">{title}</p>
+              <p className="text-sm text-soft leading-[1.65]">{body}</p>
             </li>
           ))}
         </ol>

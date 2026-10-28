@@ -20,6 +20,8 @@
   --button-text: #fff;
   --get: #2563a8;
   --post: #a45d13;
+  --put: #286548;
+  --patch: #6a4291;
   --danger: #b63e34;
   --code: #f0f0ec;
   --json-key: #6a4291;
@@ -47,6 +49,8 @@
   --button-text: #101110;
   --get: #75a7e5;
   --post: #d6a466;
+  --put: #a9cebb;
+  --patch: #cbb0e5;
   --danger: #e48c84;
   --code: #141514;
   --json-key: #cbb0e5;
@@ -73,6 +77,8 @@
   --color-button-fg: var(--button-text);
   --color-get: var(--get);
   --color-post: var(--post);
+  --color-put: var(--put);
+  --color-patch: var(--patch);
   --color-danger: var(--danger);
   --color-code: var(--code);
   --color-json-key: var(--json-key);

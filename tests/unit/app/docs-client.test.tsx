@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import DocsPage from '@/app/docs/page';
-import { DocsClient } from '@/app/docs/docs-client';
+import { DocsClient, methodColor } from '@/app/docs/docs-client';
 import * as docsData from '@/app/docs/docs-data';
 
 describe('DocsPage & DocsClient', () => {
@@ -555,5 +555,20 @@ describe('DocsPage & DocsClient', () => {
       fireEvent.click(python);
       expect(python.getAttribute('aria-pressed')).toBe('true');
     });
+  });
+});
+
+describe('methodColor', () => {
+  it.each([
+    ['GET', 'text-get'],
+    ['POST', 'text-post'],
+    ['PUT', 'text-put'],
+    ['PATCH', 'text-patch'],
+    ['DELETE', 'text-danger'],
+    ['GET / POST', 'text-get'],
+    ['delete', 'text-danger'],
+    ['OPTIONS', 'text-muted'],
+  ])('colors %s as %s', (method, expected) => {
+    expect(methodColor(method)).toBe(expected);
   });
 });
