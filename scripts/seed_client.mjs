@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed a confidential OIDC client into a LOCAL MongoDB (docker compose).
+ * Seed a confidential OIDC client into a LOCAL MongoDB (see docker-compose.yml).
  *
  * Usage:
  *   node scripts/seed_client.mjs [--name "Local Test App"] \
@@ -8,7 +8,7 @@
  *     [--status production|testing] [--owner usr_...] [--delegated]
  *
  * Environment:
- *   MONGODB_URI - defaults to mongodb://localhost:27017/?directConnection=true
+ *   MONGODB_URI - defaults to mongodb://127.0.0.1:27017/?directConnection=true
  *   DB_NAME     - defaults to oauth2
  *
  * Prints the client_id and the raw client_secret once. Refuses non-local URIs.
@@ -17,7 +17,7 @@ import { hash } from '@node-rs/argon2';
 import mongoose from 'mongoose';
 import { nanoid } from 'nanoid';
 
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/?directConnection=true';
+const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/?directConnection=true';
 const dbName = process.env.DB_NAME || 'oauth2';
 
 // ── Mirrors ARGON2_CONFIG in src/lib/crypto/hash.ts ────────────────────────
@@ -47,8 +47,8 @@ if (!['production', 'testing'].includes(opts.status)) {
 }
 
 const host = new URL(mongoUri.replace(/^mongodb(\+srv)?:/, 'http:')).hostname;
-if (!['localhost', '127.0.0.1', 'mongo'].includes(host)) {
-  console.error(`Refusing to seed a non-local MongoDB (${host}). This script is for docker compose only.`);
+if (!['localhost', '127.0.0.1'].includes(host)) {
+  console.error(`Refusing to seed a non-local MongoDB (${host}). This script is for local development only.`);
   process.exit(1);
 }
 

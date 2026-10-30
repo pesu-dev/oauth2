@@ -1,12 +1,13 @@
-# Local stack: the production image + a single-node Mongo replica set.
-# Transactions (consent, refresh rotation, settings) require a replica set.
+# Local MongoDB for `pnpm dev`: a single-node replica set, because transactions
+# (consent, refresh rotation, settings) require one.
 #
-#   docker compose up --build        # app on http://localhost:8080
-#   docker compose up mongo          # Mongo only, for `pnpm dev` (see README)
+#   docker compose up -d --wait      # then use MONGODB_URI from .env.example
+#   docker compose down              # add -v to wipe the data
 
 services:
   mongo:
-    image: mongo:9
+    # Same major version as the Testcontainers suite and CI.
+    image: mongo:7
     command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       # Loopback only: this Mongo has no authentication.
@@ -15,54 +16,17 @@ services:
       - mongo-data:/data/db
     healthcheck:
       # Initiates the replica set on first boot; afterwards just reports status.
+      # The member advertises 127.0.0.1 so drivers on the host can reach the primary.
       test:
         - CMD
         - mongosh
         - --quiet
         - --eval
-        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }"
+        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] }).ok }"
       interval: 5s
       timeout: 10s
       start_period: 10s
       retries: 20
-
-  app:
-    build: .
-    ports:
-      # Loopback only: local mode serves plain HTTP with non-Secure session cookies.
-      - "127.0.0.1:8080:8080"
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      APP_ENV: local
-      MONGODB_URI: mongodb://mongo:27017/?replicaSet=rs0
-      ISSUER_URL: http://localhost:8080
-    depends_on:
-      mongo:
-        condition: service_healthy
-
-  # Node + pnpm toolbox over the bind-mounted source (no host Node needed):
-  #   docker compose run --rm tools pnpm test:unit
-  #   docker compose run --rm tools node scripts/seed_client.mjs
-  tools:
-    build:
-      context: .
-      target: deps
-    profiles: ["tools"]
-    working_dir: /app
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      MONGODB_URI: mongodb://mongo:27017/?replicaSet=rs0
-      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      mongo:
-        condition: service_healthy
 
 volumes:
   mongo-data:

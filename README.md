@@ -20,29 +20,19 @@ This project is **not affiliated with PESU University or PESU Academy**. Use at 
 
 ## Quick start (local)
 
-**Prerequisites:** Node.js 22+, [pnpm](https://pnpm.io/).
+**Prerequisites:** Node.js 22+, [pnpm](https://pnpm.io/), Docker (for the local MongoDB).
 
 ```bash
 cd oauth2
-cp .env.example .env   # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
+cp .env.example .env              # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
 pnpm install
+docker compose up -d --wait       # single-node Mongo replica set on 127.0.0.1:27017
+node --env-file=.env scripts/seed_client.mjs   # prints a test client_id + secret
 pnpm dev
 # Server running at http://localhost:3000
 ```
 
-## Quick start (Docker)
-
-Runs the production image against a single-node Mongo replica set (transactions require one). No host Node or pnpm needed. Ports are published on `127.0.0.1` only, because this Mongo has no authentication and the app serves plain HTTP.
-
-```bash
-docker compose up -d --build                        # app on http://localhost:8080
-docker compose run --rm tools node scripts/seed_client.mjs   # prints a test client_id + secret
-docker compose run --rm tools pnpm test:unit        # any pnpm script works through `tools`
-docker compose down                                 # add -v to wipe the Mongo volume
-```
-
-For hot reload, run only Mongo (`docker compose up -d mongo`) and start `pnpm dev` with
-`MONGODB_URI=mongodb://localhost:27017/?directConnection=true`.
+MongoDB runs as a replica set because transactions require one, and is published on `127.0.0.1` only because it has no authentication. `docker compose down` stops it; add `-v` to wipe the data.
 
 ## Development
 
