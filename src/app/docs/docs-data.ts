@@ -44,8 +44,10 @@ export const DEFAULT_PROD_ISSUER_URL = 'https://pesu-oauth2.onrender.com';
 export const CURRENT_API_VERSION = 'v1';
 export const AVAILABLE_API_VERSIONS = ['v1'] as const;
 
-interface ResourceDocSpec {
+export interface ResourceDocSpec {
   id: string;
+  /** Defaults to GET. */
+  method?: HttpMethod;
   path: string;
   title: string;
   scope: string;
@@ -145,14 +147,19 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
   },
 ];
 
-function resourceEndpointDocs(cleanBase: string, apiVersion: string): EndpointDoc[] {
-  return RESOURCE_DOCS.map((spec) => {
+export function resourceEndpointDocs(
+  cleanBase: string,
+  apiVersion: string,
+  specs: ResourceDocSpec[] = RESOURCE_DOCS
+): EndpointDoc[] {
+  return specs.map((spec) => {
+    const method = spec.method ?? 'GET';
     const path = `/api/${apiVersion}/${spec.path}`;
     const query = spec.query ?? [];
     const exampleQuery = query.length ? `?${query[0].name}=${query[0].example}` : '';
     return {
       id: spec.id,
-      method: 'GET' as const,
+      method,
       path,
       title: spec.title,
       category: 'Resource Server' as const,
@@ -203,9 +210,10 @@ function resourceEndpointDocs(cleanBase: string, apiVersion: string): EndpointDo
           sample: { error: 'academy_unavailable', error_description: 'PESU Academy did not return this resource' },
         },
       ],
-      curlSample: `curl -X GET "${cleanBase}${path}${exampleQuery}" \\
+      curlSample: `curl -X ${method} "${cleanBase}${path}${exampleQuery}" \\
   -H "Authorization: Bearer $ACCESS_TOKEN"`,
       fetchSample: `const response = await fetch("${cleanBase}${path}${exampleQuery}", {
+  method: "${method}",
   headers: { Authorization: \`Bearer \${accessToken}\` },
 });
 if (response.status === 403) throw new Error("Ask for ${spec.scope} again");
@@ -213,7 +221,7 @@ const { data } = await response.json();
 console.log(data);`,
       pythonSample: `import requests
 
-response = requests.get(
+response = requests.${method.toLowerCase()}(
     "${cleanBase}${path}${exampleQuery}",
     headers={"Authorization": f"Bearer {access_token}"},
 )

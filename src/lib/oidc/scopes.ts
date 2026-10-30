@@ -45,7 +45,7 @@ export const SCOPES: readonly ScopeDefinition[] = [
     name: 'email',
     kind: 'identity',
     consentLabel: 'View your Email Address',
-    description: 'Your official university email registered on PESU Academy.',
+    description: 'Your email registered on PESU Academy.',
     sensitive: false,
     requiresDelegated: false,
     claims: ['email'],
