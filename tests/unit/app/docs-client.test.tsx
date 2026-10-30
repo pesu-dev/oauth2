@@ -486,6 +486,26 @@ describe('DocsPage & DocsClient', () => {
       vi.unstubAllGlobals();
     });
 
+    it('sends the method the endpoint declares', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 204, ok: true, text: async () => '' });
+      vi.stubGlobal('fetch', fetchMock);
+      const originalCreateEndpoints = docsData.createEndpoints;
+      const spy = vi.spyOn(docsData, 'createEndpoints').mockImplementation((url) =>
+        originalCreateEndpoints(url).map((ep) => (ep.id === 'jwks' ? { ...ep, method: 'DELETE' as const } : ep))
+      );
+
+      try {
+        render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+        });
+        expect(fetchMock).toHaveBeenCalledWith('/jwks.json', expect.objectContaining({ method: 'DELETE' }));
+      } finally {
+        spy.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('adds the bearer token for userinfo and shows raw non-JSON bodies', async () => {
       const fetchMock = vi.fn().mockResolvedValue({ status: 401, ok: false, text: async () => 'unauthorized' });
       vi.stubGlobal('fetch', fetchMock);

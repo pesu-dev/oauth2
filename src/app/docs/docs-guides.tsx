@@ -441,7 +441,7 @@ async function generatePkcePair() {
                   </td>
                   <td className="py-2.5 px-3 font-mono text-soft">email</td>
                   <td className="py-2.5 px-3 text-soft">
-                    Official verified student PES University email address (e.g. name@pesu.pes.edu).
+                    Email address registered on PESU Academy. It may be a university or a personal address.
                   </td>
                 </tr>
                 <tr>

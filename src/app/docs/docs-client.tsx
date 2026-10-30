@@ -38,10 +38,13 @@ const METHOD_COLORS: Record<HttpMethod, string> = {
   DELETE: 'text-danger',
 };
 
-/** Colors a method badge by its first method, so "GET / POST" reads as GET. */
+/** The first method of an endpoint, so "GET / POST" reads as GET. */
+export function primaryMethod(method: string): string {
+  return method.split('/')[0].trim().toUpperCase();
+}
+
 export function methodColor(method: string): string {
-  const first = method.split('/')[0].trim().toUpperCase();
-  return METHOD_COLORS[first as HttpMethod] ?? 'text-muted';
+  return METHOD_COLORS[primaryMethod(method) as HttpMethod] ?? 'text-muted';
 }
 
 function displayPath(ep: EndpointDoc): string {
@@ -227,7 +230,7 @@ export function DocsClient({
         headers.Authorization = `Bearer ${bearerToken.trim()}`;
       }
       // Same-origin only: the explorer is served by the issuer itself.
-      const res = await fetch(ep.path, { method: 'GET', headers });
+      const res = await fetch(ep.path, { method: primaryMethod(ep.method), headers });
       const text = await res.text();
       let body = text;
       try {
