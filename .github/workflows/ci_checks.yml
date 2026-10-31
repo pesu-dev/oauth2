@@ -131,6 +131,9 @@ jobs:
   pr_image_build:
     name: Build image on PR
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      packages: write
     uses: pesu-dev/actions/.github/workflows/build_push_image.yml@v1
     with:
       image_tag: ${{ github.event.pull_request.head.sha }}
