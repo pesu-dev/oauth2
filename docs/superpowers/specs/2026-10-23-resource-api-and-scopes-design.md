@@ -22,7 +22,7 @@ Let approved third-party apps read a student's own PESU Academy data (courses, a
 | Data minimization | Responses are allowlists: each resource maps a fixed set of output fields from candidate Academy keys. Raw Academy objects (which include parents' contact details, addresses, etc.) are never passed through. |
 | Revocation | Every API call re-checks the user (not deleted), the client (not suspended, scope still approved) and the consent (delegated, includes the scope). Revoking in Settings takes effect immediately, not when the 1-hour access JWT expires. |
 | Rate limiting | 30 requests/min per student+app (`apiLimiter`), on top of the proxy's per-IP limits, to protect PESU Academy. |
-| Excluded in v1 | `change_password`, placement, admin SRN search, `raw_request`, e-learning, daily feedback. Photo (`photo:read`) is planned with images. |
+| Excluded in v1 | `change_password`, placement, admin SRN search, `raw_request`, e-learning, daily feedback. |
 
 ## Scope catalog (v1)
 
@@ -36,6 +36,7 @@ Let approved third-party apps read a student's own PESU Academy data (courses, a
 | `announcements:read` | `GET /api/v1/announcements?page=` | 20 / 5 |
 | `assignments:read` | `GET /api/v1/assignments` | 37 / 1 |
 | `seating:read` | `GET /api/v1/seating` | 13 / 3 |
+| `photo:read` | `GET /api/v1/photo` (image bytes, `private, no-store`); adds the `picture` claim | 27 / 1, menuId `11172` — **works today** |
 
 Action/mode codes come from the reverse-engineered mobile app ([Vision2822/pesu-api](https://github.com/Vision2822/pesu-api) `pesu_api/endpoints.py`); the client is reimplemented in-repo, not added as a dependency.
 

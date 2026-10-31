@@ -317,13 +317,13 @@ describe('DocsPage & DocsClient', () => {
 
   it('omits next button on the last item in documentation', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const seatingBtn = screen.getAllByText('/api/seating')[0].closest('button');
-    expect(seatingBtn).toBeDefined();
-    fireEvent.click(seatingBtn!);
+    const photoBtn = screen.getAllByText('/api/photo')[0].closest('button');
+    expect(photoBtn).toBeDefined();
+    fireEvent.click(photoBtn!);
 
     // The last resource endpoint has no Next item
     expect(screen.queryByText('Next')).toBeNull();
-    expect(screen.getByText('Exam Seating')).toBeDefined();
+    expect(screen.getByText('Student Photo')).toBeDefined();
   });
 
   it('renders and navigates to API Versioning guide and handles version selector', () => {
@@ -572,6 +572,21 @@ describe('DocsPage & DocsClient', () => {
         fireEvent.click(screen.getByRole('button', { name: /send request/i }));
       });
       expect(fetchMock.mock.calls[0][1].headers).toEqual({ Accept: 'application/json' });
+      vi.unstubAllGlobals();
+    });
+
+    it('summarizes binary image responses instead of printing bytes', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        headers: new Headers({ 'content-type': 'image/jpeg' }),
+        arrayBuffer: async () => new ArrayBuffer(1234),
+      }));
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="photo" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(screen.getByText('Binary image/jpeg response (1234 bytes)')).toBeDefined();
       vi.unstubAllGlobals();
     });
 

@@ -27,6 +27,7 @@ export const RESOURCE_ENDPOINTS = [
   'announcements',
   'assignments',
   'seating',
+  'photo',
 ];
 
 const RESOURCE_ROUTES = RESOURCE_ENDPOINTS.flatMap((ep) => [

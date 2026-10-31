@@ -241,6 +241,12 @@ export function DocsClient({
       }
       // Same-origin only: the explorer is served by the issuer itself.
       const res = await fetch(ep.path, { method: primaryMethod(ep.method), headers });
+      const contentType = res.headers?.get?.('content-type') ?? '';
+      if (contentType.startsWith('image/')) {
+        const size = (await res.arrayBuffer()).byteLength;
+        finish({ status: res.status, ok: res.ok, body: `Binary ${contentType} response (${size} bytes)` });
+        return;
+      }
       const text = await res.text();
       let body = text;
       try {
