@@ -36,7 +36,7 @@ jobs:
       diff_url: ${{ steps.diff_summary.outputs.diff_url }}
     steps:
       - name: Checkout workflow ref
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -181,7 +181,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout target SHA
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0

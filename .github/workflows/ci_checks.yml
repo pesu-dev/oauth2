@@ -6,6 +6,8 @@ on:
       - opened
       - reopened
       - synchronize
+    branches:
+      - main
   push:
     branches:
       - main
@@ -13,34 +15,20 @@ on:
     types:
       - checks_requested
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
-  pr_target_checker:
-    name: PR target branch checker
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate PR targets main
-        run: |
-          set -euo pipefail
-
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Non-PR event (${{ github.event_name }}): branch checker passes."
-            exit 0
-          fi
-
-          echo "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.head.ref }} -> ${{ github.event.pull_request.base.ref }}"
-
-          if [ "${{ github.event.pull_request.base.ref }}" != "main" ]; then
-            echo "Pull requests must target the main branch."
-            exit 1
-          fi
-
   package_checks:
     name: Package checks & Typecheck
-    needs: [pr_target_checker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -62,11 +50,10 @@ jobs:
 
   unit_tests:
     name: Unit tests
-    needs: [pr_target_checker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -85,12 +72,11 @@ jobs:
 
   integration_tests:
     name: Integration tests
-    needs: [pr_target_checker]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -114,11 +100,10 @@ jobs:
 
   build_check:
     name: Next.js Production Build
-    needs: [pr_target_checker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -132,12 +117,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
       - name: Run Next.js build
         run: pnpm build
 
   pr_image_build:
     name: Build image on PR
-    needs: [pr_target_checker]
     if: github.event_name == 'pull_request'
     uses: pesu-dev/actions/.github/workflows/build_push_image.yml@v1
     with:
@@ -147,7 +139,6 @@ jobs:
   greenlight:
     name: Greenlight - CI checks
     needs:
-      - pr_target_checker
       - package_checks
       - unit_tests
       - integration_tests
@@ -159,7 +150,6 @@ jobs:
       - name: Collect CI check statuses
         env:
           CHECK_RESULTS: >-
-            pr_target_checker=${{ needs.pr_target_checker.result }}
             package_checks=${{ needs.package_checks.result }}
             unit_tests=${{ needs.unit_tests.result }}
             integration_tests=${{ needs.integration_tests.result }}
