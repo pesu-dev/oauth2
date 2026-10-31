@@ -130,9 +130,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   const blockedScopes = unapprovedScopes(requestedScopes, client.allowed_scopes);
   if (blockedScopes.length > 0) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         invalid_scope: this application is not approved for {blockedScopes.join(', ')}.
-      </div>
+      </AuthorizeError>
     );
   }
 
@@ -149,9 +149,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     }
     if (params.mode === 'identity' && needsDelegated) {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+        <AuthorizeError>
           PESU Academy data scopes need delegated mode; mode=identity cannot be combined with them.
-        </div>
+        </AuthorizeError>
       );
     }
     if (params.mode === 'delegated' && !client.delegated_allowed) {
