@@ -10,7 +10,7 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 
 // pesu-auth `.control`: hairline field on the surface color, monospace label
 export const controlStyles =
-  'w-full px-3 py-2.5 rounded-[5px] text-sm bg-surface border border-line text-fg placeholder:text-muted transition-colors focus:outline-none focus:border-line-strong focus-visible:outline-2 focus-visible:outline-fg focus-visible:outline-offset-1';
+  'w-full px-3 py-2.5 rounded-[5px] text-sm bg-surface border border-line text-fg placeholder:text-muted transition-colors focus:border-line-strong focus-visible:outline-2 focus-visible:outline-fg focus-visible:outline-offset-1';
 
 export const labelStyles = 'block font-mono text-[10px] uppercase tracking-[0.02em] text-muted';
 

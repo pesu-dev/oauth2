@@ -22,6 +22,9 @@ interface DrawerContextValue {
   descriptionId: string;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const DrawerContext = React.createContext<DrawerContextValue | null>(null);
 
 function useDrawer(): DrawerContextValue {
@@ -34,8 +37,6 @@ export interface DrawerProps {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** Accepted for API compatibility with the previous vaul drawer; no effect. */
-  shouldScaleBackground?: boolean;
   children?: React.ReactNode;
 }
 
@@ -121,39 +122,69 @@ export function DrawerContent({ className, children, ...props }: React.HTMLAttri
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // The page behind the modal must not be reachable by keyboard or assistive tech.
+    const background = Array.from(document.body.children).filter(
+      (el) => !el.hasAttribute('data-drawer-root') && !el.hasAttribute('inert')
+    );
+    background.forEach((el) => el.setAttribute('inert', ''));
     panelRef.current?.focus();
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
+      background.forEach((el) => el.removeAttribute('inert'));
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus?.();
     };
+    // Only `open`: parents often pass an inline onOpenChange, and re-running this would steal focus from inputs.
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+      const panel = panelRef.current;
+      if (event.key !== 'Tab' || !panel) return;
+
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const first = focusable[0] ?? panel;
+      const last = focusable[focusable.length - 1] ?? panel;
+      const active = document.activeElement;
+      if (!panel.contains(active) || (event.shiftKey && (active === first || active === panel))) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, setOpen]);
 
   if (!open) return null;
 
   return (
     <DrawerPortal>
-      <DrawerOverlay />
-      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none min-[701px]:inset-0 min-[701px]:items-center p-0 min-[701px]:p-6">
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          aria-describedby={descriptionId}
-          tabIndex={-1}
-          className={cn(
-            'pointer-events-auto w-full max-h-[90vh] overflow-y-auto bg-surface border border-line shadow-panel rounded-t-md min-[701px]:rounded-md focus:outline-none',
-            className
-          )}
-          {...props}
-        >
-          <div className="p-6">{children}</div>
+      <div data-drawer-root="">
+        <DrawerOverlay />
+        <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none min-[701px]:inset-0 min-[701px]:items-center p-0 min-[701px]:p-6">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+            tabIndex={-1}
+            className={cn(
+              'pointer-events-auto w-full max-h-[90vh] overflow-y-auto bg-surface border border-line shadow-panel rounded-t-md min-[701px]:rounded-md focus:outline-none',
+              className
+            )}
+            {...props}
+          >
+            <div className="p-6">{children}</div>
+          </div>
         </div>
       </div>
     </DrawerPortal>

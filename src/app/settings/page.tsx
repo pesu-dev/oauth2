@@ -162,7 +162,7 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Profile Summary Card */}
         <Card>
-          <CardHeader icon={<User className="w-5 h-5" />} iconColor="blue" className="mb-4">
+          <CardHeader icon={<User className="w-5 h-5" />} className="mb-4">
             <CardTitle className="text-lg">{user?.name}</CardTitle>
             <CardDescription className="text-xs">{user?.prn} • {user?.srn}</CardDescription>
           </CardHeader>
@@ -191,7 +191,7 @@ export default function SettingsPage() {
         <Card className="flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <CardHeader icon={<Lock className="w-5 h-5" />} iconColor="purple" className="mb-0">
+              <CardHeader icon={<Lock className="w-5 h-5" />} className="mb-0">
                 <CardTitle className="text-lg">Credential Vault</CardTitle>
                 <CardDescription className="text-xs">Delegated API permissions</CardDescription>
               </CardHeader>

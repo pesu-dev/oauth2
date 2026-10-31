@@ -486,6 +486,48 @@ describe('DocsPage & DocsClient', () => {
       vi.unstubAllGlobals();
     });
 
+    it('never shows a response under a different endpoint', async () => {
+      let resolveFetch: (value: unknown) => void = () => {};
+      vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => { resolveFetch = resolve; })));
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+
+      // Moves on while the request is in flight, without going through the sidebar.
+      window.location.hash = '#openid-configuration';
+      await act(async () => {
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
+      await act(async () => {
+        resolveFetch({ status: 200, ok: true, text: async () => '{"keys":[]}' });
+      });
+      expect(screen.queryByText('HTTP 200')).toBeNull();
+      expect(document.body.textContent).not.toContain('"keys": []');
+      window.location.hash = '';
+      vi.unstubAllGlobals();
+    });
+
+    it('ignores an older response once a newer request was sent', async () => {
+      const resolvers: ((value: unknown) => void)[] = [];
+      vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => { resolvers.push(resolve); })));
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="jwks" />);
+      const send = screen.getByRole('button', { name: /send request/i });
+      await act(async () => {
+        fireEvent.submit(send.closest('form')!);
+        fireEvent.submit(send.closest('form')!);
+      });
+      await act(async () => {
+        resolvers[1]({ status: 201, ok: true, text: async () => '{}' });
+      });
+      await act(async () => {
+        resolvers[0]({ status: 500, ok: false, text: async () => '{}' });
+      });
+      expect(screen.getByText('HTTP 201')).toBeDefined();
+      expect(screen.queryByText('HTTP 500')).toBeNull();
+      vi.unstubAllGlobals();
+    });
+
     it('sends the method the endpoint declares', async () => {
       const fetchMock = vi.fn().mockResolvedValue({ status: 204, ok: true, text: async () => '' });
       vi.stubGlobal('fetch', fetchMock);

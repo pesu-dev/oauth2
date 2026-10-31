@@ -167,11 +167,11 @@ Database name: `oauth2`. Cluster selected by `APP_ENV` (see technical plan). Run
 Next.js App Router pages (originally specified as server-rendered Jinja2). The visual language matches the pesu-auth API explorer ([pesu-dev/auth `app/templates/playground.html`](https://github.com/pesu-dev/auth/blob/main/app/templates/playground.html)) so PESU developer surfaces read as one family:
 
 - Tokens: warm neutral palette with light/dark values defined once in `src/app/globals.css` and exposed to Tailwind (`bg-surface`, `text-muted`, `border-line`, `text-get` / `text-post` method colors, JSON colors).
-- Type: Georgia serif for brand and headings, uppercase monospace micro-labels (`eyebrow`), Arial body text; hairline borders, 5–6px radii, no glass or blur effects.
+- Type: Georgia serif for brand and headings, uppercase monospace micro-labels (`eyebrow`), Arial body text; hairline borders, 5–6px radii. Content surfaces are solid: blur is only for the topbar and the dialog overlay, and is removed under `prefers-reduced-transparency`.
 - Chrome: sticky blurred topbar, interactive dot-grid background (static under `prefers-reduced-motion`), three-way System / Light / Dark theme radio stored as `pesuoauth-theme`.
 - Docs: three-pane explorer (endpoint sidebar, reference column, request panel with **Copy for LLM** and same-origin **Send request** for public and bearer endpoints).
 
-Motion is limited to color and opacity transitions and is disabled under `prefers-reduced-motion`; nothing may obscure publisher, redirect URI, or the storage sentence. *(Amended 2026-10-23: replaces the earlier Apple-design / spring-motion direction.)*
+Motion is limited to color and opacity transitions, small hover nudges and loading spinners, and is disabled under `prefers-reduced-motion`; nothing may obscure publisher, redirect URI, or the storage sentence. *(Amended 2026-10-23: replaces the earlier Apple-design / spring-motion direction.)*
 
 ### Product surfaces
 

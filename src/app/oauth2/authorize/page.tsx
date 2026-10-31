@@ -18,6 +18,14 @@ function computeExpiresAt(ttlSeconds: number): Date {
   return new Date(Date.now() + ttlSeconds * 1000);
 }
 
+function AuthorizeError({ className = '', children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div role="alert" className={`max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 export function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(rawParams)) {
@@ -59,34 +67,34 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!clientId || !redirectUri || responseType !== 'code') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         Invalid authorization request. Required: client_id, redirect_uri, and response_type=code.
-      </div>
+      </AuthorizeError>
     );
   }
 
   // PKCE is strictly required (RFC 7636)
   if (!codeChallenge || !codeChallengeMethod) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         Authorization requires PKCE with code_challenge and code_challenge_method=S256.
-      </div>
+      </AuthorizeError>
     );
   }
 
   if (codeChallengeMethod !== 'S256') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         Only code_challenge_method=S256 is supported.
-      </div>
+      </AuthorizeError>
     );
   }
 
   if (!PKCE_CHALLENGE_RE.test(codeChallenge)) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         code_challenge must be a valid BASE64URL (S256) string (43–128 characters).
-      </div>
+      </AuthorizeError>
     );
   }
 
@@ -97,9 +105,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
 
   if (!requestedScopes.includes('openid')) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         A valid openid scope is required in the scope parameter.
-      </div>
+      </AuthorizeError>
     );
   }
 
@@ -107,17 +115,17 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   const client = await Client.findOne({ client_id: clientId });
   if (!client) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         Client application not found.
-      </div>
+      </AuthorizeError>
     );
   }
 
   if (!client.redirect_uris.includes(redirectUri)) {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+      <AuthorizeError>
         Redirect URI is not registered for this client application.
-      </div>
+      </AuthorizeError>
     );
   }
 
@@ -126,16 +134,16 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   if (params.mode) {
     if (params.mode !== 'identity' && params.mode !== 'delegated') {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+        <AuthorizeError>
           Invalid mode parameter: must be &quot;identity&quot; or &quot;delegated&quot;.
-        </div>
+        </AuthorizeError>
       );
     }
     if (params.mode === 'delegated' && !client.delegated_allowed) {
       return (
-        <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm">
+        <AuthorizeError>
           Delegated access not permitted: This client application is not approved for delegated vault access.
-        </div>
+        </AuthorizeError>
       );
     }
     targetMode = params.mode;
@@ -156,12 +164,12 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
   // Check Suspension Gate: suspended clients cannot be authorized
   if (client.publishing_status === 'suspended') {
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-md bg-danger/5 border border-danger/40 text-danger text-sm space-y-2">
+      <AuthorizeError className="space-y-2">
         <h3 className="font-serif text-xl font-normal">Application Suspended</h3>
         <p>
           This application has been suspended by an administrator and cannot be authorized at this time.
         </p>
-      </div>
+      </AuthorizeError>
     );
   }
 

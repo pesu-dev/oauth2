@@ -28,18 +28,14 @@ export function Card({
 
 export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   icon?: React.ReactNode;
-  /** Accepted for backwards compatibility; icons render in the neutral palette. */
-  iconColor?: string;
 }
 
 export function CardHeader({
   className,
   children,
   icon,
-  iconColor: _iconColor,
   ...props
 }: CardHeaderProps) {
-  void _iconColor;
   if (icon) {
     return (
       <div className={cn('flex items-center gap-3 mb-4', className)} {...props}>

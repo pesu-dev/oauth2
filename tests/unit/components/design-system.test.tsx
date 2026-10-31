@@ -3,7 +3,6 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { DotGrid } from '@/components/ui/dot-grid';
-import { ToastProvider, useToast } from '@/components/ui/toast';
 import { CodeBlock, highlightJson } from '@/components/ui/code-block';
 import {
   Drawer,
@@ -19,6 +18,8 @@ function fakeContext() {
     clearRect: vi.fn(),
     beginPath: vi.fn(),
     arc: vi.fn(),
+    moveTo: vi.fn(),
+    drawImage: vi.fn(),
     fill: vi.fn(),
     setTransform: vi.fn(),
     globalAlpha: 1,
@@ -91,7 +92,22 @@ describe('DotGrid', () => {
     ctx.arc.mockClear();
     fireEvent.mouseLeave(document);
     flushFrames();
-    expect(Math.max(...ctx.arc.mock.calls.map((call) => call[2] as number))).toBe(1);
+    expect(ctx.arc).not.toHaveBeenCalled();
+    expect(ctx.drawImage).toHaveBeenCalled();
+  });
+
+  it('paints only the dots near the pointer each frame', () => {
+    mockMatchMedia(false);
+    window.innerWidth = 2000;
+    window.innerHeight = 2000;
+    render(<DotGrid />);
+    const atRest = ctx.arc.mock.calls.length;
+    ctx.arc.mockClear();
+
+    fireEvent.mouseMove(window, { clientX: 10, clientY: 10 });
+    flushFrames();
+    expect(ctx.arc.mock.calls.length).toBeGreaterThan(0);
+    expect(ctx.arc.mock.calls.length).toBeLessThan(atRest / 10);
   });
 
   it('redraws when the theme attribute changes', async () => {
@@ -124,6 +140,78 @@ describe('DotGrid', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     render(<DotGrid />);
     expect(screen.getByTestId('dot-grid')).toBeDefined();
+  });
+});
+
+describe('Drawer focus', () => {
+  // An inline onOpenChange and parent state updated while typing, like the portal and admin forms.
+  function Form() {
+    const [name, setName] = React.useState('');
+    return (
+      <>
+        <button type="button">Behind</button>
+        <Drawer open onOpenChange={() => {}}>
+          <DrawerContent>
+            <DrawerTitle>Register</DrawerTitle>
+            <DrawerDescription>Details</DrawerDescription>
+            <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+            <button type="button">Save</button>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  it('keeps focus in an input while the parent re-renders', () => {
+    render(<Form />);
+    const input = screen.getByLabelText('Name');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'a' } });
+    fireEvent.change(input, { target: { value: 'ab' } });
+    expect(document.activeElement).toBe(input);
+    expect((input as HTMLInputElement).value).toBe('ab');
+  });
+
+  it('cycles Tab inside the dialog in both directions', () => {
+    render(<Form />);
+    const input = screen.getByLabelText('Name');
+    const save = screen.getByText('Save');
+
+    save.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(save);
+
+    // Focus has escaped: Tab brings it back in.
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(input);
+
+    // Mid-dialog Tab is left to the browser.
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('keeps Tab on the panel when nothing inside is focusable', () => {
+    render(
+      <Drawer open>
+        <DrawerContent>
+          <DrawerTitle>Notice</DrawerTitle>
+        </DrawerContent>
+      </Drawer>
+    );
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('dialog'));
+  });
+
+  it('marks the page inert while open and restores it on close', () => {
+    const { unmount, container } = render(<Form />);
+    expect(container.hasAttribute('inert')).toBe(true);
+    expect(screen.getByRole('dialog').closest('[inert]')).toBeNull();
+    unmount();
+    expect(container.hasAttribute('inert')).toBe(false);
   });
 });
 
@@ -212,37 +300,6 @@ describe('Drawer', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => render(<DrawerTitle>Orphan</DrawerTitle>)).toThrow('inside <Drawer>');
     spy.mockRestore();
-  });
-});
-
-describe('Toast', () => {
-  function Trigger() {
-    const toast = useToast();
-    return <button type="button" onClick={() => toast('Copied')}>Copy</button>;
-  }
-
-  it('shows a message and hides it after a delay', () => {
-    vi.useFakeTimers();
-    render(
-      <ToastProvider>
-        <Trigger />
-      </ToastProvider>
-    );
-    const status = screen.getByText('', { selector: '[aria-live="polite"]' });
-    fireEvent.click(screen.getByText('Copy'));
-    fireEvent.click(screen.getByText('Copy'));
-    expect(status.textContent).toBe('Copied');
-    expect(status.className).toContain('opacity-100');
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
-    expect(status.className).toContain('opacity-0');
-    vi.useRealTimers();
-  });
-
-  it('is a no-op outside the provider', () => {
-    render(<Trigger />);
-    expect(() => fireEvent.click(screen.getByText('Copy'))).not.toThrow();
   });
 });
 

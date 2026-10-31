@@ -150,6 +150,13 @@
   }
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    background-color: var(--bg) !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

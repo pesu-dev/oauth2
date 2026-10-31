@@ -52,6 +52,7 @@ function displayPath(ep: EndpointDoc): string {
 }
 
 interface SendResult {
+  path: string;
   status: number;
   ok: boolean;
   body: string;
@@ -119,8 +120,9 @@ export function DocsClient({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [selectedApiVersion, setSelectedApiVersion] = React.useState<string>(CURRENT_API_VERSION);
   const [bearerToken, setBearerToken] = React.useState('');
-  const [sending, setSending] = React.useState(false);
-  const [sendResult, setSendResult] = React.useState<SendResult | null>(null);
+  const [sendingPath, setSendingPath] = React.useState<string | null>(null);
+  const [lastResult, setSendResult] = React.useState<SendResult | null>(null);
+  const latestSend = React.useRef(0);
 
   const endpoints = React.useMemo(
     () => createEndpoints(issuerUrl, selectedApiVersion),
@@ -185,7 +187,7 @@ export function DocsClient({
     return endpoints.filter(
       (ep) =>
         ep.path.toLowerCase().includes(q) ||
-        ep.path.replace(/\/api\/v\d+\//, '/api/').toLowerCase().includes(q) ||
+        displayPath(ep).toLowerCase().includes(q) ||
         ep.title.toLowerCase().includes(q) ||
         ep.summary.toLowerCase().includes(q) ||
         ep.method.toLowerCase().includes(q) ||
@@ -221,8 +223,16 @@ export function DocsClient({
       : currentEndpoint.pythonSample
     : '';
 
+  // Results belong to one path, so they never show under another endpoint or API version.
+  const sending = sendingPath !== null && sendingPath === currentEndpoint?.path;
+  const sendResult = lastResult?.path === currentEndpoint?.path ? lastResult : null;
+
   const sendRequest = async (ep: EndpointDoc) => {
-    setSending(true);
+    const sendId = ++latestSend.current;
+    const finish = (result: Omit<SendResult, 'path'>) => {
+      if (sendId === latestSend.current) setSendResult({ ...result, path: ep.path });
+    };
+    setSendingPath(ep.path);
     setSendResult(null);
     try {
       const headers: Record<string, string> = { Accept: 'application/json' };
@@ -238,11 +248,11 @@ export function DocsClient({
       } catch {
         // not JSON; show raw text
       }
-      setSendResult({ status: res.status, ok: res.ok, body });
+      finish({ status: res.status, ok: res.ok, body });
     } catch (err: unknown) {
-      setSendResult({ status: 0, ok: false, body: err instanceof Error ? err.message : String(err) });
+      finish({ status: 0, ok: false, body: err instanceof Error ? err.message : String(err) });
     } finally {
-      setSending(false);
+      if (sendId === latestSend.current) setSendingPath(null);
     }
   };
 
