@@ -47,6 +47,20 @@ describe('Database Connection Singleton', () => {
     );
   });
 
+  it('ignores an Atlas cert on disk for the local URI', async () => {
+    vi.spyOn(configHelper, 'getConfig').mockReturnValue({
+      mongoUri: 'mongodb://127.0.0.1:27017/oauth2?directConnection=true',
+      dbName: 'oauth2_test',
+      mongoX509CertPath: '/certs/mongo.pem',
+    } as ReturnType<typeof configHelper.getConfig>);
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const connectSpy = vi.spyOn(mongoose, 'connect').mockResolvedValue({} as typeof mongoose);
+
+    await connectToDatabase();
+    expect(connectSpy.mock.calls[0][1]).toEqual({ dbName: 'oauth2_test', bufferCommands: false });
+  });
+
   it('resets cached promise on connection error and re-throws', async () => {
     vi.spyOn(mongoose, 'connect').mockRejectedValueOnce(new Error('Connection failed'));
 

@@ -9,3 +9,5 @@ legacy
 tests
 vitest.config.ts
 *.md
+scratch
+*.pem

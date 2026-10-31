@@ -1032,7 +1032,7 @@ describe('Authorize Page & Consent', () => {
       ).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
 
       // 5. Direct test for buildAuthorizeUrl with empty params
-      expect(buildAuthorizeUrl({})).toBe('/authorize');
+      expect(buildAuthorizeUrl({})).toBe('/oauth2/authorize');
     });
   });
 });

@@ -20,15 +20,19 @@ This project is **not affiliated with PESU University or PESU Academy**. Use at 
 
 ## Quick start (local)
 
-**Prerequisites:** Node.js 22+, [pnpm](https://pnpm.io/).
+**Prerequisites:** Node.js 22+, [pnpm](https://pnpm.io/), Docker (for the local MongoDB).
 
 ```bash
 cd oauth2
 cp .env.example .env   # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
 pnpm install
+docker compose up -d --wait   # single-node Mongo replica set on 127.0.0.1:27017
+node --env-file=.env scripts/seed_client.mjs   # prints a test client_id + secret
 pnpm dev
 # Server running at http://localhost:3000
 ```
+
+MongoDB runs as a replica set because transactions require one, and is published on `127.0.0.1` only because it has no authentication. `docker compose down` stops it; add `-v` to wipe the data.
 
 ## Development
 
