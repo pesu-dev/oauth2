@@ -12,6 +12,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: 'testing' | 'pending' | 'pending_production' | 'production' | 'suspended' | 'identity' | 'delegated' | 'neutral' | 'required' | 'optional';
 }
 
+// pesu-auth `.status-chip`: hairline pill, monospace label, semantic text color
 export function Badge({
   className,
   variant = 'neutral',
@@ -19,32 +20,23 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const variants = {
-    testing:
-      'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20',
-    pending:
-      'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20',
-    pending_production:
-      'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20',
-    production:
-      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20',
-    suspended:
-      'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20',
-    identity:
-      'bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20',
-    delegated:
-      'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20',
-    neutral:
-      'bg-black/5 dark:bg-white/10 text-zinc-700 dark:text-zinc-300 border border-black/5 dark:border-white/10',
-    required:
-      'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20',
-    optional:
-      'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700',
+    testing: 'text-warning border-warning/40',
+    pending: 'text-get border-get/40',
+    pending_production: 'text-get border-get/40',
+    production: 'text-success border-success/40',
+    suspended: 'text-danger border-danger/40',
+    identity: 'text-get border-get/40',
+    delegated: 'text-json-key border-json-key/40',
+    neutral: 'text-muted border-line-strong',
+    required: 'text-danger border-danger/40',
+    optional: 'text-muted border-line',
   };
 
   return (
     <span
+      data-variant={variant}
       className={cn(
-        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide uppercase',
+        'inline-flex items-center px-2 py-0.5 rounded-full border bg-surface font-mono text-[10px] uppercase tracking-[0.02em] whitespace-nowrap',
         variants[variant],
         className
       )}

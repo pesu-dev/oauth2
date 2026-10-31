@@ -55,11 +55,11 @@ oauth2/
   docs/superpowers/  # approved design spec + Next.js migration implementation plan
   src/
     app/             # Next.js App Router (pages & API route handlers)
-    components/      # Reusable Apple-design UI components
+    components/      # Reusable UI components (pesu-auth design language)
     lib/             # Core engines (OIDC, Academy client, crypto, db models)
     proxy.ts         # Edge routing and security proxy
   tests/             # Unit tests (Vitest)
-  .agents/           # Curated agent skills (incl. Apple-design)
+  .agents/           # Curated agent skills
   .githooks/         # Git hooks (install via .githooks/install.sh)
   .github/           # CI, staging deploy, prod promote
 ```

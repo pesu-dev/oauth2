@@ -1,43 +1,166 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
+/*
+ * Design tokens — mirrors the pesu-auth API explorer (pesu-dev/auth app/templates/playground.html)
+ * so the two PESU developer surfaces read as one family.
+ */
 :root {
-  --background: #fbfbfd;
-  --foreground: #1d1d1f;
-  --card-bg: rgba(255, 255, 255, 0.72);
-  --card-border: rgba(0, 0, 0, 0.08);
-  --card-specular: rgba(255, 255, 255, 0.6);
+  color-scheme: light;
+  --bg: #f7f7f5;
+  --surface: #fff;
+  --surface-soft: #efefec;
+  --line: #d8d8d2;
+  --line-strong: #a9aaa4;
+  --text: #171816;
+  --muted: #6f716b;
+  --soft: #444740;
+  --button: #171816;
+  --button-text: #fff;
+  --get: #2563a8;
+  --post: #a45d13;
+  --put: #286548;
+  --patch: #6a4291;
+  --danger: #b63e34;
+  --code: #f0f0ec;
+  --json-key: #6a4291;
+  --json-string: #286548;
+  --json-number: #965018;
+  --json-literal: #235b98;
+  --success: #286548;
+  --warning: #965018;
+  --shadow: 0 10px 35px rgba(30, 31, 28, 0.06);
+  --dot: rgba(0, 0, 0, 0.08);
+  --dot-active: rgba(0, 0, 0, 0.16);
 }
 
-.dark {
-  --background: #000000;
-  --foreground: #f5f5f7;
-  --card-bg: rgba(28, 28, 30, 0.72);
-  --card-border: rgba(255, 255, 255, 0.12);
-  --card-specular: rgba(255, 255, 255, 0.15);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #090a09;
+  --surface: #101110;
+  --surface-soft: #191a19;
+  --line: #292b29;
+  --line-strong: #515451;
+  --text: #f1f1ed;
+  --muted: #969a94;
+  --soft: #c7cac4;
+  --button: #f1f1ed;
+  --button-text: #101110;
+  --get: #75a7e5;
+  --post: #d6a466;
+  --put: #a9cebb;
+  --patch: #cbb0e5;
+  --danger: #e48c84;
+  --code: #141514;
+  --json-key: #cbb0e5;
+  --json-string: #a9cebb;
+  --json-number: #e6bc91;
+  --json-literal: #a8c8ef;
+  --success: #a9cebb;
+  --warning: #e6bc91;
+  --shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  --dot: rgba(255, 255, 255, 0.06);
+  --dot-active: rgba(255, 255, 255, 0.12);
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-soft: var(--soft);
+  --color-button: var(--button);
+  --color-button-fg: var(--button-text);
+  --color-get: var(--get);
+  --color-post: var(--post);
+  --color-put: var(--put);
+  --color-patch: var(--patch);
+  --color-danger: var(--danger);
+  --color-code: var(--code);
+  --color-json-key: var(--json-key);
+  --color-json-string: var(--json-string);
+  --color-json-number: var(--json-number);
+  --color-json-literal: var(--json-literal);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --shadow-panel: var(--shadow);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+/* Uppercase monospace micro-label used for section titles, nav and metadata. */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Georgia display heading (pesu-auth h1). */
+@utility display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1.04;
+  letter-spacing: normal;
+}
+
+/* Base element styles live in the base layer so utilities can override them. */
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--text) 18%, transparent);
+  }
+}
+
+@media (max-width: 700px) {
+  .display {
+    font-size: 36px;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .backdrop-blur-xl,
-  .backdrop-blur-md {
+  [class*="backdrop-blur"] {
     backdrop-filter: none !important;
-    background-color: var(--background) !important;
+    background-color: var(--bg) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
   }
 }

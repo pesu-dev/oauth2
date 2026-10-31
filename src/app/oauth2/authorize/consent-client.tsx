@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -17,13 +17,13 @@ function ScopePermissionRow({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-3 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10">
+    <li className="flex items-start gap-3 py-3">
       {icon}
-      <div className="text-xs">
-        <div className="font-semibold text-zinc-900 dark:text-zinc-100">{title}</div>
-        <div className="text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</div>
+      <div className="text-sm">
+        <div className="text-fg">{title}</div>
+        <div className="text-muted text-xs mt-0.5 leading-relaxed">{description}</div>
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -98,122 +98,125 @@ export function ConsentClient({
   const isDelegated = mode === 'delegated' && client.delegatedAllowed;
 
   return (
-    <div className="flex items-center justify-center min-h-[70vh] px-4 py-8">
-      <Card className="w-full max-w-lg p-8 shadow-2xl">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Sign in with PESU
-            </span>
-            <CardTitle className="text-2xl mt-1">{client.name}</CardTitle>
-            <CardDescription className="text-xs mt-1">
-              Signed in as <span className="font-medium text-zinc-900 dark:text-zinc-100">{userName}</span>
-            </CardDescription>
-            {client.ownerSub ? (
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                Developer: <span className="font-mono text-zinc-700 dark:text-zinc-300">{client.ownerSub}</span>
-              </div>
-            ) : null}
+    <div className="flex justify-center py-6 min-[701px]:py-12">
+      <div className="w-full max-w-[520px] space-y-6">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <p className="eyebrow">Sign in with PESU</p>
+            <Badge variant={client.publishingStatus}>
+              {client.publishingStatus.replace('_', ' ')}
+            </Badge>
           </div>
-          <Badge variant={client.publishingStatus}>
-            {client.publishingStatus.replace('_', ' ')}
-          </Badge>
+          <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg break-words">{client.name}</h1>
+          <p className="text-sm text-soft">
+            wants to sign you in. You are signed in as <span className="text-fg">{userName}</span>.
+          </p>
         </div>
 
-        {error ? (
-          <InlineAlert variant="error" message={error} className="mb-5 text-xs" />
-        ) : null}
+        <Card className="p-0">
+          {error ? (
+            <div className="p-5 pb-0">
+              <InlineAlert variant="error" message={error} className="text-xs" />
+            </div>
+          ) : null}
 
-        <div className="space-y-4 mb-8">
-          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-            This application is requesting permission to:
-          </p>
-
-          <div className="space-y-2.5">
-            {requestedScopes.includes('openid') || requestedScopes.includes('profile') ? (
-              <ScopePermissionRow
-                icon={<UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />}
-                title="Access your Student Profile"
-                description="Name, PRN, SRN, program, branch, semester, section, and campus."
-              />
+          <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-2 p-5 border-b border-line text-xs">
+            {client.ownerSub ? (
+              <>
+                <dt className="eyebrow pt-0.5">Developer</dt>
+                <dd className="font-mono text-soft break-all">{client.ownerSub}</dd>
+              </>
             ) : null}
+            <dt className="eyebrow pt-0.5">Redirects to</dt>
+            <dd className="font-mono text-soft break-all">{redirectUri}</dd>
+          </dl>
 
-            {requestedScopes.includes('email') ? (
-              <ScopePermissionRow
-                icon={<Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />}
-                title="View your Email Address"
-                description="Your official university email registered on PESU Academy."
-              />
-            ) : null}
+          <div className="px-5 pt-4">
+            <p className="eyebrow">This application is requesting permission to:</p>
+            <ul className="divide-y divide-line list-none p-0">
+              {requestedScopes.includes('openid') || requestedScopes.includes('profile') ? (
+                <ScopePermissionRow
+                  icon={<UserCheck className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="Access your Student Profile"
+                  description="Name, PRN, SRN, program, branch, semester, section, and campus."
+                />
+              ) : null}
 
-            {requestedScopes.includes('phone') ? (
-              <ScopePermissionRow
-                icon={<Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />}
-                title="View your Phone Number"
-                description="Your contact phone number registered on PESU Academy."
-              />
-            ) : null}
+              {requestedScopes.includes('email') ? (
+                <ScopePermissionRow
+                  icon={<Mail className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="View your Email Address"
+                  description="Your email registered on PESU Academy."
+                />
+              ) : null}
 
-            {requestedScopes.includes('offline_access') ? (
-              <ScopePermissionRow
-                icon={<RefreshCw className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />}
-                title="Maintain Offline Access"
-                description="Remain signed into this application without re-authenticating every hour."
-              />
-            ) : null}
+              {requestedScopes.includes('phone') ? (
+                <ScopePermissionRow
+                  icon={<Phone className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="View your Phone Number"
+                  description="Your contact phone number registered on PESU Academy."
+                />
+              ) : null}
+
+              {requestedScopes.includes('offline_access') ? (
+                <ScopePermissionRow
+                  icon={<RefreshCw className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="Maintain Offline Access"
+                  description="Remain signed into this application without re-authenticating every hour."
+                />
+              ) : null}
+            </ul>
           </div>
 
           {/* Explicit storage sentence */}
           <div
-            className={`p-4 rounded-xl border text-xs leading-relaxed flex items-start gap-3 ${
-              isDelegated
-                ? 'bg-purple-500/10 border-purple-500/20 text-purple-900 dark:text-purple-300'
-                : 'bg-blue-500/10 border-blue-500/20 text-blue-900 dark:text-blue-300'
+            className={`m-5 mt-2 p-4 rounded-[5px] border text-xs leading-relaxed flex items-start gap-3 ${
+              isDelegated ? 'bg-json-key/5 border-json-key/40 text-fg' : 'bg-surface-soft border-line text-fg'
             }`}
           >
             {isDelegated ? (
               <>
-                <KeyRound className="w-4 h-4 shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" />
+                <KeyRound className="w-4 h-4 shrink-0 text-json-key mt-0.5" />
                 <div>
-                  <span className="font-semibold">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this client is authorized to execute operations on your behalf.
+                  <span className="font-bold text-json-key">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this client is authorized to execute operations on your behalf.
                 </div>
               </>
             ) : (
               <>
-                <ShieldAlert className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <ShieldAlert className="w-4 h-4 shrink-0 text-success mt-0.5" />
                 <div>
-                  <span className="font-semibold">Identity Only:</span> We do not store your PESU password. This application cannot access or modify your PESU Academy account.
+                  <span className="font-bold text-success">Identity Only:</span> We do not store your PESU password. This application cannot access or modify your PESU Academy account.
                 </div>
               </>
             )}
           </div>
 
-          {/* Redirect URI notice */}
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 break-all">
-            <span>Redirects to:</span>
-            <span className="font-mono text-zinc-700 dark:text-zinc-300">{redirectUri}</span>
+          <div className="flex items-center gap-3 p-5 border-t border-line">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => handleAction('deny')}
+              disabled={loading}
+            >
+              Deny
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={() => handleAction('allow')}
+              loading={loading}
+            >
+              Allow
+            </Button>
           </div>
-        </div>
+        </Card>
 
-        <div className="flex items-center gap-3">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={() => handleAction('deny')}
-            disabled={loading}
-          >
-            Deny
-          </Button>
-          <Button
-            variant="primary"
-            className="flex-1"
-            onClick={() => handleAction('allow')}
-            loading={loading}
-          >
-            Allow
-          </Button>
-        </div>
-      </Card>
+        <p className="text-xs text-muted">
+          You can revoke this app at any time in <a href="/settings" className="underline hover:text-fg">Settings</a>.{' '}
+          <a href="/privacy" className="underline hover:text-fg">Privacy</a> ·{' '}
+          <a href="/faq" className="underline hover:text-fg">FAQ</a>
+        </p>
+      </div>
     </div>
   );
 }

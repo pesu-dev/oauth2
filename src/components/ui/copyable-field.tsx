@@ -5,6 +5,7 @@ import { Copy, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Button } from '@/components/ui/button';
+import { labelStyles } from '@/components/ui/input';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -31,20 +32,19 @@ export function CopyableField({ value, label, masked = false, className }: Copya
 
   return (
     <div className={cn('space-y-1.5', className)}>
-      {label && (
-        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
-      )}
-      <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/5 font-mono text-xs">
-        <span className="truncate text-zinc-800 dark:text-zinc-200 select-all">{displayValue}</span>
+      {label && <p className={labelStyles}>{label}</p>}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-[5px] bg-code border border-line font-mono text-xs">
+        <span className="truncate text-fg select-all">{displayValue}</span>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleCopy}
-          className="shrink-0 h-6 w-6 p-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          className="shrink-0 h-6 w-6 p-0"
           title={`Copy ${label ?? 'value'}`}
+          aria-label={`Copy ${label ?? 'value'}`}
         >
           {copied
-            ? <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ? <Check className="w-3.5 h-3.5 text-success" />
             : <Copy className="w-3.5 h-3.5" />
           }
         </Button>
