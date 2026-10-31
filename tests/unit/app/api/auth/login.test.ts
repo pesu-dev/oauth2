@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as postLogin } from '@/app/api/internal/auth/login/route';
-import { User, Client } from '@/lib/db/models';
+import { User, Client, DeviceCode } from '@/lib/db/models';
 import { NextRequest } from 'next/server';
 import { AcademyClient } from '@/lib/academy/client';
 
@@ -201,6 +201,46 @@ describe('Auth Login Route (/api/auth/login)', () => {
       expect.any(String),
       expect.objectContaining({ maxAge: 600 })
     );
+  });
+
+  describe('device flow return_to', () => {
+    const loginTo = (returnTo: string) => {
+      vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
+        profile: { name: 'Device Student', prn: 'PES1UG20CS009', srn: 'PES1UG20CS009' },
+        session: { token: 't', accessToken: 'a', userId: 'u', expiresAt: null },
+      } as never);
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce({
+        sub: 'usr_device',
+        name: 'Device Student',
+        prn: 'PES1UG20CS009',
+        save: vi.fn().mockResolvedValueOnce(true),
+      } as never);
+      return postLogin(
+        new NextRequest('http://localhost:3000/api/internal/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'PES1UG20CS009', password: 'pw', returnTo }),
+        })
+      );
+    };
+
+    it('keeps credentials when the pending device code needs the vault', async () => {
+      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid', 'attendance:read'] } as never);
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', delegated_allowed: false } as never);
+      expect((await loginTo('/device?user_code=BDFG-HJKL')).status).toBe(200);
+      expect(mockCookieStore.set).toHaveBeenCalledWith('pesu_pending', expect.any(String), expect.objectContaining({ maxAge: 600 }));
+    });
+
+    it('drops credentials for identity device flows, unknown codes and malformed codes', async () => {
+      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid'] } as never);
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
+      await loginTo('/device?user_code=BDFG-HJKL');
+      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce(null);
+      await loginTo('/device?user_code=BDFG-HJKL');
+      await loginTo('/device?user_code=nope');
+      await loginTo('/device');
+      expect(mockCookieStore.set).not.toHaveBeenCalledWith('pesu_pending', expect.anything(), expect.anything());
+    });
   });
 
   it('updates existing user on login and sanitizes unsafe open redirects', async () => {

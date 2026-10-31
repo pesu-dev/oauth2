@@ -526,7 +526,7 @@ print("Direct user to:", auth_url)`,
           location: 'body',
           type: 'string',
           required: true,
-          allowedValues: ['authorization_code', 'refresh_token'],
+          allowedValues: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
           description: 'The OAuth 2.0 grant type being executed.',
           example: 'authorization_code',
         },
@@ -653,6 +653,106 @@ response = requests.post(
 
 token_data = response.json()
 print("Access token expires in:", token_data.get("expires_in"))`,
+    },
+    {
+      id: 'device-authorization',
+      method: 'POST',
+      path: '/oauth2/device_authorization',
+      title: 'Device Authorization (Device Flow)',
+      category: 'Authentication & Tokens',
+      summary: 'Starts an RFC 8628 device sign-in for TVs, CLIs and kiosks, like GitHub CLI.',
+      description:
+        'Returns a device_code for your device to poll with and a short user_code the student enters at /device on a phone or laptop. Poll POST /oauth2/token with grant_type=urn:ietf:params:oauth:grant-type:device_code every `interval` seconds until it returns tokens. Polling faster returns slow_down and raises the interval by 5 seconds. Enable "Device sign-in" for your app in the portal first.',
+      auth: 'Client ID (public) or client secret (confidential)',
+      headers: [
+        {
+          name: 'Content-Type',
+          location: 'header',
+          type: 'string',
+          required: true,
+          description: 'application/x-www-form-urlencoded',
+          example: 'application/x-www-form-urlencoded',
+        },
+      ],
+      params: [
+        { name: 'client_id', location: 'body', type: 'string', required: true, description: 'Your application client_id.', example: 'cli_live_a1b2c3d4e5' },
+        { name: 'client_secret', location: 'body', type: 'string', required: false, description: 'Required for confidential clients. Never embed it in a device you ship to users; use a public client instead.' },
+        { name: 'scope', location: 'body', type: 'string', required: false, defaultValue: 'openid', description: 'Space-separated scopes. openid is required; resource scopes need admin approval.', example: 'openid profile offline_access' },
+      ],
+      responses: [
+        {
+          status: 200,
+          statusText: 'OK',
+          description: 'Show user_code and verification_uri to the student, then start polling.',
+          sample: {
+            device_code: 'dev_Q2hhbmdlIG1lIGluIHlvdXIgZGV2aWNlIQ',
+            user_code: 'BDFG-HJKL',
+            verification_uri: `${cleanBase}/device`,
+            verification_uri_complete: `${cleanBase}/device?user_code=BDFG-HJKL`,
+            expires_in: 900,
+            interval: 5,
+          },
+        },
+        {
+          status: 400,
+          statusText: 'Bad Request',
+          description: 'Device flow not enabled for the client, or a scope is not allowed.',
+          sample: { error: 'unauthorized_client', error_description: 'Device flow is not enabled for this client' },
+        },
+      ],
+      curlSample: `curl -X POST ${cleanBase}/oauth2/device_authorization \\
+  -d "client_id=$CLIENT_ID" \\
+  -d "scope=openid profile offline_access"
+
+# then poll every \`interval\` seconds:
+curl -X POST ${cleanBase}/oauth2/token \\
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" \\
+  -d "device_code=$DEVICE_CODE" \\
+  -d "client_id=$CLIENT_ID"`,
+      fetchSample: `const start = await fetch("${cleanBase}/oauth2/device_authorization", {
+  method: "POST",
+  body: new URLSearchParams({ client_id: CLIENT_ID, scope: "openid profile" }),
+}).then((r) => r.json());
+
+console.log(\`Open \${start.verification_uri} and enter \${start.user_code}\`);
+
+let interval = start.interval;
+for (;;) {
+  await new Promise((r) => setTimeout(r, interval * 1000));
+  const res = await fetch("${cleanBase}/oauth2/token", {
+    method: "POST",
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      device_code: start.device_code,
+      client_id: CLIENT_ID,
+    }),
+  });
+  const body = await res.json();
+  if (res.ok) { console.log("Signed in:", body.access_token); break; }
+  if (body.error === "slow_down") interval = body.interval;
+  else if (body.error !== "authorization_pending") throw new Error(body.error);
+}`,
+      pythonSample: `import time, requests
+
+start = requests.post("${cleanBase}/oauth2/device_authorization",
+                      data={"client_id": CLIENT_ID, "scope": "openid profile"}).json()
+print(f"Open {start['verification_uri']} and enter {start['user_code']}")
+
+interval = start["interval"]
+while True:
+    time.sleep(interval)
+    r = requests.post("${cleanBase}/oauth2/token", data={
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        "device_code": start["device_code"],
+        "client_id": CLIENT_ID,
+    })
+    body = r.json()
+    if r.ok:
+        print("Signed in:", body["access_token"]); break
+    if body["error"] == "slow_down":
+        interval = body["interval"]
+    elif body["error"] != "authorization_pending":
+        raise SystemExit(body["error"])`,
     },
     {
       id: 'revoke',
