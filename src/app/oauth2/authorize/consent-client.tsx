@@ -5,7 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
-import { ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound } from 'lucide-react';
+import { ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound, Database } from 'lucide-react';
+import { getScope } from '@/lib/oidc/scopes';
 
 function ScopePermissionRow({
   icon,
@@ -96,6 +97,9 @@ export function ConsentClient({
   };
 
   const isDelegated = mode === 'delegated' && client.delegatedAllowed;
+  const resourceScopes = requestedScopes
+    .map((name) => getScope(name))
+    .filter((def): def is NonNullable<typeof def> => def?.kind === 'resource');
 
   return (
     <div className="flex justify-center py-6 min-[701px]:py-12">
@@ -167,6 +171,22 @@ export function ConsentClient({
               ) : null}
             </ul>
           </div>
+
+          {resourceScopes.length > 0 ? (
+            <div className="px-5 pt-4 border-t border-line">
+              <p className="eyebrow">PESU Academy data, read on your behalf:</p>
+              <ul className="divide-y divide-line list-none p-0">
+                {resourceScopes.map((def) => (
+                  <ScopePermissionRow
+                    key={def.name}
+                    icon={<Database className={`w-4 h-4 mt-0.5 shrink-0 ${def.sensitive ? 'text-warning' : 'text-muted'}`} />}
+                    title={def.consentLabel}
+                    description={def.description}
+                  />
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {/* Explicit storage sentence */}
           <div

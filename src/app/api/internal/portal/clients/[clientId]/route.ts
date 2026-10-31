@@ -27,6 +27,8 @@ export async function GET(
         as: 'testers',
       },
     },
+    // Never send the secret hash to the browser, even to the owner
+    { $project: { client_secret_hash: 0 } },
   ]);
 
   if (!results || results.length === 0) {
