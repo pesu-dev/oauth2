@@ -310,7 +310,7 @@ export function DocsClient({
               <input
                 type="text"
                 aria-label="Search guides and endpoints"
-                placeholder="Search guides & endpoints..."
+                placeholder="Search docs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`${controlStyles} pl-8 py-1.5 text-xs`}

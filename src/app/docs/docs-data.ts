@@ -557,7 +557,7 @@ print("Revocation response:", response.json())`,
       category: 'Resource Server',
       summary: 'Returns authorized student profile claims for a valid Bearer access token.',
       description:
-        `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student. Note: /api/userinfo is also available as an unversioned alias pointing to the latest version (${apiVersion}).`,
+        `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student.`,
       auth: 'Bearer <access_token>',
       tryIt: 'bearer',
       headers: [
