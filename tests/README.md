@@ -37,6 +37,7 @@ Tests directly mirror the `src/` directory layout:
   - `vault-password-update.test.ts`: Vault resealing and credential lifecycle across user password changes.
   - `tombstoned-user-cleanup.test.ts`: Tombstoned user state and live token invalidation across all endpoints.
   - `device-flow.test.ts`: RFC 8628 start → `authorization_pending` → `slow_down` → approval → tokens, single use, denial, and per-client opt-in.
+  - `team-access.test.ts`: Team-owned clients, role-based permissions (developers cannot rotate secrets), members as testers, publisher name, and last-owner rules.
   - `resource-api.test.ts`: Scope request → admin approval → delegated consent → `/api/v1/attendance` allowlisted data, `insufficient_scope`, and immediate revocation.
 - `tests/unit/`:
   - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.

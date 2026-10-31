@@ -28,6 +28,10 @@ export function newFamilyId(): string {
   return `fam_${nanoid()}`;
 }
 
+export function newTeamId(): string {
+  return `team_${nanoid()}`;
+}
+
 export function newRequestId(): string {
   return `req_${nanoid()}`;
 }

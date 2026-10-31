@@ -6,7 +6,12 @@ export interface IClient extends Document {
   client_id: string;
   client_secret_hash?: string | null;
   name: string;
+  /** The developer who created the client (kept for audit and notifications). */
   owner_sub: string;
+  /** Who manages the client: the creator alone, or a team. */
+  owner_type: 'user' | 'team';
+  /** team_id when owner_type is 'team'; unused for user-owned clients. */
+  owner_team_id?: string | null;
   redirect_uris: string[];
   publishing_status: PublishingStatus;
   delegated_allowed: boolean;
@@ -28,6 +33,8 @@ export const ClientSchema = new Schema<IClient>(
     client_secret_hash: { type: String, required: false, default: null },
     name: { type: String, required: true },
     owner_sub: { type: String, required: true, index: true },
+    owner_type: { type: String, enum: ['user', 'team'], default: 'user' },
+    owner_team_id: { type: String, default: null, index: true },
     redirect_uris: { type: [String], default: [] },
     publishing_status: {
       type: String,

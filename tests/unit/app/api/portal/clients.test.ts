@@ -5,6 +5,17 @@ import { GET as getClient, PATCH as updateClient } from '@/app/api/internal/port
 import { Client } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 
+// These suites cover route behavior for the client's owner; ownership rules are tested in client-access.test.ts
+vi.mock('@/lib/authz/client-access', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/authz/client-access')>();
+  return {
+    ...actual,
+    findManageableClient: vi.fn(async (clientId: string) => ({ client_id: clientId, owner_type: 'user' })),
+    canManageClient: vi.fn(async () => true),
+    teamIdsFor: vi.fn(async () => []),
+  };
+});
+
 vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
 }));

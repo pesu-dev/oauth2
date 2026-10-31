@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
-import { Client, ClientTester, User } from '@/lib/db/models';
+import { ClientTester } from '@/lib/db/models';
+import { resolveUserSub } from '@/lib/users';
 import { verifySessionToken } from '@/lib/session/cookie';
+import { findManageableClient } from '@/lib/authz/client-access';
 
 export async function POST(
   request: NextRequest,
@@ -23,27 +25,16 @@ export async function POST(
   }
 
   await connectToDatabase();
-  const client = await Client.findOne({ client_id: clientId, owner_sub: session.sub });
+  const client = await findManageableClient(clientId, session.sub, 'testers');
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
-  // Resolve target sub
-  let targetSub = identifier.trim();
-  if (!targetSub.startsWith('usr_')) {
-    const user = await User.findOne({
-      $or: [{ prn: targetSub }, { srn: targetSub }],
-    });
-    if (!user) {
-      return NextResponse.json(
-        {
-          error: `User with identifier "${targetSub}" has not signed in yet. Testers must be registered users or a valid usr_ subject.`,
-        },
-        { status: 400 }
-      );
-    }
-    targetSub = user.sub;
+  const resolved = await resolveUserSub(identifier, 'Testers');
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: 400 });
   }
+  const targetSub = resolved.sub;
 
   const tester = await ClientTester.findOneAndUpdate(
     { client_id: clientId, sub: targetSub },
@@ -74,7 +65,7 @@ export async function DELETE(
   }
 
   await connectToDatabase();
-  const client = await Client.findOne({ client_id: clientId, owner_sub: session.sub });
+  const client = await findManageableClient(clientId, session.sub, 'testers');
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
