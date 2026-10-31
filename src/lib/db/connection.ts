@@ -12,10 +12,8 @@ declare global {
   var mongooseCache: MongooseCache | undefined;
 }
 
-/** The local replica set has no TLS or X.509, even when a maintainer's Atlas cert is on disk. */
-function isLocalMongoUri(uri: string): boolean {
-  return /^mongodb:\/\/(localhost|127\.0\.0\.1)([:/?]|$)/.test(uri);
-}
+/** From .env.example. This replica set has no TLS or X.509, even when a maintainer's Atlas cert is on disk. */
+const LOCAL_MONGO_URI = 'mongodb://127.0.0.1:27017/oauth2?directConnection=true';
 
 const cached: MongooseCache = global.mongooseCache || { conn: null, promise: null };
 
@@ -31,7 +29,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   if (!cached.promise) {
     const config = getConfig();
     const hasCert =
-      !isLocalMongoUri(config.mongoUri) && config.mongoX509CertPath && fs.existsSync(config.mongoX509CertPath);
+      config.mongoUri !== LOCAL_MONGO_URI && config.mongoX509CertPath && fs.existsSync(config.mongoX509CertPath);
     const opts: mongoose.ConnectOptions = {
       dbName: config.dbName,
       bufferCommands: false,

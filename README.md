@@ -24,9 +24,9 @@ This project is **not affiliated with PESU University or PESU Academy**. Use at 
 
 ```bash
 cd oauth2
-cp .env.example .env              # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
+cp .env.example .env   # fill SESSION_SECRET, VAULT_MASTER_KEY, etc.
 pnpm install
-docker compose up -d --wait       # single-node Mongo replica set on 127.0.0.1:27017
+docker compose up -d --wait   # single-node Mongo replica set on 127.0.0.1:27017
 node --env-file=.env scripts/seed_client.mjs   # prints a test client_id + secret
 pnpm dev
 # Server running at http://localhost:3000

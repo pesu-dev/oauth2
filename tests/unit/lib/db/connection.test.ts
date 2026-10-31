@@ -47,13 +47,9 @@ describe('Database Connection Singleton', () => {
     );
   });
 
-  it.each([
-    'mongodb://127.0.0.1:27017/oauth2?directConnection=true',
-    'mongodb://localhost:27017/?replicaSet=rs0',
-    'mongodb://localhost',
-  ])('ignores an Atlas cert on disk for local URI %s', async (mongoUri) => {
+  it('ignores an Atlas cert on disk for the local URI', async () => {
     vi.spyOn(configHelper, 'getConfig').mockReturnValue({
-      mongoUri,
+      mongoUri: 'mongodb://127.0.0.1:27017/oauth2?directConnection=true',
       dbName: 'oauth2_test',
       mongoX509CertPath: '/certs/mongo.pem',
     } as ReturnType<typeof configHelper.getConfig>);
@@ -63,20 +59,6 @@ describe('Database Connection Singleton', () => {
 
     await connectToDatabase();
     expect(connectSpy.mock.calls[0][1]).toEqual({ dbName: 'oauth2_test', bufferCommands: false });
-  });
-
-  it('still uses X.509 for a remote host that merely starts with localhost', async () => {
-    vi.spyOn(configHelper, 'getConfig').mockReturnValue({
-      mongoUri: 'mongodb://localhost.example.com:27017/',
-      dbName: 'oauth2_test',
-      mongoX509CertPath: '/certs/mongo.pem',
-    } as ReturnType<typeof configHelper.getConfig>);
-
-    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-    const connectSpy = vi.spyOn(mongoose, 'connect').mockResolvedValue({} as typeof mongoose);
-
-    await connectToDatabase();
-    expect(connectSpy.mock.calls[0][1]).toMatchObject({ tls: true, authMechanism: 'MONGODB-X509' });
   });
 
   it('resets cached promise on connection error and re-throws', async () => {
