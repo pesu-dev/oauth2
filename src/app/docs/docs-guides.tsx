@@ -389,6 +389,22 @@ async function generatePkcePair() {
 }`}
             </pre>
           </div>
+          <div className="space-y-3">
+            <span className="text-xs font-semibold text-muted">Python PKCE Generator</span>
+            <pre className="overflow-x-auto p-4 rounded-md bg-surface-soft font-mono text-xs leading-relaxed text-fg border border-line">
+{`import base64
+import hashlib
+import secrets
+
+
+def generate_pkce_pair() -> tuple[str, str]:
+    code_verifier = secrets.token_urlsafe(48)
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    return code_verifier, code_challenge`}
+            </pre>
+          </div>
         </div>
       )}
 

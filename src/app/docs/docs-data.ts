@@ -423,7 +423,7 @@ print("Direct user to:", auth_url)`,
           },
         },
       ],
-      curlSample: `curl -X POST ${cleanBase}/token \\
+      curlSample: `curl -X POST ${cleanBase}/oauth2/token \\
   -H "Content-Type: application/x-www-form-urlencoded" \\
   -d "grant_type=authorization_code" \\
   -d "client_id=client_live_a1b2c3d4e5" \\
@@ -624,6 +624,10 @@ print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
 
 export const API_ENDPOINTS: EndpointDoc[] = createEndpoints();
 
+function codeFence(language: string, code: string): string {
+  return `\`\`\`${language}\n${code}\n\`\`\``;
+}
+
 /**
  * Generates an LLM-friendly Markdown prompt for a single endpoint.
  * Modeled after Stedi's API reference "Copy for LLM" standard.
@@ -640,56 +644,53 @@ export function generateEndpointMarkdownForLlm(
   sections.push(`\`${ep.method} ${ep.path}\``);
   sections.push(`**Full URL:** \`${fullUrl}\``);
   sections.push(`**Authentication:** ${ep.auth}`);
-  sections.push(`\n## Description\n${ep.description}`);
+  sections.push(`## Description\n\n${ep.description}`);
 
   if (ep.headers.length > 0) {
-    sections.push('\n## Request Headers');
-    sections.push('| Header | Type | Required | Description | Example |');
-    sections.push('|---|---|---|---|---|');
-    ep.headers.forEach((h) => {
-      sections.push(
-        `| \`${h.name}\` | \`${h.type}\` | ${h.required ? '**Yes**' : 'No'} | ${h.description} | ${h.example ? `\`${h.example}\`` : '-'} |`
-      );
-    });
+    sections.push('## Request Headers');
+    sections.push(
+      [
+        '| Header | Type | Required | Description | Example |',
+        '|---|---|---|---|---|',
+        ...ep.headers.map(
+          (h) =>
+            `| \`${h.name}\` | \`${h.type}\` | ${h.required ? '**Yes**' : 'No'} | ${h.description} | ${h.example ? `\`${h.example}\`` : '-'} |`
+        ),
+      ].join('\n')
+    );
   }
 
   if (ep.params.length > 0) {
-    sections.push('\n## Parameters');
-    sections.push('| Name | Location | Type | Required | Default | Description | Example |');
-    sections.push('|---|---|---|---|---|---|---|');
-    ep.params.forEach((p) => {
-      const allowed = p.allowedValues ? ` (Allowed: ${p.allowedValues.map((v) => `\`${v}\``).join(', ')})` : '';
-      sections.push(
-        `| \`${p.name}\` | \`${p.location}\` | \`${p.type}\` | ${p.required ? '**Yes**' : 'No'} | ${p.defaultValue ? `\`${p.defaultValue}\`` : '-'} | ${p.description}${allowed} | ${p.example ? `\`${p.example}\`` : '-'} |`
-      );
-    });
+    sections.push('## Parameters');
+    sections.push(
+      [
+        '| Name | Location | Type | Required | Default | Description | Example |',
+        '|---|---|---|---|---|---|---|',
+        ...ep.params.map((p) => {
+          const allowed = p.allowedValues ? ` (Allowed: ${p.allowedValues.map((v) => `\`${v}\``).join(', ')})` : '';
+          return `| \`${p.name}\` | \`${p.location}\` | \`${p.type}\` | ${p.required ? '**Yes**' : 'No'} | ${p.defaultValue ? `\`${p.defaultValue}\`` : '-'} | ${p.description}${allowed} | ${p.example ? `\`${p.example}\`` : '-'} |`;
+        }),
+      ].join('\n')
+    );
   }
 
   if (ep.responses.length > 0) {
-    sections.push('\n## Responses');
+    sections.push('## Responses');
     ep.responses.forEach((r) => {
       sections.push(`### \`${r.status} ${r.statusText}\``);
-      sections.push(`${r.description}\n`);
-      sections.push('```json');
-      sections.push(JSON.stringify(r.sample, null, 2));
-      sections.push('```');
+      sections.push(r.description);
+      sections.push(codeFence('json', JSON.stringify(r.sample, null, 2)));
     });
   }
 
-  sections.push('\n## Request Example (cURL)');
-  sections.push('```bash');
-  sections.push(ep.curlSample);
-  sections.push('```');
+  sections.push('## Request Example (cURL)');
+  sections.push(codeFence('bash', ep.curlSample));
 
-  sections.push('\n## Request Example (TypeScript / Fetch)');
-  sections.push('```typescript');
-  sections.push(ep.fetchSample);
-  sections.push('```');
+  sections.push('## Request Example (TypeScript / Fetch)');
+  sections.push(codeFence('typescript', ep.fetchSample));
 
-  sections.push('\n## Request Example (Python / requests)');
-  sections.push('```python');
-  sections.push(ep.pythonSample);
-  sections.push('```');
+  sections.push('## Request Example (Python / requests)');
+  sections.push(codeFence('python', ep.pythonSample));
 
   return sections.join('\n\n');
 }
@@ -714,7 +715,7 @@ export function generateFullApiReferenceMarkdown(
 
   endpoints.forEach((ep) => {
     parts.push(generateEndpointMarkdownForLlm(ep, cleanBase));
-    parts.push('\n---\n');
+    parts.push('---');
   });
 
   return parts.join('\n\n');

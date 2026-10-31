@@ -389,7 +389,32 @@ export function DocsClient({
           {currentEndpoint && (
             <div className="space-y-8">
               <div className="space-y-4">
-                <h1 className="display text-fg">{currentEndpoint.title}</h1>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h1 className="display text-fg">{currentEndpoint.title}</h1>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() =>
+                      copyToClipboard(
+                        generateEndpointMarkdownForLlm(currentEndpoint, issuerUrl),
+                        `llm-${currentEndpoint.id}`
+                      )
+                    }
+                  >
+                    {copiedId === `llm-${currentEndpoint.id}` ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-success" />
+                        <span className="text-success">Copied Markdown!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy for LLM</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <p className="text-soft leading-[1.65]">{currentEndpoint.description}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                   <span>
@@ -410,20 +435,6 @@ export function DocsClient({
                   {currentEndpoint.method}
                 </span>
                 <h2 className="font-serif text-[27px] font-normal break-all">{currentEndpoint.path}</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Copy endpoint path"
-                  aria-label="Copy endpoint path"
-                  onClick={() => copyToClipboard(currentEndpoint.path, `path-${currentEndpoint.id}`)}
-                  className="h-7 w-7 p-0"
-                >
-                  {copiedId === `path-${currentEndpoint.id}` ? (
-                    <Check className="w-3.5 h-3.5 text-success" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </Button>
               </div>
 
               <hr className="border-0 border-t border-line" />
@@ -535,31 +546,7 @@ export function DocsClient({
             aria-label="Request"
             className="bg-surface border-l border-line px-6 py-7 max-[1040px]:col-span-full max-[1040px]:border-l-0 max-[1040px]:border-t max-[700px]:px-[18px] space-y-5"
           >
-            <div className="flex items-center justify-between gap-3">
-              <strong className="text-sm">Request</strong>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  copyToClipboard(
-                    generateEndpointMarkdownForLlm(currentEndpoint, issuerUrl),
-                    `llm-${currentEndpoint.id}`
-                  )
-                }
-              >
-                {copiedId === `llm-${currentEndpoint.id}` ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-success" />
-                    <span className="text-success">Copied Markdown!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy for LLM</span>
-                  </>
-                )}
-              </Button>
-            </div>
+            <strong className="block text-sm">Request</strong>
 
             <div className="flex flex-wrap gap-1" role="group" aria-label="Request example language">
               {CODE_TABS.map((tab) => (

@@ -57,6 +57,32 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(md).toContain('## Request Example (Python / requests)');
   });
 
+  it('keeps markdown table rows and code fences contiguous', () => {
+    const tokenEp = API_ENDPOINTS.find((ep) => ep.id === 'token')!;
+    const lines = generateEndpointMarkdownForLlm(tokenEp).split('\n');
+
+    const tableRows = lines.flatMap((line, i) => (line.startsWith('|') ? [i] : []));
+    expect(tableRows.length).toBeGreaterThan(4);
+    lines.forEach((line, i) => {
+      if (line.startsWith('|---')) {
+        expect(lines[i - 1]).toMatch(/^\|/);
+        expect(lines[i + 1]).toMatch(/^\|/);
+      }
+      if (line.startsWith('```') && line.length > 3) {
+        expect(lines[i + 1]).not.toBe('');
+      }
+    });
+    expect(lines.join('\n')).not.toMatch(/\|\n\n\|/);
+    expect(lines.join('\n')).not.toMatch(/\n{3,}/);
+  });
+
+  it('samples the token endpoint at /oauth2/token in every language', () => {
+    const tokenEp = API_ENDPOINTS.find((ep) => ep.id === 'token')!;
+    for (const sample of [tokenEp.curlSample, tokenEp.fetchSample, tokenEp.pythonSample]) {
+      expect(sample).toContain('/oauth2/token');
+    }
+  });
+
   it('handles optional fields without default or examples in generateEndpointMarkdownForLlm', () => {
     const customEp = {
       id: 'custom',

@@ -249,19 +249,6 @@ describe('DocsPage & DocsClient', () => {
       expect(jwksButton).toBeDefined();
       fireEvent.click(jwksButton!);
 
-      // Click Copy endpoint path
-      const copyPathBtn = screen.getByTitle('Copy endpoint path');
-      await act(async () => {
-        fireEvent.click(copyPathBtn);
-        await Promise.resolve();
-      });
-      expect(writeTextMock).toHaveBeenCalledWith('/jwks.json');
-      expect(copyPathBtn.querySelector('svg.text-emerald-500')).toBeDefined();
-
-      act(() => {
-        vi.advanceTimersByTime(2100);
-      });
-
       // Click Copy Markdown for LLMs button
       const copyLlmBtn = screen.getByText('Copy for LLM').closest('button');
       expect(copyLlmBtn).toBeDefined();
@@ -278,6 +265,16 @@ describe('DocsPage & DocsClient', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('offers Copy for LLM beside the heading and no path copy button', () => {
+    render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
+    fireEvent.click(screen.getAllByText('/oauth2/token')[0].closest('button')!);
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Token Issuance & Refresh' });
+    const copyLlmBtn = screen.getByRole('button', { name: /^copy for llm$/i });
+    expect(heading.parentElement?.contains(copyLlmBtn)).toBe(true);
+    expect(screen.queryByTitle('Copy endpoint path')).toBeNull();
   });
 
   it('handles dual-method endpoint badge variant for userinfo', () => {
@@ -384,18 +381,17 @@ describe('DocsPage & DocsClient', () => {
       expect(screen.getByText('Copied')).toBeDefined();
     });
 
-    // 4. Navigate to token endpoint and click copy endpoint path
+    // 4. Navigate to token endpoint
     const tokenButton = screen.getAllByText('/oauth2/token')[0].closest('button');
     fireEvent.click(tokenButton!);
 
-    const copyPathBtn = screen.getByTitle('Copy endpoint path');
-    fireEvent.click(copyPathBtn);
+    const copyFullBtn = screen.getByText('Copy for LLM (Full)').closest('button')!;
 
     // 5. Test copiedId timeout where current !== id
     vi.useFakeTimers();
     try {
       await act(async () => {
-        fireEvent.click(copyPathBtn);
+        fireEvent.click(copyFullBtn);
       });
       // Change copiedId to something else before timer expires
       const copyLlmBtn = screen.getByRole('button', { name: /^copy for llm$/i });
