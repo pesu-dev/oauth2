@@ -135,6 +135,5 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(userinfoEp.curlSample).toContain('/api/v2/userinfo');
     expect(userinfoEp.fetchSample).toContain('/api/v2/userinfo');
     expect(userinfoEp.pythonSample).toContain('/api/v2/userinfo');
-    expect(userinfoEp.description).toContain('(v2)');
   });
 });

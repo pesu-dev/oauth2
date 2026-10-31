@@ -33,7 +33,7 @@ describe('DocsPage & DocsClient', () => {
 
   it('allows searching documentation sections', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const searchInputs = screen.getAllByPlaceholderText(/search guides & endpoints/i);
+    const searchInputs = screen.getAllByPlaceholderText(/search docs/i);
     fireEvent.change(searchInputs[0], { target: { value: 'revoke' } });
     expect(screen.getAllByText('/oauth2/revoke').length).toBeGreaterThan(0);
   });
