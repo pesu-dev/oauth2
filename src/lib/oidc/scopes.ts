@@ -26,8 +26,8 @@ export const SCOPES: readonly ScopeDefinition[] = [
   {
     name: 'openid',
     kind: 'identity',
-    consentLabel: 'Know who you are',
-    description: 'Required for OpenID Connect. Issues an ID token with your stable, opaque user id.',
+    consentLabel: 'Confirm your Identity',
+    description: 'Verify your PESU account identity via your unique user identifier.',
     sensitive: false,
     requiresDelegated: false,
     claims: ['sub'],
