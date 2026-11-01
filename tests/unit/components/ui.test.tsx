@@ -10,12 +10,13 @@ import { CopyableField } from '@/components/ui/copyable-field';
 import { Textarea } from '@/components/ui/textarea';
 import { fireEvent, act } from '@testing-library/react';
 
-describe('Apple-Style UI Components', () => {
+describe('UI Components', () => {
   it('renders Button with variants and sizes', () => {
     render(<Button variant="primary">Click Me</Button>);
     const button = screen.getByRole('button', { name: /click me/i });
     expect(button).toBeDefined();
-    expect(button.className).toContain('active:scale-[0.98]');
+    expect(button.className).toContain('font-mono');
+    expect(button.className).toContain('bg-button');
   });
 
   it('renders Card with title and description', () => {
@@ -32,7 +33,7 @@ describe('Apple-Style UI Components', () => {
   it('renders Badge with status colors', () => {
     render(<Badge variant="production">Production</Badge>);
     const badge = screen.getByText('Production');
-    expect(badge.className).toContain('text-emerald-700');
+    expect(badge.className).toContain('text-success');
   });
 
   describe('CodeBlock', () => {
@@ -151,7 +152,7 @@ describe('Apple-Style UI Components', () => {
       // helperText should not be rendered when error is present
       expect(screen.queryByText('Help info')).toBeNull();
       const textarea = screen.getByLabelText('Description');
-      expect(textarea.className).toContain('border-red-500');
+      expect(textarea.className).toContain('border-danger');
     });
 
     it('displays helperText when error is absent', () => {

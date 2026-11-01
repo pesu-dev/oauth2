@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
@@ -47,64 +47,64 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[70vh] px-4">
-      <Card className="w-full max-w-md p-8 shadow-xl">
-        <CardHeader
-          icon={<ShieldCheck className="w-5 h-5" />}
-          iconColor="blue"
-          className="mb-6"
-        >
-          <CardTitle className="text-xl">Sign in with PESU</CardTitle>
-          <CardDescription className="text-xs">
-            Use your official PESU Academy credentials
-          </CardDescription>
-        </CardHeader>
+    <div className="flex justify-center py-6 min-[701px]:py-12">
+      <div className="w-full max-w-[420px] space-y-6">
+        <div className="space-y-3">
+          <p className="eyebrow flex items-center gap-2">
+            <ShieldCheck className="w-3.5 h-3.5" /> PESU Academy account
+          </p>
+          <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg">Sign in with PESU</h1>
+          <p className="text-sm text-soft leading-[1.65]">
+            Use your PESU Academy PRN or SRN and password. They go straight to PESU Academy to check who you are.
+          </p>
+        </div>
 
-        {error ? (
-          <InlineAlert
-            variant="error"
-            message={error}
-            icon={<AlertCircle className="w-4 h-4" />}
-            className="mb-5 text-xs p-3"
-          />
-        ) : null}
+        <Card className="p-6 space-y-5">
+          {error ? (
+            <InlineAlert
+              variant="error"
+              message={error}
+              icon={<AlertCircle className="w-4 h-4" />}
+              className="text-xs"
+            />
+          ) : null}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="PRN or SRN"
-            placeholder="e.g. PES1UG20CS001"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoComplete="username"
-            disabled={loading}
-          />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="PRN or SRN"
+              placeholder="e.g. PES1UG20CS001"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoComplete="username"
+              spellCheck={false}
+              disabled={loading}
+            />
 
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Academy Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            disabled={loading}
-          />
+            <Input
+              label="Password"
+              type="password"
+              placeholder="Academy password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              disabled={loading}
+            />
 
-          <Button
-            type="submit"
-            className="w-full mt-2"
-            size="lg"
-            loading={loading}
-          >
-            Authenticate
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" size="lg" loading={loading}>
+              Authenticate
+            </Button>
+          </form>
+        </Card>
 
-        <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-6 leading-relaxed">
-          Your credentials are authenticated directly with PESU Academy. In identity mode, your password is never stored on our servers.
+        <p className="text-xs text-muted leading-[1.65]">
+          For identity-only apps your password is used once and never stored. Apps approved for delegated access say so
+          on the next screen before anything is kept.{' '}
+          <a href="/privacy" className="underline hover:text-fg">Privacy</a> ·{' '}
+          <a href="/faq" className="underline hover:text-fg">FAQ</a>
         </p>
-      </Card>
+      </div>
     </div>
   );
 }

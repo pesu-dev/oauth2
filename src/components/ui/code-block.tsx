@@ -13,6 +13,48 @@ export interface CodeBlockProps {
   className?: string;
 }
 
+const JSON_TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+
+function isJson(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Colorizes JSON keys, strings, numbers and literals with React nodes (never innerHTML). */
+export function highlightJson(code: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const match of code.matchAll(JSON_TOKEN)) {
+    const index = match.index ?? 0;
+    if (index > last) nodes.push(code.slice(last, index));
+    const [token, str, colon, literal, num] = match;
+    if (str !== undefined) {
+      nodes.push(
+        <span key={key++} className={colon ? 'text-json-key' : 'text-json-string'}>
+          {str}
+        </span>
+      );
+      if (colon) nodes.push(colon);
+    } else if (literal !== undefined) {
+      nodes.push(<span key={key++} className="text-json-literal">{literal}</span>);
+    } else if (num !== undefined) {
+      nodes.push(<span key={key++} className="text-json-number">{num}</span>);
+    } else {
+      nodes.push(token);
+    }
+    last = index + token.length;
+  }
+  if (last < code.length) nodes.push(code.slice(last));
+  return nodes;
+}
+
 export function CodeBlock({
   code,
   copyId,
@@ -22,22 +64,24 @@ export function CodeBlock({
   className,
 }: CodeBlockProps) {
   const showCopyButton = Boolean(copyId && onCopy);
+  const content = React.useMemo(() => (isJson(code) ? highlightJson(code) : code), [code]);
 
   return (
     <div className={`relative group${className ? ` ${className}` : ''}`}>
-      <pre className="overflow-x-auto p-4 rounded-xl bg-black/5 dark:bg-black/60 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 border border-black/5 dark:border-white/5">
-        {code}
+      <pre className="overflow-x-auto p-4 rounded-md bg-code font-mono text-xs leading-relaxed text-fg border border-line">
+        {content}
       </pre>
       {showCopyButton && (
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
           title={title}
+          aria-label={title}
           onClick={() => onCopy!(copyId!)}
-          className="absolute top-2.5 right-2.5 h-7 w-7 p-0 bg-white/80 dark:bg-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs border border-black/5 dark:border-white/5"
+          className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
         >
           {copied
-            ? <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ? <Check className="w-3.5 h-3.5 text-success" />
             : <Copy className="w-3.5 h-3.5" />
           }
         </Button>

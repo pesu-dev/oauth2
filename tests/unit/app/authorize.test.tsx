@@ -630,6 +630,18 @@ describe('Authorize Page & Consent', () => {
       expect(screen.getByText('pending production')).toBeDefined();
     });
 
+    it('does not claim profile access when only openid is requested', () => {
+      render(<ConsentClient {...defaultProps} requestedScopes={['openid']} />);
+      expect(screen.getByText('Confirm your Identity')).toBeDefined();
+      expect(screen.queryByText('Access your Student Profile')).toBeNull();
+    });
+
+    it('shows the identity and profile rows separately when both are requested', () => {
+      render(<ConsentClient {...defaultProps} requestedScopes={['openid', 'profile']} />);
+      expect(screen.getByText('Confirm your Identity')).toBeDefined();
+      expect(screen.getByText('Access your Student Profile')).toBeDefined();
+    });
+
     it('handles clicking Allow and redirects window.location.href', async () => {
       delete (window as { location?: unknown }).location;
       (window as { location: unknown }).location = { href: '' };

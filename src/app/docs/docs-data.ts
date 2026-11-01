@@ -16,15 +16,20 @@ export interface ResponseDoc {
   sample: unknown;
 }
 
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
 export interface EndpointDoc {
   id: string;
-  method: 'GET' | 'POST' | 'GET / POST';
+  /** One method, or two joined with " / " when an endpoint accepts both (e.g. userinfo). */
+  method: HttpMethod | `${HttpMethod} / ${HttpMethod}`;
   path: string;
   title: string;
   summary: string;
   description: string;
   auth: string;
   category: 'Discovery & Keys' | 'Authentication & Tokens' | 'Resource Server';
+  /** Whether the docs explorer can send this request from the browser (same origin). */
+  tryIt?: 'public' | 'bearer';
   headers: ParamDoc[];
   params: ParamDoc[];
   responses: ResponseDoc[];
@@ -54,6 +59,7 @@ export function createEndpoints(
       description:
         'Provides OpenID Connect clients with dynamic server metadata. Libraries such as NextAuth.js, OpenID Client, and Passport automatically ingest this document to configure endpoints, cryptographic signing algorithms, and supported scopes.',
       auth: 'None (Public)',
+      tryIt: 'public',
       headers: [
         {
           name: 'Accept',
@@ -108,6 +114,7 @@ print("Token endpoint:", discovery["token_endpoint"])`,
       description:
         'Exposes the public RSA key components required to mathematically verify tokens minted by PESU OAuth2. OIDC validation libraries cache this set and automatically match the "kid" (Key ID) header in signed JWTs.',
       auth: 'None (Public)',
+      tryIt: 'public',
       headers: [],
       params: [],
       responses: [
@@ -222,9 +229,9 @@ print("Key IDs:", [k["kid"] for k in jwks.get("keys", [])])`,
           type: 'string',
           required: false,
           defaultValue: 'identity',
-          allowedValues: ['identity', 'delegated_vault'],
+          allowedValues: ['identity', 'delegated'],
           description:
-            'Grant mode. Use "identity" for profile/claims sign-in. Use "delegated_vault" to request background PESU Academy session sync authorization.',
+            'Grant mode. Use "identity" for profile/claims sign-in. Use "delegated" to request background PESU Academy session sync authorization.',
           example: 'identity',
         },
       ],
@@ -416,7 +423,7 @@ print("Direct user to:", auth_url)`,
           },
         },
       ],
-      curlSample: `curl -X POST ${cleanBase}/token \\
+      curlSample: `curl -X POST ${cleanBase}/oauth2/token \\
   -H "Content-Type: application/x-www-form-urlencoded" \\
   -d "grant_type=authorization_code" \\
   -d "client_id=client_live_a1b2c3d4e5" \\
@@ -550,8 +557,9 @@ print("Revocation response:", response.json())`,
       category: 'Resource Server',
       summary: 'Returns authorized student profile claims for a valid Bearer access token.',
       description:
-        `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student. Note: /api/userinfo is also available as an unversioned alias pointing to the latest version (${apiVersion}).`,
+        `Standard OIDC userinfo endpoint. Validates the signature and expiration of the RS256 Bearer access token, then returns profile claims filtered according to the scopes originally consented by the student.`,
       auth: 'Bearer <access_token>',
+      tryIt: 'bearer',
       headers: [
         {
           name: 'Authorization',
@@ -616,6 +624,10 @@ print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
 
 export const API_ENDPOINTS: EndpointDoc[] = createEndpoints();
 
+function codeFence(language: string, code: string): string {
+  return `\`\`\`${language}\n${code}\n\`\`\``;
+}
+
 /**
  * Generates an LLM-friendly Markdown prompt for a single endpoint.
  * Modeled after Stedi's API reference "Copy for LLM" standard.
@@ -632,56 +644,53 @@ export function generateEndpointMarkdownForLlm(
   sections.push(`\`${ep.method} ${ep.path}\``);
   sections.push(`**Full URL:** \`${fullUrl}\``);
   sections.push(`**Authentication:** ${ep.auth}`);
-  sections.push(`\n## Description\n${ep.description}`);
+  sections.push(`## Description\n\n${ep.description}`);
 
   if (ep.headers.length > 0) {
-    sections.push('\n## Request Headers');
-    sections.push('| Header | Type | Required | Description | Example |');
-    sections.push('|---|---|---|---|---|');
-    ep.headers.forEach((h) => {
-      sections.push(
-        `| \`${h.name}\` | \`${h.type}\` | ${h.required ? '**Yes**' : 'No'} | ${h.description} | ${h.example ? `\`${h.example}\`` : '-'} |`
-      );
-    });
+    sections.push('## Request Headers');
+    sections.push(
+      [
+        '| Header | Type | Required | Description | Example |',
+        '|---|---|---|---|---|',
+        ...ep.headers.map(
+          (h) =>
+            `| \`${h.name}\` | \`${h.type}\` | ${h.required ? '**Yes**' : 'No'} | ${h.description} | ${h.example ? `\`${h.example}\`` : '-'} |`
+        ),
+      ].join('\n')
+    );
   }
 
   if (ep.params.length > 0) {
-    sections.push('\n## Parameters');
-    sections.push('| Name | Location | Type | Required | Default | Description | Example |');
-    sections.push('|---|---|---|---|---|---|---|');
-    ep.params.forEach((p) => {
-      const allowed = p.allowedValues ? ` (Allowed: ${p.allowedValues.map((v) => `\`${v}\``).join(', ')})` : '';
-      sections.push(
-        `| \`${p.name}\` | \`${p.location}\` | \`${p.type}\` | ${p.required ? '**Yes**' : 'No'} | ${p.defaultValue ? `\`${p.defaultValue}\`` : '-'} | ${p.description}${allowed} | ${p.example ? `\`${p.example}\`` : '-'} |`
-      );
-    });
+    sections.push('## Parameters');
+    sections.push(
+      [
+        '| Name | Location | Type | Required | Default | Description | Example |',
+        '|---|---|---|---|---|---|---|',
+        ...ep.params.map((p) => {
+          const allowed = p.allowedValues ? ` (Allowed: ${p.allowedValues.map((v) => `\`${v}\``).join(', ')})` : '';
+          return `| \`${p.name}\` | \`${p.location}\` | \`${p.type}\` | ${p.required ? '**Yes**' : 'No'} | ${p.defaultValue ? `\`${p.defaultValue}\`` : '-'} | ${p.description}${allowed} | ${p.example ? `\`${p.example}\`` : '-'} |`;
+        }),
+      ].join('\n')
+    );
   }
 
   if (ep.responses.length > 0) {
-    sections.push('\n## Responses');
+    sections.push('## Responses');
     ep.responses.forEach((r) => {
       sections.push(`### \`${r.status} ${r.statusText}\``);
-      sections.push(`${r.description}\n`);
-      sections.push('```json');
-      sections.push(JSON.stringify(r.sample, null, 2));
-      sections.push('```');
+      sections.push(r.description);
+      sections.push(codeFence('json', JSON.stringify(r.sample, null, 2)));
     });
   }
 
-  sections.push('\n## Request Example (cURL)');
-  sections.push('```bash');
-  sections.push(ep.curlSample);
-  sections.push('```');
+  sections.push('## Request Example (cURL)');
+  sections.push(codeFence('bash', ep.curlSample));
 
-  sections.push('\n## Request Example (TypeScript / Fetch)');
-  sections.push('```typescript');
-  sections.push(ep.fetchSample);
-  sections.push('```');
+  sections.push('## Request Example (TypeScript / Fetch)');
+  sections.push(codeFence('typescript', ep.fetchSample));
 
-  sections.push('\n## Request Example (Python / requests)');
-  sections.push('```python');
-  sections.push(ep.pythonSample);
-  sections.push('```');
+  sections.push('## Request Example (Python / requests)');
+  sections.push(codeFence('python', ep.pythonSample));
 
   return sections.join('\n\n');
 }
@@ -706,7 +715,7 @@ export function generateFullApiReferenceMarkdown(
 
   endpoints.forEach((ep) => {
     parts.push(generateEndpointMarkdownForLlm(ep, cleanBase));
-    parts.push('\n---\n');
+    parts.push('---');
   });
 
   return parts.join('\n\n');

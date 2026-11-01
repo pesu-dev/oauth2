@@ -56,14 +56,14 @@ Use `pnpm …` for all tooling.
 | Path | Purpose |
 | -------------------- | -------------------------------------------------------- |
 | `src/app/` | Next.js App Router (pages & API route handlers) |
-| `src/components/` | Reusable Apple-design UI components |
+| `src/components/` | Reusable UI components in the pesu-auth design language (tokens in `src/app/globals.css`) |
 | `src/lib/` | Core engines (OIDC protocol, Academy client, crypto envelope, db models) |
 | `src/proxy.ts` | Edge security & auth proxy |
 | `tests/unit/` | Vitest unit test suites (`vitest.unit.config.ts`) |
 | `tests/integration/` | Real MongoDB Testcontainers suites (`vitest.integration.config.ts`) |
 | `docs/superpowers/` | Approved design spec + migration plan |
 | `docs/plans/` | Historical architecture ADRs + bootstrap tech notes |
-| `.agents/skills/` | Curated agent skills (incl. Apple-design) |
+| `.agents/skills/` | Curated agent skills |
 | `.github/workflows/` | CI/CD (Cloud Run deploy) |
 
 Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/superpowers/`. Prefer those for long setup detail; keep this file operational.

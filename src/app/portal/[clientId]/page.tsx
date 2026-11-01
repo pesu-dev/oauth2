@@ -235,7 +235,7 @@ export default function ClientDetailPage() {
 
   if (!client) {
     return (
-      <div className="py-16 text-center text-sm text-zinc-400">
+      <div className="py-16 text-center text-sm text-muted">
         Application not found.{' '}
         <Link href="/portal" className="underline">
           Back to Portal
@@ -249,14 +249,14 @@ export default function ClientDetailPage() {
       <div>
         <Link
           href="/portal"
-          className="inline-flex items-center text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors mb-4"
+          className="inline-flex items-center text-xs font-medium text-muted hover:text-fg transition-colors mb-4"
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to applications
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+              <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg break-words">
                 {client.name}
               </h1>
               <Badge variant={client.publishing_status}>
@@ -268,16 +268,16 @@ export default function ClientDetailPage() {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2 font-mono text-xs text-zinc-500 mt-2">
+            <div className="flex items-center gap-2 font-mono text-xs text-muted mt-2">
               <span>Client ID: {client.client_id}</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={copyClientId}
-                className="h-6 w-6 p-0 hover:text-zinc-900 dark:hover:text-zinc-100"
+                className="h-6 w-6 p-0 hover:text-fg"
                 title="Copy Client ID"
               >
-                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedId ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
               </Button>
             </div>
           </div>
@@ -297,7 +297,7 @@ export default function ClientDetailPage() {
                   </DrawerDescription>
                 </DrawerHeader>
 
-                <form onSubmit={handleRequestProduction} className="space-y-4 px-4 pb-6">
+                <form onSubmit={handleRequestProduction} className="space-y-4">
                   <Textarea
                     label="Justification & Club / Project Context"
                     rows={4}
@@ -313,14 +313,14 @@ export default function ClientDetailPage() {
                       id="delegatedRequested"
                       checked={delegatedRequested}
                       onChange={(e) => setDelegatedRequested(e.target.checked)}
-                      className="mt-0.5 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      className="mt-0.5 rounded border-line-strong text-get focus:ring-line-strong w-4 h-4"
                     />
                     <label
                       htmlFor="delegatedRequested"
-                      className="text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer select-none"
+                      className="text-xs text-soft cursor-pointer select-none"
                     >
-                      <span className="font-medium text-zinc-900 dark:text-zinc-100">Request Delegated Credential Vault Access</span>
-                      <p className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5">
+                      <span className="font-medium text-fg">Request Delegated Credential Vault Access</span>
+                      <p className="text-muted text-[11px] mt-0.5">
                         Enables token exchange for encrypted Academy student credentials. Requires explicit justification and review.
                       </p>
                     </label>
@@ -340,18 +340,18 @@ export default function ClientDetailPage() {
 
       {/* Application Suspended Banner */}
       {client.publishing_status === 'suspended' && (
-        <Card className="p-4 bg-red-500/10 border border-red-500/30 dark:border-red-500/20 space-y-2 text-red-700 dark:text-red-400">
+        <Card className="p-4 bg-danger/5 border border-danger/40 space-y-2 text-danger">
           <div className="flex items-center gap-2 font-semibold text-sm">
-            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+            <AlertTriangle className="w-4 h-4 text-danger" />
             <span>Application Suspended by Administrator</span>
           </div>
-          <p className="text-xs leading-relaxed text-red-900/80 dark:text-red-300/80">
+          <p className="text-xs leading-relaxed text-danger">
             This application has been suspended. Authorization and token exchange requests for this client are currently blocked.
           </p>
           {client.suspension_reason && (
-            <div className="mt-2 pt-2 border-t border-red-500/20 text-xs">
-              <span className="font-semibold block mb-0.5 text-red-900 dark:text-red-200">Reason:</span>
-              <p className="text-red-800 dark:text-red-300">{client.suspension_reason}</p>
+            <div className="mt-2 pt-2 border-t border-danger/40 text-xs">
+              <span className="font-semibold block mb-0.5 text-danger">Reason:</span>
+              <p className="text-danger">{client.suspension_reason}</p>
             </div>
           )}
         </Card>
@@ -359,26 +359,26 @@ export default function ClientDetailPage() {
 
       {/* Rotated Secret Banner */}
       {rotatedSecret && (
-        <Card className="p-4 bg-emerald-500/10 border border-emerald-500/30 dark:border-emerald-500/20 space-y-3">
+        <Card className="p-4 bg-success/5 border border-success/40 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold text-sm">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center gap-2 text-success font-semibold text-sm">
+              <CheckCircle2 className="w-4 h-4 text-success" />
               <span>New Client Secret Generated</span>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setRotatedSecret(null)}
-              className="h-auto p-0 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-transparent"
+              className="h-auto p-0 text-xs font-medium text-muted hover:text-soft hover:bg-transparent"
             >
               Dismiss
             </Button>
           </div>
-          <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80">
+          <p className="text-xs text-success">
             Please copy your new secret now. For security reasons, it will not be displayed again.
           </p>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-black/40 border border-emerald-500/20 font-mono text-xs">
-            <span className="select-all break-all text-zinc-900 dark:text-zinc-100 font-semibold">{rotatedSecret}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-surface border border-success/40 font-mono text-xs">
+            <span className="select-all break-all text-fg font-semibold">{rotatedSecret}</span>
             <Button
               type="button"
               size="sm"
@@ -392,7 +392,7 @@ export default function ClientDetailPage() {
             >
               {copiedRotatedSecret ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" /> Copied!
+                  <Check className="w-3.5 h-3.5 text-success" /> Copied!
                 </>
               ) : (
                 <>
@@ -407,7 +407,7 @@ export default function ClientDetailPage() {
       {/* Client Credentials Card */}
       <Card>
         <CardTitle className="text-lg flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-blue-500" />
+          <KeyRound className="w-4 h-4 text-get" />
           <span>Client Credentials</span>
         </CardTitle>
         <CardDescription className="mt-1">
@@ -416,11 +416,11 @@ export default function ClientDetailPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            <label className="text-xs font-medium text-soft">
               Client ID
             </label>
             <div className="flex items-center gap-2">
-              <div className="flex-1 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/10 font-mono text-xs select-all text-zinc-900 dark:text-zinc-100 truncate">
+              <div className="flex-1 p-2.5 rounded-md bg-surface-soft border border-line font-mono text-xs select-all text-fg truncate">
                 {client.client_id}
               </div>
               <Button
@@ -430,18 +430,18 @@ export default function ClientDetailPage() {
                 onClick={copyClientId}
                 className="shrink-0"
               >
-                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span className="ml-1 text-xs">{copiedId ? 'Copied' : 'Copy'}</span>
+                {copiedId ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="ml-1">{copiedId ? 'Copied' : 'Copy'}</span>
               </Button>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            <label className="text-xs font-medium text-soft">
               Client Secret
             </label>
             <div className="flex items-center gap-2">
-              <div className="flex-1 p-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/10 font-mono text-xs text-zinc-400 dark:text-zinc-500 tracking-wider select-none">
+              <div className="flex-1 p-2.5 rounded-md bg-surface-soft border border-line font-mono text-xs text-muted tracking-wider select-none">
                 ••••••••••••••••••••••••••••••••
               </div>
               <Button
@@ -449,9 +449,9 @@ export default function ClientDetailPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setIsRotateSecretOpen(true)}
-                className="shrink-0 text-xs flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300"
+                className="shrink-0 text-xs flex items-center gap-1.5 text-soft"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                <RefreshCw className="w-3.5 h-3.5 text-warning" />
                 <span>Rotate Secret</span>
               </Button>
             </div>
@@ -463,7 +463,7 @@ export default function ClientDetailPage() {
       <Drawer open={isRotateSecretOpen} onOpenChange={setIsRotateSecretOpen}>
         <DrawerContent className="max-w-xl mx-auto">
           <DrawerHeader>
-            <DrawerTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <DrawerTitle className="flex items-center gap-2 text-warning">
               <AlertTriangle className="w-5 h-5" />
               <span>Rotate Client Secret</span>
             </DrawerTitle>
@@ -472,7 +472,7 @@ export default function ClientDetailPage() {
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="space-y-4 px-4 pb-6">
+          <div className="space-y-4">
             {rotateError && (
               <InlineAlert variant="error" message={rotateError} className="p-3 text-xs" />
             )}
@@ -508,7 +508,7 @@ export default function ClientDetailPage() {
               variant="secondary"
               size="sm"
               onClick={handleAddUriRow}
-              className="text-xs flex items-center gap-1 shrink-0"
+              className="flex items-center gap-1 shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add URL</span>
@@ -518,7 +518,7 @@ export default function ClientDetailPage() {
           <div className="space-y-3 mt-4">
             {/* List of itemized URIs */}
             {redirectUris.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-4 text-center border border-dashed border-black/10 dark:border-white/10 rounded-xl">
+              <p className="text-xs text-muted py-4 text-center border border-dashed border-line rounded-md">
                 No redirect URIs configured. Click &ldquo;Add URL&rdquo; to add a callback endpoint.
               </p>
             ) : (
@@ -536,7 +536,7 @@ export default function ClientDetailPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveUri(index)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-500/10 p-2 shrink-0 h-9 w-9"
+                      className="text-danger hover:text-danger hover:bg-danger/5 p-2 shrink-0 h-9 w-9"
                       title="Remove URL"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -559,14 +559,14 @@ export default function ClientDetailPage() {
                 size="sm"
                 variant="secondary"
                 disabled={!newUriInput.trim()}
-                className="text-xs shrink-0"
+                className="shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 mr-1" />
                 Add
               </Button>
             </form>
 
-            <div className="flex items-center justify-between pt-3 border-t border-black/5 dark:border-white/5">
+            <div className="flex items-center justify-between pt-3 border-t border-line">
               <Button
                 type="button"
                 size="sm"
@@ -576,7 +576,7 @@ export default function ClientDetailPage() {
                 Save Changes
               </Button>
               {uriSuccess ? (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                <span className="text-xs text-success flex items-center gap-1 font-medium">
                   <Check className="w-3.5 h-3.5" /> Saved!
                 </span>
               ) : null}
@@ -605,21 +605,21 @@ export default function ClientDetailPage() {
 
           <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
             {testers.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-3 text-center">
+              <p className="text-xs text-muted py-3 text-center">
                 No external testers added yet (owner is always authorized).
               </p>
             ) : (
               testers.map((t) => (
                 <div
                   key={t.sub}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 text-xs font-mono"
+                  className="flex items-center justify-between p-2.5 rounded-md bg-surface-soft border border-line text-xs font-mono"
                 >
                   <span>{t.sub}</span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleRemoveTester(t.sub)}
-                    className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                    className="h-7 w-7 p-0 text-danger hover:text-danger hover:bg-danger/5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>

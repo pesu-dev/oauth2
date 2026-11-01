@@ -20,19 +20,15 @@ export interface PageHeaderProps {
 
 export function PageHeader({ eyebrow, title, description, className }: PageHeaderProps) {
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('space-y-3', className)}>
       {eyebrow && (
-        <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+        <div className="eyebrow flex items-center gap-2 [&_svg]:w-3.5 [&_svg]:h-3.5">
           {eyebrow.icon}
           {eyebrow.label}
         </div>
       )}
-      <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-        {title}
-      </h1>
-      {description && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{description}</p>
-      )}
+      <h1 className="display text-fg">{title}</h1>
+      {description && <p className="text-soft leading-[1.65] max-w-2xl">{description}</p>}
     </div>
   );
 }

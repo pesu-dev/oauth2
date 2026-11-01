@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { controlStyles, labelStyles } from '@/components/ui/input';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -17,34 +18,32 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, helperText, id, ...props }, ref) => {
     const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const messageId = textareaId && (error || helperText) ? `${textareaId}-message` : undefined;
 
     return (
       <div className="w-full space-y-1.5">
         {label && (
-          <label
-            htmlFor={textareaId}
-            className="block text-xs font-medium text-zinc-700 dark:text-zinc-300"
-          >
+          <label htmlFor={textareaId} className={labelStyles}>
             {label}
           </label>
         )}
         <textarea
           id={textareaId}
           ref={ref}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={messageId}
           className={cn(
-            'w-full px-3.5 py-2.5 rounded-xl text-sm transition-all duration-100 ease-out resize-none',
-            'bg-black/[0.03] dark:bg-white/[0.05] border border-black/10 dark:border-white/15',
-            'text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500',
-            error ? 'border-red-500 focus:ring-red-500/50 focus:border-red-500' : '',
+            controlStyles,
+            'resize-y min-h-24',
+            error ? 'border-danger focus:border-danger' : '',
             className
           )}
           {...props}
         />
         {error ? (
-          <p className="text-xs text-red-500 mt-1">{error}</p>
+          <p id={messageId} className="text-xs text-danger mt-1">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{helperText}</p>
+          <p id={messageId} className="text-xs text-muted mt-1">{helperText}</p>
         ) : null}
       </div>
     );
