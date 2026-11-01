@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
-import { ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound } from 'lucide-react';
+import { Fingerprint, ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound } from 'lucide-react';
 
 function ScopePermissionRow({
   icon,
@@ -134,7 +134,15 @@ export function ConsentClient({
           <div className="px-5 pt-4">
             <p className="eyebrow">This application is requesting permission to:</p>
             <ul className="divide-y divide-line list-none p-0">
-              {requestedScopes.includes('openid') || requestedScopes.includes('profile') ? (
+              {requestedScopes.includes('openid') ? (
+                <ScopePermissionRow
+                  icon={<Fingerprint className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="Confirm your Identity"
+                  description="Verify your PESU account identity via your unique user identifier."
+                />
+              ) : null}
+
+              {requestedScopes.includes('profile') ? (
                 <ScopePermissionRow
                   icon={<UserCheck className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
                   title="Access your Student Profile"
