@@ -229,14 +229,14 @@ describe('Auth Login Route (/api/auth/login)', () => {
     };
 
     it('keeps credentials when the pending device code needs the vault', async () => {
-      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid', 'attendance:read'] } as never);
-      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', delegated_allowed: false } as never);
+      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_device', scopes: ['openid', 'attendance:read'] } as never);
+      vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ client_id: 'cli_device', delegated_allowed: false } as never);
       expect((await loginTo('/device?user_code=BDFG-HJKL')).status).toBe(200);
       expect(mockCookieStore.set).toHaveBeenCalledWith('pesu_pending', expect.any(String), expect.objectContaining({ maxAge: 600 }));
     });
 
     it('drops credentials for identity device flows, unknown codes and malformed codes', async () => {
-      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid'] } as never);
+      vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_device', scopes: ['openid'] } as never);
       vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
       await loginTo('/device?user_code=BDFG-HJKL');
       vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce(null);
