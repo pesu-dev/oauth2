@@ -1025,7 +1025,7 @@ print(f"Signed in as {user.get('name')} ({user.get('prn')})")`,
       category: 'Resource Server',
       summary: "The student's PESU Academy profile photo as an image.",
       description:
-        'Returns image bytes (usually image/jpeg), fetched live from PESU Academy and never stored by this service. Requires the `photo:read` scope, admin approval of that scope, and delegated consent. The ID token and userinfo include `picture` pointing here when photo:read is granted; fetch it server-side with the access token, and do not cache it publicly.',
+        'Returns image bytes (usually image/jpeg), fetched live from PESU Academy and never stored by this service. Requires the `photo:read` scope and delegated consent. The ID token and userinfo include `picture` pointing here when photo:read is granted; fetch it server-side with the access token, and do not cache it publicly.',
       auth: 'Bearer <access_token> with photo:read',
       tryIt: 'bearer',
       headers: [
