@@ -32,4 +32,4 @@ Team owners/admins upload an avatar shown in the portal (team cards and the team
 
 ## Student photo
 
-`photo:read` (sensitive resource scope, admin approval + delegated consent) adds a `picture` claim pointing to `GET /api/v1/photo`, which fetches the photo live from PESU Academy through the vault session and returns it with `Cache-Control: private, no-store`. The photo is never stored by this service.
+`photo:read` (sensitive resource scope, delegated consent) adds a `picture` claim pointing to `GET /api/v1/photo`, which fetches the photo live from PESU Academy through the vault session and returns it with `Cache-Control: private, no-store`. The photo is never stored by this service.
