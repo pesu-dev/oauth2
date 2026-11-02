@@ -43,7 +43,7 @@ export async function POST(request: NextRequest | Request) {
   const userCode = newUserCode();
   await DeviceCode.create({
     device_code_hash: sha256Hex(deviceCode),
-    user_code: userCode.replace('-', ''),
+    user_code_hash: sha256Hex(userCode.replace('-', '')),
     client_id: client.client_id,
     scopes,
     status: 'pending',

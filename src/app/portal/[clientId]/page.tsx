@@ -490,7 +490,7 @@ export default function ClientDetailPage() {
           <span>
             <CardTitle className="text-lg">Device sign-in</CardTitle>
             <span id="device-flow-help" className="block text-sm text-soft mt-1">
-              Let TVs, CLIs and kiosks sign students in with a short code (RFC 8628), the way GitHub CLI does. Your
+              Let CLIs and devices sign students in with a short code (RFC 8628), the way GitHub CLI does. Your
               device calls <code className="font-mono text-xs">POST /oauth2/device_authorization</code> and students
               enter the code at <code className="font-mono text-xs">/device</code>.
             </span>

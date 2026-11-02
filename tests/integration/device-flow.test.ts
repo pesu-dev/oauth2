@@ -7,6 +7,7 @@ import { POST as postDeviceDecision } from '@/app/api/internal/device/route';
 import { GET as getUserInfo } from '@/app/api/v1/userinfo/route';
 import { Client, Consent, DeviceCode, User, Vault } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
+import { sha256Hex } from '@/lib/crypto/hash';
 
 const GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 
@@ -19,7 +20,7 @@ function form(url: string, fields: Record<string, string>) {
 }
 
 async function poll(deviceCode: string) {
-  const res = await postToken(form('/oauth2/token', { grant_type: GRANT, device_code: deviceCode, client_id: 'cli_tv' }));
+  const res = await postToken(form('/oauth2/token', { grant_type: GRANT, device_code: deviceCode, client_id: 'cli_device' }));
   return { status: res.status, body: await res.json() };
 }
 
@@ -48,8 +49,8 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
     await resetDatabase();
     await User.create({ sub: 'usr_student', name: 'Student', prn: 'PES1UG20CS300', srn: 'PES1UG20CS300', email: 's@pesu.pes.edu' });
     await Client.create({
-      client_id: 'cli_tv',
-      name: 'Club Kiosk',
+      client_id: 'cli_device',
+      name: 'Club CLI',
       owner_sub: 'usr_dev',
       redirect_uris: [],
       token_endpoint_auth_method: 'none',
@@ -59,11 +60,15 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
   });
 
   it('runs start → pending → slow_down → approve → tokens, and the code is single-use', async () => {
-    const startRes = await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_tv', scope: 'openid email' }));
+    const startRes = await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_device', scope: 'openid email' }));
     expect(startRes.status).toBe(200);
     const start = await startRes.json();
     expect(start.user_code).toMatch(/^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/);
     expect(start.verification_uri_complete).toContain(`/device?user_code=${start.user_code}`);
+    const created = await DeviceCode.findOne({ client_id: 'cli_device' }).lean();
+    expect(created).toMatchObject({ user_code_hash: sha256Hex(start.user_code.replace('-', '')) });
+    expect(JSON.stringify(created)).not.toContain(start.user_code.replace('-', ''));
+    expect(created?.mode).toBeUndefined();
     expect(start).toMatchObject({ expires_in: 900, interval: 5 });
 
     // Only a hash of the device code is stored
@@ -77,7 +82,7 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
     // Student types the code in any format
     const approved = await decide(start.user_code.toLowerCase().replace('-', ' '), 'allow');
     expect(approved).toEqual({ status: 200, body: { status: 'approved' } });
-    expect((await Consent.findOne({ sub: 'usr_student', client_id: 'cli_tv' }).lean())?.mode).toBe('identity');
+    expect((await Consent.findOne({ sub: 'usr_student', client_id: 'cli_device' }).lean())?.mode).toBe('identity');
     expect(await Vault.countDocuments()).toBe(0);
 
     const tokens = await poll(start.device_code);
@@ -96,7 +101,7 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
   });
 
   it('reports access_denied once when the student denies', async () => {
-    const start = await (await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_tv' }))).json();
+    const start = await (await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_device' }))).json();
     expect((await decide(start.user_code, 'deny')).body).toEqual({ status: 'denied' });
     expect((await poll(start.device_code)).body.error).toBe('access_denied');
     expect((await poll(start.device_code)).body.error).toBe('expired_token');
@@ -104,11 +109,11 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
   });
 
   it('refuses clients without device flow and unknown device codes', async () => {
-    await Client.updateOne({ client_id: 'cli_tv' }, { $set: { device_flow_enabled: false } });
-    const res = await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_tv' }));
+    await Client.updateOne({ client_id: 'cli_device' }, { $set: { device_flow_enabled: false } });
+    const res = await postDeviceAuthorization(form('/oauth2/device_authorization', { client_id: 'cli_device' }));
     expect((await res.json()).error).toBe('unauthorized_client');
 
-    await Client.updateOne({ client_id: 'cli_tv' }, { $set: { device_flow_enabled: true } });
+    await Client.updateOne({ client_id: 'cli_device' }, { $set: { device_flow_enabled: true } });
     expect((await poll('dev_not_a_real_code')).body.error).toBe('expired_token');
   });
 });

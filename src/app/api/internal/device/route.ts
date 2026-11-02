@@ -5,7 +5,8 @@ import { Client, ClientTester, Consent, DeviceCode, Vault } from '@/lib/db/model
 import { verifySessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { sealPendingCredentials } from '@/lib/session/vault-seal';
-import { normalizeUserCode } from '@/lib/id/nanoid';
+import { sha256Hex } from '@/lib/crypto/hash';
+import { normalizeUserCode } from '@/lib/oidc/device-code';
 import { requiresDelegated } from '@/lib/oidc/scopes';
 import { getConfig } from '@/lib/config';
 import { notifySubQuietly } from '@/lib/mailer';
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     await connectToDatabase();
-    const device = await DeviceCode.findOne({ user_code: code, status: 'pending', expires_at: { $gt: new Date() } });
+    const device = await DeviceCode.findOne({ user_code_hash: sha256Hex(code), status: 'pending', expires_at: { $gt: new Date() } });
     if (!device) {
       return NextResponse.json({ error: 'This code is invalid, already used, or expired' }, { status: 404 });
     }

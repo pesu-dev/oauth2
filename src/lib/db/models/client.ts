@@ -10,7 +10,7 @@ export interface IClient extends Document {
   redirect_uris: string[];
   publishing_status: PublishingStatus;
   delegated_allowed: boolean;
-  /** Allows the RFC 8628 device authorization grant (TVs, CLIs, kiosks). */
+  /** Allows the RFC 8628 device authorization grant (CLIs and devices). */
   device_flow_enabled: boolean;
   token_endpoint_auth_method: string;
   suspension_reason?: string | null;

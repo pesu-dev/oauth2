@@ -6,7 +6,7 @@
 
 ## Goal
 
-Let input-constrained clients (club kiosks, TV dashboards, CLIs) sign students in the way GitHub CLI does: the device shows a short code, the student approves on their phone or laptop.
+Let input-constrained clients (CLIs and devices) sign students in the way GitHub CLI does: the device shows a short code, the student approves on their phone or laptop.
 
 ## Flow
 
@@ -21,7 +21,7 @@ Let input-constrained clients (club kiosks, TV dashboards, CLIs) sign students i
 | --- | --- |
 | Opt-in | Per client: `clients.device_flow_enabled` (portal toggle). Otherwise `unauthorized_client`. |
 | Clients | Public (`none`) or confidential; shipped devices should use public clients. |
-| Storage | `device_codes`: SHA-256 of the device code, normalized user code (unique), scopes, status, `sub`, `mode`, interval, `last_polled_at`, TTL index on `expires_at`. |
+| Storage | `device_codes`: SHA-256 of the device code and of the normalized user code (both unique), scopes, status, `sub`, `mode` (set on approval), interval, `last_polled_at`, TTL index on `expires_at`. |
 | User code | 8 characters from `BCDFGHJKLMNPQRSTVWXZ` (no vowels or look-alikes, RFC 8628 §6.1); input is case/space/dash-insensitive. |
 | Gates | Same as browser consent at approval time: suspension, Testing allowlist, admin-approved resource scopes, delegated vault (credentials captured at login when the code needs them). |
 | Single use | Approved codes are claimed with an atomic delete; reuse returns `expired_token`. |
