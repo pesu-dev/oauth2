@@ -785,7 +785,7 @@ print("Access token expires in:", token_data.get("expires_in"))`,
       params: [
         { name: 'client_id', location: 'body', type: 'string', required: true, description: 'Your application client_id.', example: 'cli_live_a1b2c3d4e5' },
         { name: 'client_secret', location: 'body', type: 'string', required: false, description: 'Required for confidential clients. Never embed it in a device you ship to users; use a public client instead.' },
-        { name: 'scope', location: 'body', type: 'string', required: false, defaultValue: 'openid', description: 'Space-separated scopes. openid is required; resource scopes need admin approval.', example: 'openid profile offline_access' },
+        { name: 'scope', location: 'body', type: 'string', required: false, defaultValue: 'openid', description: 'Space-separated scopes. openid is required; resource scopes need the student\'s delegated consent.', example: 'openid profile offline_access' },
       ],
       responses: [
         {

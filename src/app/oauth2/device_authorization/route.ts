@@ -5,7 +5,7 @@ import { getConfig } from '@/lib/config';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { newDeviceCode, newUserCode } from '@/lib/id/nanoid';
 import { authenticateClientForToken, parseTokenRequestParams } from '@/lib/oidc/token-service';
-import { parseScopes, unapprovedScopes } from '@/lib/oidc/scopes';
+import { parseScopes } from '@/lib/oidc/scopes';
 
 const HEADERS = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
 const DEVICE_CODE_TTL_SECONDS = 15 * 60;
@@ -37,13 +37,6 @@ export async function POST(request: NextRequest | Request) {
   const scopes = parseScopes(params.scope || 'openid');
   if (!scopes.includes('openid')) {
     return json({ error: 'invalid_scope', error_description: 'OIDC requires the openid scope' }, 400);
-  }
-  const blocked = unapprovedScopes(scopes, client.allowed_scopes);
-  if (blocked.length > 0) {
-    return json(
-      { error: 'invalid_scope', error_description: `Client is not approved for: ${blocked.join(', ')}` },
-      400
-    );
   }
 
   const deviceCode = newDeviceCode();
