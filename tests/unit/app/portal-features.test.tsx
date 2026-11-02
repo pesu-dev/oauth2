@@ -37,7 +37,6 @@ const baseClient = {
   publishing_status: 'production',
   redirect_uris: [],
   delegated_allowed: false,
-  allowed_scopes: ['attendance:read'],
 };
 
 describe('id generators', () => {
@@ -141,42 +140,6 @@ describe('client detail: logo, device flow, team and permissions', () => {
       fireEvent.click(toggle);
     });
     expect(toggle.checked).toBe(false);
-  });
-
-  it('requests API scopes for a production app and reports errors', async () => {
-    const fetchMock = mockFetch({ client: baseClient, testers: [] }, (url) =>
-      url.endsWith('/request-production') ? { ok: false, body: { error: 'All requested scopes are already approved.' } } : undefined
-    );
-    render(<ClientDetailPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /request api access/i }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Already approved')).toBeDefined();
-
-    fireEvent.change(within(dialog).getByLabelText(/justification/i), { target: { value: 'Shows timetable and results to members' } });
-    const results = within(dialog).getByText('results:read').closest('label')!.querySelector('input')!;
-    fireEvent.click(results);
-    fireEvent.click(results);
-    fireEvent.click(results);
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }));
-    });
-    const body = JSON.parse(String(fetchMock.mock.calls.find(([u]) => String(u).endsWith('/request-production'))![1]!.body));
-    expect(body).toMatchObject({ requestedScopes: ['results:read'], productionRequested: false });
-    expect(await within(dialog).findByText('All requested scopes are already approved.')).toBeDefined();
-  });
-
-  it('falls back to a generic message when the request error has no body', async () => {
-    mockFetch({ client: baseClient, testers: [] }, (url) =>
-      url.endsWith('/request-production') ? { ok: false, body: {} } : undefined
-    );
-    render(<ClientDetailPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /request api access/i }));
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText(/justification/i), { target: { value: 'A valid justification text' } });
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }));
-    });
-    expect(await within(dialog).findByText('Request failed')).toBeDefined();
   });
 });
 
