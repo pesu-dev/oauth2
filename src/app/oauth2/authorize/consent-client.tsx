@@ -206,7 +206,7 @@ export function ConsentClient({
               <>
                 <KeyRound className="w-4 h-4 shrink-0 text-json-key mt-0.5" />
                 <div>
-                  <span className="font-bold text-json-key">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this client is authorized to execute operations on your behalf.
+                  <span className="font-bold text-json-key">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this application needs them to act on your behalf.
                 </div>
               </>
             ) : (

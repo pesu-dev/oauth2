@@ -11,7 +11,7 @@ const PRINCIPLES = [
   {
     label: 'Delegated',
     title: 'AES-256-GCM Vault',
-    body: 'Only apps an admin approves for delegated access can ask to keep a session. Credentials are sealed with envelope encryption and a per-user data key.',
+    body: 'Apps can keep a session only if you allow it on the consent screen. Credentials are sealed with envelope encryption and a per-user data key.',
   },
   {
     label: 'Protocol',

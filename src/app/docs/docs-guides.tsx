@@ -439,7 +439,7 @@ def generate_pkce_pair() -> tuple[str, str]:
                     <td className="py-2.5 px-3 text-soft">
                       {def.description}
                       {def.kind === 'resource' ? (
-                        <span className="block mt-1 text-[11px] text-json-key">Needs admin approval and delegated consent.</span>
+                        <span className="block mt-1 text-[11px] text-json-key">Needs the student&apos;s delegated consent.</span>
                       ) : null}
                     </td>
                   </tr>
