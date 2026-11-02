@@ -2,13 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import crypto from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { setupIntegrationMongo, teardownIntegrationMongo, resetDatabase } from './setup';
-import { POST as postRequestAccess } from '@/app/api/internal/portal/clients/[clientId]/request-production/route';
-import { POST as postReview } from '@/app/api/internal/admin/requests/route';
 import { POST as postConsent } from '@/app/api/internal/consent/route';
 import { POST as postToken } from '@/app/oauth2/token/route';
 import { DELETE as deleteSettings } from '@/app/api/internal/settings/route';
 import { GET as getAttendance } from '@/app/api/v1/attendance/route';
-import { Admin, Client, Consent, User, Vault } from '@/lib/db/models';
+import { Client, Consent, User, Vault } from '@/lib/db/models';
 import { createSessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { apiLimiter } from '@/lib/rate-limit';
@@ -87,10 +85,9 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
     pendingCredentialStore.reset();
   });
 
-  it('gates resource scopes on admin approval and revokes access immediately', async () => {
+  it('grants resource scopes on student consent and revokes access immediately', async () => {
     await User.create({ sub: 'usr_dev', name: 'Dev', prn: 'PES1UG20CS100', srn: 'PES1UG20CS100' });
     const student = await User.create({ sub: 'usr_student', name: 'Student', prn: 'PES1UG20CS200', srn: 'PES1UG20CS200' });
-    await Admin.create({ sub: 'usr_admin' });
     await Client.create({
       client_id: 'cli_tracker',
       name: 'Attendance Tracker',
@@ -100,8 +97,6 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
       publishing_status: 'production',
     });
 
-    const devCookie = `pesu_session=${await createSessionToken({ sub: 'usr_dev' })}`;
-    const adminCookie = `pesu_session=${await createSessionToken({ sub: 'usr_admin' })}`;
     const credId = pendingCredentialStore.put({
       username: student.srn,
       password: 'student-password',
@@ -113,42 +108,17 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
       `pesu_session=${await createSessionToken({ sub: student.sub, name: student.name })}; ` +
       `pesu_pending=${await createSessionToken({ sub: student.sub, cred_id: credId }, 600)}`;
 
-    // 1. Not approved yet: consent refuses the resource scope
-    const early = await consentAndToken(studentCookie, 'openid attendance:read');
-    expect(early.status).toBe(400);
-    expect(early.body.error).toBe('invalid_scope');
+    // 1. No admin step: the client holds no delegated approval and the student consents
+    expect(await Client.findOne({ client_id: 'cli_tracker' }).lean()).toMatchObject({ delegated_allowed: false });
 
-    // 2. Developer asks for attendance:read without leaving Production; admin approves it
-    const requestRes = await postRequestAccess(
-      json('/api/internal/portal/clients/cli_tracker/request-production', 'POST', devCookie, {
-        justification: 'Shows club members their attendance before exams',
-        productionRequested: false,
-        requestedScopes: ['attendance:read'],
-      }),
-      { params: Promise.resolve({ clientId: 'cli_tracker' }) }
-    );
-    expect(requestRes.status).toBe(200);
-    const { request } = await requestRes.json();
-
-    const reviewRes = await postReview(
-      json('/api/internal/admin/requests', 'POST', adminCookie, {
-        requestId: request.request_id,
-        action: 'approve',
-        approvedScopes: ['attendance:read'],
-      })
-    );
-    expect(reviewRes.status).toBe(200);
-    const approved = await Client.findOne({ client_id: 'cli_tracker' }).lean();
-    expect(approved).toMatchObject({ publishing_status: 'production', delegated_allowed: true, allowed_scopes: ['attendance:read'] });
-
-    // 3. Delegated consent stores the vault; the token carries the scope
+    // 2. Delegated consent stores the vault; the token carries the scope
     const granted = await consentAndToken(studentCookie, 'openid attendance:read');
     expect(granted.status).toBe(200);
     expect(granted.body.scope).toBe('openid attendance:read');
     expect(await Vault.countDocuments({ sub: student.sub })).toBe(1);
     expect((await Consent.findOne({ sub: student.sub, client_id: 'cli_tracker' }).lean())?.mode).toBe('delegated');
 
-    // 4. The resource API returns only allowlisted fields from Academy's payload
+    // 3. The resource API returns only allowlisted fields from Academy's payload
     dispatch.mockResolvedValue({
       ATTENDANCE: [{ subjectCode: 'UE20CS301', subjectName: 'DBMS', totalClasses: 40, attendedClasses: 37, FatherMobileNo: '9999999999' }],
     });
@@ -167,7 +137,7 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
     expect(session).toMatchObject({ token: 'academy-mobile-token', accessToken: 'academy-access-token' });
     expect(form).toMatchObject({ action: 18, mode: 6, menuId: '424242' });
 
-    // 5. An identity-only token for the same app cannot read attendance
+    // 4. An identity-only token for the same app cannot read attendance
     const identityCred = pendingCredentialStore.put({ username: student.srn, password: 'student-password' });
     const identityCookie =
       `pesu_session=${await createSessionToken({ sub: student.sub, name: student.name })}; ` +
@@ -181,7 +151,7 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
     expect(denied.status).toBe(403);
     expect((await denied.json()).error).toBe('insufficient_scope');
 
-    // 6. Revoking consent in Settings blocks the still-unexpired access token
+    // 5. Revoking consent in Settings blocks the still-unexpired access token
     const revoke = await deleteSettings(
       json('/api/internal/settings?action=consent&client_id=cli_tracker', 'DELETE', `pesu_session=${await createSessionToken({ sub: student.sub })}`)
     );

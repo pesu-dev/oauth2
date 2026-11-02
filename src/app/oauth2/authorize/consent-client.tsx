@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
 import { Fingerprint, ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound, Database } from 'lucide-react';
-import { getScope } from '@/lib/oidc/scopes';
+import { getScope, requiresDelegated } from '@/lib/oidc/scopes';
 
 function ScopePermissionRow({
   icon,
@@ -96,7 +96,7 @@ export function ConsentClient({
     }
   };
 
-  const isDelegated = mode === 'delegated' && client.delegatedAllowed;
+  const isDelegated = mode === 'delegated' && (client.delegatedAllowed || requiresDelegated(requestedScopes));
   const resourceScopes = requestedScopes
     .map((name) => getScope(name))
     .filter((def): def is NonNullable<typeof def> => def?.kind === 'resource');

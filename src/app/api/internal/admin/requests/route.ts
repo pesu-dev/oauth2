@@ -40,8 +40,6 @@ export async function GET(request: NextRequest) {
         client_id: 1,
         status: 1,
         delegated_requested: 1,
-        production_requested: { $ifNull: ['$production_requested', true] },
-        requested_scopes: { $ifNull: ['$requested_scopes', []] },
         created_at: 1,
         justification: { $ifNull: ['$justification', ''] },
         client_name: {
@@ -74,18 +72,15 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { requestId, action, allowDelegated = false, approvedScopes } = body; // 'approve' | 'reject'
+  const { requestId, action, allowDelegated = false } = body; // 'approve' | 'reject'
 
   if (!requestId || !['approve', 'reject'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
   }
 
-  if (approvedScopes !== undefined && (!Array.isArray(approvedScopes) || approvedScopes.some((s: unknown) => typeof s !== 'string'))) {
-    return NextResponse.json({ error: 'approvedScopes must be a list of scope names' }, { status: 400 });
-  }
-
   const now = new Date();
   const isApprove = action === 'approve';
+  const shouldAllowDelegated = isApprove && Boolean(allowDelegated);
 
   const txResult = await withTransaction(async (dbSession) => {
     // Atomic CAS resolve
@@ -107,44 +102,19 @@ export async function POST(request: NextRequest) {
       return null;
     }
 
-    // Admins approve scopes individually; anything not explicitly approved is dropped.
-    // Omitting approvedScopes approves everything that was requested.
-    const requested = prodReq.requested_scopes ?? [];
-    const granted = isApprove
-      ? requested.filter((s) => (approvedScopes === undefined ? true : approvedScopes.includes(s)))
-      : [];
-    if (granted.length > 0) {
-      await ProductionRequest.updateOne(
-        { request_id: prodReq.request_id },
-        { $set: { approved_scopes: granted } },
-        { session: dbSession }
-      );
-    }
-
-    const productionRequested = prodReq.production_requested !== false;
-    const existing = await Client.findOne({ client_id: prodReq.client_id }, null, { session: dbSession });
-    const allowedScopes = [...new Set([...(existing?.allowed_scopes ?? []), ...granted])];
-    // Resource scopes need the vault, so any approved scope keeps delegated mode on.
-    const delegatedAllowed = productionRequested
-      ? (isApprove && Boolean(allowDelegated)) || allowedScopes.length > 0
-      : Boolean(existing?.delegated_allowed) || granted.length > 0;
-
-    const update: Record<string, unknown> = {
-      delegated_allowed: delegatedAllowed,
-      allowed_scopes: allowedScopes,
-      updated_at: now,
-    };
-    if (productionRequested) {
-      update.publishing_status = isApprove ? 'production' : 'testing';
-    }
-
     const client = await Client.findOneAndUpdate(
       { client_id: prodReq.client_id },
-      { $set: update },
+      {
+        $set: {
+          publishing_status: isApprove ? 'production' : 'testing',
+          delegated_allowed: shouldAllowDelegated,
+          updated_at: now,
+        },
+      },
       { returnDocument: 'after', session: dbSession }
     );
 
-    return { prodReq, client, granted };
+    return { prodReq, client };
   });
 
   if (!txResult) {
@@ -158,21 +128,17 @@ export async function POST(request: NextRequest) {
 
   if (client) {
     const ownerSub = client.owner_sub || prodReq.requested_by_sub;
-    const productionRequested = prodReq.production_requested !== false;
-    const scopesLine = txResult.granted.length ? ` Approved API scopes: ${txResult.granted.join(', ')}.` : '';
     if (isApprove) {
       notifySubQuietly({
         sub: ownerSub,
-        subject: productionRequested ? `${client.name} approved for Production` : `API access approved for ${client.name}`,
-        body: `Your client ${client.name} (${client.client_id}) was approved${productionRequested ? ' for Production' : ''}.${client.delegated_allowed ? ' Delegated mode is allowed.' : ''}${scopesLine}`,
+        subject: `${client.name} approved for Production`,
+        body: `Your client ${client.name} (${client.client_id}) was approved for Production.${shouldAllowDelegated ? ' Delegated mode is allowed.' : ''}`,
       });
     } else {
       notifySubQuietly({
         sub: ownerSub,
-        subject: productionRequested ? `${client.name} returned to Testing` : `API access request for ${client.name} rejected`,
-        body: productionRequested
-          ? `Your Production request for ${client.name} (${client.client_id}) was rejected. The client remains in Testing.`
-          : `Your API access request for ${client.name} (${client.client_id}) was rejected. Its current scopes are unchanged.`,
+        subject: `${client.name} returned to Testing`,
+        body: `Your Production request for ${client.name} (${client.client_id}) was rejected. The client remains in Testing.`,
       });
     }
   }

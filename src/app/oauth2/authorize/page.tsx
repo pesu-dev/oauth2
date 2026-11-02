@@ -8,7 +8,7 @@ import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
-import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
+import { parseScopes, requiresDelegated } from '@/lib/oidc/scopes';
 import { ConsentClient } from './consent-client';
 
 const PKCE_CHALLENGE_RE = /^[A-Za-z0-9\-_]{43,128}$/;
@@ -126,16 +126,6 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
     );
   }
 
-  // Resource scopes must be approved by an admin for this client
-  const blockedScopes = unapprovedScopes(requestedScopes, client.allowed_scopes);
-  if (blockedScopes.length > 0) {
-    return (
-      <AuthorizeError>
-        invalid_scope: this application is not approved for {blockedScopes.join(', ')}.
-      </AuthorizeError>
-    );
-  }
-
   // Mode validation & derivation: resource scopes always need the delegated vault
   const needsDelegated = requiresDelegated(requestedScopes);
   let targetMode: 'identity' | 'delegated';
@@ -154,7 +144,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
         </AuthorizeError>
       );
     }
-    if (params.mode === 'delegated' && !client.delegated_allowed) {
+    if (params.mode === 'delegated' && !needsDelegated && !client.delegated_allowed) {
       return (
         <AuthorizeError>
           Delegated access not permitted: This client application is not approved for delegated vault access.

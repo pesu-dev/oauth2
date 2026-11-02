@@ -341,8 +341,6 @@ describe('ClientDetailPage Component', () => {
           body: JSON.stringify({
             justification: 'This is a campus-wide timetable application.',
             delegatedRequested: true,
-            requestedScopes: [],
-            productionRequested: true,
           }),
         }
       );

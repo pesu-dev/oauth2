@@ -164,7 +164,7 @@ export function resourceEndpointDocs(
       title: spec.title,
       category: 'Resource Server' as const,
       summary: spec.summary,
-      description: `${spec.summary} Requires the \`${spec.scope}\` scope, admin approval of that scope for your app, and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned. Beta: field coverage depends on what PESU Academy returns for each account.`,
+      description: `${spec.summary} Requires the \`${spec.scope}\` scope and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned. Beta: field coverage depends on what PESU Academy returns for each account.`,
       auth: `Bearer <access_token> with ${spec.scope}`,
       tryIt: 'bearer' as const,
       headers: [

@@ -5,11 +5,8 @@ import {
   allScopeNames,
   getScope,
   isKnownScope,
-  isResourceScope,
   parseScopes,
   requiresDelegated,
-  resourceScopeNames,
-  unapprovedScopes,
 } from '@/lib/oidc/scopes';
 
 describe('scope registry', () => {
@@ -20,7 +17,7 @@ describe('scope registry', () => {
   });
 
   it('marks every resource scope as resource:read and delegated', () => {
-    const resource = resourceScopeNames();
+    const resource = SCOPES.filter((s) => s.kind === 'resource').map((s) => s.name);
     expect(resource).toEqual([
       'courses:read',
       'attendance:read',
@@ -45,9 +42,6 @@ describe('scope registry', () => {
     expect(getScope('nope')).toBeUndefined();
     expect(isKnownScope('openid')).toBe(true);
     expect(isKnownScope('admin')).toBe(false);
-    expect(isResourceScope('attendance:read')).toBe(true);
-    expect(isResourceScope('email')).toBe(false);
-    expect(isResourceScope('unknown')).toBe(false);
   });
 
   it('parses scope strings, dropping unknown and duplicate scopes in order', () => {
@@ -65,11 +59,5 @@ describe('scope registry', () => {
     expect(requiresDelegated(['openid', 'profile'])).toBe(false);
     expect(requiresDelegated(['openid', 'results:read'])).toBe(true);
     expect(requiresDelegated(['ghost'])).toBe(false);
-  });
-
-  it('reports resource scopes a client has not been approved for', () => {
-    expect(unapprovedScopes(['openid', 'email', 'attendance:read'], undefined)).toEqual(['attendance:read']);
-    expect(unapprovedScopes(['openid', 'attendance:read'], ['attendance:read'])).toEqual([]);
-    expect(unapprovedScopes(['openid', 'results:read', 'seating:read'], ['seating:read'])).toEqual(['results:read']);
   });
 });

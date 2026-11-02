@@ -7,10 +7,6 @@ export interface IProductionRequest extends Document {
   owner_sub?: string;
   status: 'pending' | 'approved' | 'rejected';
   delegated_requested: boolean;
-  /** False for a scope-only request that keeps the client's publishing status. */
-  production_requested: boolean;
-  requested_scopes: string[];
-  approved_scopes: string[];
   justification?: string;
   created_at: Date;
   resolved_at?: Date | null;
@@ -31,9 +27,6 @@ export const ProductionRequestSchema = new Schema<IProductionRequest>(
       default: 'pending',
     },
     delegated_requested: { type: Boolean, default: false },
-    production_requested: { type: Boolean, default: true },
-    requested_scopes: { type: [String], default: [] },
-    approved_scopes: { type: [String], default: [] },
     justification: { type: String },
     created_at: { type: Date, default: Date.now },
     resolved_at: { type: Date },

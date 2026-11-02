@@ -30,7 +30,7 @@ function allowAll(scope = 'attendance:read') {
   vi.spyOn(jwt, 'verifyAccessToken').mockResolvedValue({ sub: 'usr_1', client_id: 'cli_1', scope: `openid ${scope}` });
   vi.spyOn(User, 'findOne').mockReturnValue(lean({ sub: 'usr_1' }));
   vi.spyOn(Client, 'findOne').mockReturnValue(
-    lean({ client_id: 'cli_1', publishing_status: 'production', allowed_scopes: [scope] })
+    lean({ client_id: 'cli_1', publishing_status: 'production' })
   );
   vi.spyOn(Consent, 'findOne').mockReturnValue(lean({ mode: 'delegated', scopes: ['openid', scope] }));
 }
@@ -80,12 +80,7 @@ describe('requireScope', () => {
     const cases: [() => void, number, string][] = [
       [() => vi.spyOn(User, 'findOne').mockReturnValue(lean(null)), 401, 'User not found'],
       [() => vi.spyOn(Client, 'findOne').mockReturnValue(lean(null)), 401, 'unknown or suspended'],
-      [
-        () => vi.spyOn(Client, 'findOne').mockReturnValue(lean({ publishing_status: 'suspended', allowed_scopes: ['attendance:read'] })),
-        401,
-        'unknown or suspended',
-      ],
-      [() => vi.spyOn(Client, 'findOne').mockReturnValue(lean({ publishing_status: 'production' })), 403, 'no longer approved'],
+      [() => vi.spyOn(Client, 'findOne').mockReturnValue(lean({ publishing_status: 'suspended' })), 401, 'unknown or suspended'],
       [() => vi.spyOn(Consent, 'findOne').mockReturnValue(lean(null)), 401, 'revoked'],
       [() => vi.spyOn(Consent, 'findOne').mockReturnValue(lean({ mode: 'identity', scopes: ['attendance:read'] })), 401, 'revoked'],
       [() => vi.spyOn(Consent, 'findOne').mockReturnValue(lean({ mode: 'delegated', scopes: ['openid'] })), 401, 'revoked'],

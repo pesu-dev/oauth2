@@ -14,7 +14,7 @@ Guidance for AI coding agents working in this repository.
 | **History / product ADRs** | [`docs/plans/architecture.md`](docs/plans/architecture.md) | Historical; not the build checklist |
 | **Product + tech contract** | [`docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md`](docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) | Approved MVP design |
 | **Implementation plan** | [`docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md`](docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md) | Task checklist for the Next.js migration |
-| **Resource API contract** | [`docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md`](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) | Scopes, approval flow, `/api/v1/*`; amends ADR-0003 |
+| **Resource API contract** | [`docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md`](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) | Scopes, consent flow, `/api/v1/*`; amends ADR-0003 |
 | **Agent conventions** | [`.agents/rules/`](.agents/rules/) | Committed; style/security conventions |
 | **Agent skills** | [`.agents/skills/`](.agents/skills/) | Committed; invoke when the skill’s trigger matches |
 

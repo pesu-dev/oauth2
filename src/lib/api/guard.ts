@@ -23,7 +23,7 @@ function bearerError(status: number, error: string, description: string, scope?:
 
 /**
  * Authorizes a resource API call (RFC 6750). Beyond the JWT itself, re-checks live state so a
- * revoked consent, suspended client, withdrawn scope approval or deleted account takes effect
+ * revoked consent, suspended client or deleted account takes effect
  * immediately rather than when the one-hour access token expires.
  */
 export async function requireScope(request: Request, scope: string): Promise<GuardResult> {
@@ -67,9 +67,6 @@ export async function requireScope(request: Request, scope: string): Promise<Gua
   }
   if (!client || client.publishing_status === 'suspended') {
     return bearerError(401, 'invalid_token', 'Client is unknown or suspended');
-  }
-  if (!(client.allowed_scopes ?? []).includes(scope)) {
-    return bearerError(403, 'insufficient_scope', `Client is no longer approved for ${scope}`, scope);
   }
   if (!consent || consent.mode !== 'delegated' || !consent.scopes.includes(scope)) {
     return bearerError(401, 'invalid_token', 'Consent for this scope was revoked');

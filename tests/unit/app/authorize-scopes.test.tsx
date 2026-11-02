@@ -33,8 +33,7 @@ function client(fields: Record<string, unknown> = {}) {
     owner_sub: 'usr_dev',
     redirect_uris: [REDIRECT],
     publishing_status: 'production',
-    delegated_allowed: true,
-    allowed_scopes: ['attendance:read'],
+    delegated_allowed: false,
     ...fields,
   } as never);
 }
@@ -59,11 +58,18 @@ describe('authorize with resource scopes', () => {
     vi.spyOn(cookieHelper, 'verifySessionToken').mockResolvedValue({ sub: 'usr_student', name: 'Student' });
   });
 
-  it('rejects resource scopes the client is not approved for', async () => {
-    client({ allowed_scopes: [] });
-    const { container } = render((await authorize('openid results:read')) as React.ReactElement);
-    expect(container.textContent).toContain('invalid_scope');
-    expect(container.textContent).toContain('results:read');
+  it('does not need admin approval for resource scopes', async () => {
+    client();
+    vi.spyOn(Vault, 'findOne').mockResolvedValue({ sub: 'usr_student' } as never);
+    vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
+    const element = (await authorize('openid results:read', { mode: 'delegated' })) as React.ReactElement<{ mode: string }>;
+    expect(element.props.mode).toBe('delegated');
+  });
+
+  it('keeps delegated mode without a resource scope admin-gated', async () => {
+    client();
+    const { container } = render((await authorize('openid', { mode: 'delegated' })) as React.ReactElement);
+    expect(container.textContent).toContain('not approved for delegated vault access');
   });
 
   it('rejects mode=identity combined with a resource scope', async () => {
@@ -72,7 +78,7 @@ describe('authorize with resource scopes', () => {
     expect(container.textContent).toContain('need delegated mode');
   });
 
-  it('derives delegated mode from approved resource scopes and asks for consent', async () => {
+  it('derives delegated mode from resource scopes and asks for consent', async () => {
     client();
     vi.spyOn(Vault, 'findOne').mockResolvedValue({ sub: 'usr_student' } as never);
     vi.spyOn(Consent, 'findOne').mockResolvedValue(null);
@@ -86,7 +92,7 @@ describe('consent screen resource scopes', () => {
   it('lists PESU Academy data scopes with their plain-language labels', () => {
     render(
       <ConsentClient
-        client={{ clientId: 'cli_api', name: 'Attendance Buddy', publishingStatus: 'production', delegatedAllowed: true }}
+        client={{ clientId: 'cli_api', name: 'Attendance Buddy', publishingStatus: 'production', delegatedAllowed: false }}
         userName="Student"
         requestedScopes={['openid', 'attendance:read', 'results:read', 'bogus']}
         mode="delegated"
@@ -147,12 +153,10 @@ describe('consent API with resource scopes', () => {
     expect((await res.json()).error_description).toContain('delegated mode');
   });
 
-  it('rejects resource scopes the client is not approved for', async () => {
-    client({ allowed_scopes: [] });
-    const res = await consent({ scope: 'openid seating:read' });
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe('invalid_scope');
-    expect(data.error_description).toContain('seating:read');
+  it('keeps delegated mode without a resource scope admin-gated', async () => {
+    client();
+    const res = await consent({ scope: 'openid', mode: 'delegated' });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain('not approved for delegated');
   });
 });

@@ -12,7 +12,7 @@ export interface ScopeDefinition {
   consentLabel: string;
   /** One-sentence explanation for consent, docs and the portal. */
   description: string;
-  /** Sensitive scopes are highlighted on consent and need a justification in access requests. */
+  /** Sensitive scopes are highlighted on consent. */
   sensitive: boolean;
   /** Resource scopes call PESU Academy on the student's behalf, so they require a vault. */
   requiresDelegated: boolean;
@@ -143,16 +143,8 @@ export function isKnownScope(name: string): boolean {
   return BY_NAME.has(name);
 }
 
-export function isResourceScope(name: string): boolean {
-  return BY_NAME.get(name)?.kind === 'resource';
-}
-
 export function allScopeNames(): string[] {
   return SCOPES.map((s) => s.name);
-}
-
-export function resourceScopeNames(): string[] {
-  return SCOPES.filter((s) => s.kind === 'resource').map((s) => s.name);
 }
 
 /**
@@ -170,10 +162,4 @@ export function parseScopes(raw: string | undefined | null): string[] {
 /** True when any requested scope needs the delegated credential vault. */
 export function requiresDelegated(scopes: string[]): boolean {
   return scopes.some((s) => BY_NAME.get(s)?.requiresDelegated);
-}
-
-/** Scopes that are not covered by what an admin has approved for the client. */
-export function unapprovedScopes(requested: string[], allowed: readonly string[] | undefined): string[] {
-  const approved = new Set<string>([...IDENTITY_SCOPES, ...(allowed ?? [])]);
-  return requested.filter((s) => !approved.has(s));
 }

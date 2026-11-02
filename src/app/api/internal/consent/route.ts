@@ -15,7 +15,7 @@ import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
 import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext, SealedBlob } from '@/lib/crypto/envelope';
 import { notifySubQuietly } from '@/lib/mailer';
-import { parseScopes, requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
+import { parseScopes, requiresDelegated } from '@/lib/oidc/scopes';
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,14 +77,6 @@ export async function POST(request: NextRequest) {
       );
     }
     const targetMode = mode || (needsDelegated || client.delegated_allowed ? 'delegated' : 'identity');
-    // Resource scopes must be admin-approved for this client
-    const blockedScopes = unapprovedScopes(scopes, client.allowed_scopes);
-    if (blockedScopes.length > 0) {
-      return NextResponse.json(
-        { error: 'invalid_scope', error_description: `Client is not approved for: ${blockedScopes.join(', ')}` },
-        { status: 400 }
-      );
-    }
 
     if (!client.redirect_uris || !client.redirect_uris.includes(redirectUri)) {
       return NextResponse.json({ error: 'Invalid redirect URI' }, { status: 400 });
@@ -126,7 +118,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (targetMode === 'delegated' && !client.delegated_allowed) {
+      // Resource scopes are the student's call on this screen; other delegated access stays admin-gated.
+      if (targetMode === 'delegated' && !needsDelegated && !client.delegated_allowed) {
         return NextResponse.json(
           { error: 'Client is not approved for delegated access' },
           { status: 403 }

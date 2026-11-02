@@ -451,9 +451,9 @@ def generate_pkce_pair() -> tuple[str, str]:
             <h3 className="font-serif text-xl font-normal text-fg">PESU Academy data scopes</h3>
             <p>
               Scopes ending in <code className="font-mono">:read</code> let your app call the resource API on the
-              student&apos;s behalf. They are not available by default: request them from your app&apos;s page in the
-              portal, and an admin approves each one. Students then see every data scope on the consent screen, and
-              their PESU Academy credentials are stored encrypted in the vault so the API can fetch fresh data.
+              student&apos;s behalf. Add them to your authorization request; no approval is needed. Students see every
+              data scope on the consent screen and decide whether to allow it. If they do, their PESU Academy
+              credentials are stored encrypted in the vault so the API can fetch fresh data.
             </p>
             <p>
               Request only what you use. A revoked consent stops API access immediately, even for access tokens that

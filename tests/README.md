@@ -36,7 +36,7 @@ Tests directly mirror the `src/` directory layout:
   - `client-secret-rotation.test.ts`: Live client secret rotation and immediate credential hash invalidation.
   - `vault-password-update.test.ts`: Vault resealing and credential lifecycle across user password changes.
   - `tombstoned-user-cleanup.test.ts`: Tombstoned user state and live token invalidation across all endpoints.
-  - `resource-api.test.ts`: Scope request → admin approval → delegated consent → `/api/v1/attendance` allowlisted data, `insufficient_scope`, and immediate revocation.
+  - `resource-api.test.ts`: Delegated consent → `/api/v1/attendance` allowlisted data, `insufficient_scope`, and immediate revocation.
 - `tests/unit/`:
   - `app/`: Next.js App Router route handlers, API endpoints, and page verifications.
     - `api/admin/`:
