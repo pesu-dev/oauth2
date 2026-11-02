@@ -768,7 +768,7 @@ print("Access token expires in:", token_data.get("expires_in"))`,
       path: '/oauth2/device_authorization',
       title: 'Device Authorization (Device Flow)',
       category: 'Authentication & Tokens',
-      summary: 'Starts an RFC 8628 device sign-in for TVs, CLIs and kiosks, like GitHub CLI.',
+      summary: 'Starts an RFC 8628 device sign-in for CLIs and devices, like GitHub CLI.',
       description:
         'Returns a device_code for your device to poll with and a short user_code the student enters at /device on a phone or laptop. Poll POST /oauth2/token with grant_type=urn:ietf:params:oauth:grant-type:device_code every `interval` seconds until it returns tokens. Polling faster returns slow_down and raises the interval by 5 seconds. Enable "Device sign-in" for your app in the portal first.',
       auth: 'Client ID (public) or client secret (confidential)',

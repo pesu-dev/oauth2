@@ -4,7 +4,9 @@ import { Client, DeviceCode, User } from '@/lib/db/models';
 import { AcademyClient } from '@/lib/academy/client';
 import { createSessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
-import { newSub, normalizeUserCode } from '@/lib/id/nanoid';
+import { newSub } from '@/lib/id/nanoid';
+import { sha256Hex } from '@/lib/crypto/hash';
+import { normalizeUserCode } from '@/lib/oidc/device-code';
 import { requiresDelegated } from '@/lib/oidc/scopes';
 import { cookies } from 'next/headers';
 import { getConfig } from '@/lib/config';
@@ -116,7 +118,7 @@ export async function POST(request: NextRequest) {
         // Device flow: keep credentials only if approving this code will need the vault
         const code = normalizeUserCode(url.searchParams.get('user_code'));
         const device = code
-          ? await DeviceCode.findOne({ user_code: code, status: 'pending', expires_at: { $gt: new Date() } })
+          ? await DeviceCode.findOne({ user_code_hash: sha256Hex(code), status: 'pending', expires_at: { $gt: new Date() } })
           : null;
         if (device) {
           const client = await Client.findOne({ client_id: device.client_id });

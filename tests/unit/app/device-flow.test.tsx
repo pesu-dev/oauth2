@@ -12,7 +12,8 @@ import { POST as postDecision } from '@/app/api/internal/device/route';
 import { PATCH as patchClient } from '@/app/api/internal/portal/clients/[clientId]/route';
 import DevicePage from '@/app/device/page';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
-import { formatUserCode, newDeviceCode, newUserCode, normalizeUserCode } from '@/lib/id/nanoid';
+import { newDeviceCode, newUserCode } from '@/lib/id/nanoid';
+import { formatUserCode, normalizeUserCode } from '@/lib/oidc/device-code';
 import { buildOpenIdConfiguration } from '@/lib/oidc/discovery';
 import { sealPendingCredentials } from '@/lib/session/vault-seal';
 import { open, masterKeyFromSecret, unpackVaultPlaintext } from '@/lib/crypto/envelope';
@@ -40,8 +41,8 @@ const CONFIG = {
 } as AppConfig;
 
 const DEVICE_CLIENT = {
-  client_id: 'cli_tv',
-  name: 'Club Kiosk',
+  client_id: 'cli_device',
+  name: 'Club CLI',
   owner_sub: 'usr_dev',
   publishing_status: 'production',
   delegated_allowed: false,
@@ -141,7 +142,7 @@ describe('device authorization endpoint', () => {
     expect((await start({ client_id: 'nope' })).status).toBe(401);
 
     vi.spyOn(Client, 'findOne').mockResolvedValue(DEVICE_CLIENT as never);
-    expect((await (await start({ client_id: 'cli_tv', scope: 'profile' })).json()).error).toBe('invalid_scope');
+    expect((await (await start({ client_id: 'cli_device', scope: 'profile' })).json()).error).toBe('invalid_scope');
   });
 });
 
@@ -157,7 +158,7 @@ describe('device decision API', () => {
 
   let currentCred: string | undefined;
   const pendingDevice = (fields: Record<string, unknown> = {}) =>
-    vi.spyOn(DeviceCode, 'findOne').mockResolvedValue({ _id: 'd1', client_id: 'cli_tv', scopes: ['openid'], ...fields } as never);
+    vi.spyOn(DeviceCode, 'findOne').mockResolvedValue({ _id: 'd1', client_id: 'cli_device', scopes: ['openid'], ...fields } as never);
 
   async function decide(body: Record<string, unknown>, cookie = 'pesu_session=s') {
     const res = await postDecision(
@@ -294,14 +295,14 @@ describe('/device page', () => {
     await page('bdfg-hjkl');
     expect(screen.getAllByRole('alert').at(-1)?.textContent).toContain('expired');
 
-    vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid'] } as never);
+    vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_device', scopes: ['openid'] } as never);
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
     await page('BDFG-HJKL');
     expect(screen.getAllByRole('alert').at(-1)?.textContent).toContain('unavailable');
   });
 
   it('renders consent in device mode for a pending code', async () => {
-    vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_tv', scopes: ['openid', 'attendance:read'] } as never);
+    vi.spyOn(DeviceCode, 'findOne').mockResolvedValueOnce({ client_id: 'cli_device', scopes: ['openid', 'attendance:read'] } as never);
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ ...DEVICE_CLIENT, delegated_allowed: true } as never);
     const element = (await DevicePage({ searchParams: Promise.resolve({ user_code: 'bdfghjkl' }) })) as React.ReactElement<{
       deviceUserCode: string;
@@ -316,7 +317,7 @@ describe('ConsentClient in device mode', () => {
   const renderDevice = () =>
     render(
       <ConsentClient
-        client={{ clientId: 'cli_tv', name: 'Club Kiosk', publishingStatus: 'production', delegatedAllowed: false }}
+        client={{ clientId: 'cli_device', name: 'Club CLI', publishingStatus: 'production', delegatedAllowed: false }}
         userName="Student"
         requestedScopes={['openid']}
         mode="identity"
@@ -367,16 +368,16 @@ describe('portal device flow toggle', () => {
 
   const patch = (body: Record<string, unknown>) =>
     patchClient(
-      new NextRequest('http://localhost:3000/api/internal/portal/clients/cli_tv', {
+      new NextRequest('http://localhost:3000/api/internal/portal/clients/cli_device', {
         method: 'PATCH',
         headers: { cookie: 'pesu_session=s', 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      { params: Promise.resolve({ clientId: 'cli_tv' }) }
+      { params: Promise.resolve({ clientId: 'cli_device' }) }
     );
 
   it('toggles device flow without touching redirect URIs and never returns the secret hash', async () => {
-    const update = vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValue({ client_id: 'cli_tv' } as never);
+    const update = vi.spyOn(Client, 'findOneAndUpdate').mockResolvedValue({ client_id: 'cli_device' } as never);
     expect((await patch({ deviceFlowEnabled: true })).status).toBe(200);
     const [, set, options] = update.mock.calls[0];
     expect(set).toMatchObject({ device_flow_enabled: true });

@@ -4,7 +4,8 @@ import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/db/connection';
 import { Client, DeviceCode } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
-import { formatUserCode, normalizeUserCode } from '@/lib/id/nanoid';
+import { sha256Hex } from '@/lib/crypto/hash';
+import { formatUserCode, normalizeUserCode } from '@/lib/oidc/device-code';
 import { requiresDelegated } from '@/lib/oidc/scopes';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { controlStyles, labelStyles } from '@/components/ui/input';
@@ -24,7 +25,7 @@ function CodeForm({ error, value }: { error?: string; value?: string }) {
           <p className="eyebrow">Device sign-in</p>
           <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg">Connect a device</h1>
           <p className="text-sm text-soft leading-[1.65]">
-            Enter the code shown on your TV, terminal or other device to sign it in with your PESU account.
+            Enter the code shown on your CLI or device to sign it in with your PESU account.
           </p>
         </div>
         <form method="GET" action="/device" className="space-y-4 p-6 rounded-md bg-surface border border-line">
@@ -80,7 +81,7 @@ export default async function DevicePage({ searchParams }: DevicePageProps) {
   }
 
   await connectToDatabase();
-  const device = await DeviceCode.findOne({ user_code: code, status: 'pending', expires_at: { $gt: new Date() } });
+  const device = await DeviceCode.findOne({ user_code_hash: sha256Hex(code), status: 'pending', expires_at: { $gt: new Date() } });
   if (!device) {
     return <CodeForm value={formatUserCode(code)} error="This code is invalid, already used, or expired. Start again on your device." />;
   }
