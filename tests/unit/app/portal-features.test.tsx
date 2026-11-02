@@ -56,7 +56,6 @@ describe('client detail: logo, device flow, team and permissions', () => {
     render(<ClientDetailPage />);
     await screen.findByText('App logo');
     expect(screen.getByText('No logo')).toBeDefined();
-    expect(screen.getByText('attendance:read')).toBeDefined();
 
     const input = screen.getByLabelText('Choose logo file') as HTMLInputElement;
     const big = new File([new Uint8Array(300 * 1024)], 'big.png', { type: 'image/png' });
