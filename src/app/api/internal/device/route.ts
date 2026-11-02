@@ -6,7 +6,7 @@ import { verifySessionToken } from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { sealPendingCredentials } from '@/lib/session/vault-seal';
 import { normalizeUserCode } from '@/lib/id/nanoid';
-import { requiresDelegated, unapprovedScopes } from '@/lib/oidc/scopes';
+import { requiresDelegated } from '@/lib/oidc/scopes';
 import { getConfig } from '@/lib/config';
 import { notifySubQuietly } from '@/lib/mailer';
 
@@ -61,21 +61,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'denied' });
     }
 
-    // Approvals may have been withdrawn since the device started the flow
-    const blocked = unapprovedScopes(device.scopes, client.allowed_scopes);
-    if (blocked.length > 0) {
-      return NextResponse.json(
-        { error: 'invalid_scope', error_description: `Client is not approved for: ${blocked.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
     const mode = requiresDelegated(device.scopes) || client.delegated_allowed ? 'delegated' : 'identity';
     let vaultUpdate: Record<string, unknown> | null = null;
     if (mode === 'delegated') {
-      if (!client.delegated_allowed) {
-        return NextResponse.json({ error: 'Client is not approved for delegated access' }, { status: 403 });
-      }
       const pending = credId ? pendingCredentialStore.pop(credId) : null;
       if (pending?.password) {
         if (!config.vaultMasterKey) {

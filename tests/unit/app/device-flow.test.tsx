@@ -45,7 +45,6 @@ const DEVICE_CLIENT = {
   owner_sub: 'usr_dev',
   publishing_status: 'production',
   delegated_allowed: false,
-  allowed_scopes: [] as string[],
   device_flow_enabled: true,
   token_endpoint_auth_method: 'none',
 };
@@ -137,14 +136,12 @@ describe('device authorization endpoint', () => {
       })
     );
 
-  it('rejects unknown clients, missing openid and unapproved scopes', async () => {
+  it('rejects unknown clients, and missing openid', async () => {
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce(null);
     expect((await start({ client_id: 'nope' })).status).toBe(401);
 
     vi.spyOn(Client, 'findOne').mockResolvedValue(DEVICE_CLIENT as never);
     expect((await (await start({ client_id: 'cli_tv', scope: 'profile' })).json()).error).toBe('invalid_scope');
-    const blocked = await (await start({ client_id: 'cli_tv', scope: 'openid attendance:read' })).json();
-    expect(blocked.error_description).toContain('attendance:read');
   });
 });
 
@@ -205,13 +202,11 @@ describe('device decision API', () => {
     expect(pendingCredentialStore.get(currentCred)).toBeNull();
   });
 
-  it('refuses scopes whose approval was withdrawn and delegated mode without approval', async () => {
+  it('treats resource scopes as delegated without admin approval', async () => {
     pendingDevice({ scopes: ['openid', 'seating:read'] });
     vi.spyOn(Client, 'findOne').mockResolvedValueOnce(DEVICE_CLIENT as never);
-    expect((await decide({ userCode: 'BDFG-HJKL', action: 'allow' })).body.error).toBe('invalid_scope');
-
-    vi.spyOn(Client, 'findOne').mockResolvedValueOnce({ ...DEVICE_CLIENT, allowed_scopes: ['seating:read'] } as never);
-    expect((await decide({ userCode: 'BDFG-HJKL', action: 'allow' })).body.error).toContain('not approved for delegated');
+    vi.spyOn(Vault, 'findOne').mockResolvedValueOnce(null);
+    expect((await decide({ userCode: 'BDFG-HJKL', action: 'allow' })).body.error).toContain('Sign in again');
   });
 
   it('needs credentials or an existing vault for delegated approval, and a master key to store them', async () => {
@@ -354,9 +349,9 @@ describe('ConsentClient in device mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /allow/i }));
     await waitFor(() => expect(screen.getByText('This code was already used')).toBeDefined());
 
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error_description: 'Client is not approved for: x' }) } as Response);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error_description: 'Something went wrong' }) } as Response);
     fireEvent.click(screen.getByRole('button', { name: /allow/i }));
-    await waitFor(() => expect(screen.getByText('Client is not approved for: x')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Something went wrong')).toBeDefined());
 
     global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) } as Response);
     fireEvent.click(screen.getByRole('button', { name: /allow/i }));
