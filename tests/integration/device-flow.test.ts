@@ -69,7 +69,7 @@ describe('Device Authorization Grant, RFC 8628 (Integration)', () => {
     expect(created).toMatchObject({ user_code_hash: sha256Hex(start.user_code.replace('-', '')) });
     expect(JSON.stringify(created)).not.toContain(start.user_code.replace('-', ''));
     expect(created?.mode).toBeUndefined();
-    expect(start).toMatchObject({ expires_in: 900, interval: 5 });
+    expect(start).toMatchObject({ expires_in: 600, interval: 5 });
 
     // Only a hash of the device code is stored
     const stored = await DeviceCode.findOne({}).lean();

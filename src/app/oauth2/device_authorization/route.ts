@@ -8,7 +8,7 @@ import { authenticateClientForToken, parseTokenRequestParams } from '@/lib/oidc/
 import { parseScopes } from '@/lib/oidc/scopes';
 
 const HEADERS = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
-const DEVICE_CODE_TTL_SECONDS = 15 * 60;
+const DEVICE_CODE_TTL_SECONDS = 10 * 60;
 const DEVICE_POLL_INTERVAL_SECONDS = 5;
 
 function json(body: Record<string, unknown>, status: number = 200) {
