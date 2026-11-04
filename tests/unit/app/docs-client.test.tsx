@@ -493,6 +493,34 @@ describe('DocsPage & DocsClient', () => {
       vi.unstubAllGlobals();
     });
 
+    it('sends the query parameters typed into the request panel', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, text: async () => '{"data":[]}' });
+      vi.stubGlobal('fetch', fetchMock);
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="syllabus" />);
+
+      const course = screen.getByLabelText('course') as HTMLInputElement;
+      expect(course.required).toBe(true);
+      expect(course.placeholder).toBe('20412');
+      fireEvent.change(screen.getByLabelText('Bearer token'), { target: { value: 'tok' } });
+      fireEvent.change(course, { target: { value: ' 42 ' } });
+      await act(async () => {
+        fireEvent.submit(course.closest('form')!);
+      });
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/courses/syllabus?course=42', {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: 'Bearer tok' },
+      });
+
+      // Optional parameters left blank are not sent.
+      fireEvent.click(screen.getAllByText('/api/courses')[0].closest('button')!);
+      expect(screen.getByLabelText('semester (optional)')).toBeDefined();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/courses', expect.anything());
+      vi.unstubAllGlobals();
+    });
+
     it('never shows a response under a different endpoint', async () => {
       let resolveFetch: (value: unknown) => void = () => {};
       vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => { resolveFetch = resolve; })));

@@ -169,6 +169,8 @@ describe('resource catalog', () => {
       status: true,
       title: 'A',
     });
+    // A blank first candidate falls through to the next key
+    expect(pickFields({ a: ' ', b: 'B', n: 0 }, { v: ['a', 'b'], n: ['n'] })).toEqual({ v: 'B', n: 0 });
   });
 
   // Fixtures follow the structure PESU Academy returned on 2026-11-03; values are made up.
@@ -222,6 +224,7 @@ describe('resource catalog', () => {
         ISARESULTS: [
           { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 1', Marks: '34', MaxISAMarks: '40', ISAMarksMasterId: 7 },
           { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'Lab', Marks: '9', MaxISAMarks: '10' },
+          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 2', Marks: '30', MaxISAMarks: '  ' },
         ],
         FinalISA: [{ SubjectId: 1, Marks: '46', ISAMaster: 'Final ISA ', ISAMarksMasterId: '1' }],
       },
@@ -244,6 +247,8 @@ describe('resource catalog', () => {
     expect(normalizeRows(RESOURCES.isa_results, results)).toEqual([
       { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
       { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Lab', marks: '9', maxMarks: '10' },
+      // A blank maximum is left out rather than sent as ""
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 2', marks: '30' },
       { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Final ISA', marks: '46' },
       { courseId: 2, code: 'UE18CS352', name: 'Compilers', assessment: 'Final ISA', marks: '40' },
     ]);

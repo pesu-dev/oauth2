@@ -378,14 +378,21 @@ export function findRows(payload: unknown, depth: number = 0): Record<string, un
   return best;
 }
 
-/** Copies only allowlisted fields, taking the first candidate key present with a scalar value. */
+/**
+ * Copies only allowlisted fields, taking the first candidate key with a scalar value. Blank strings
+ * count as missing (Academy sends "" for some unrecorded values, e.g. an ISA's maximum marks).
+ */
 export function pickFields(row: Record<string, unknown>, fields: FieldMap): NormalizedRecord {
   const out: NormalizedRecord = {};
   for (const [outKey, candidates] of Object.entries(fields)) {
     for (const key of candidates) {
       const value = row[key];
-      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        out[outKey] = typeof value === 'string' ? value.trim() : value;
+      if (typeof value === 'string' && value.trim()) {
+        out[outKey] = value.trim();
+        break;
+      }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        out[outKey] = value;
         break;
       }
     }

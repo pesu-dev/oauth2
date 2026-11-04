@@ -137,6 +137,8 @@ export function DocsClient({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [selectedApiVersion, setSelectedApiVersion] = React.useState<string>(CURRENT_API_VERSION);
   const [bearerToken, setBearerToken] = React.useState('');
+  // Query parameter values typed into the request panel, keyed by `${endpoint id}:${param name}`.
+  const [queryInputs, setQueryInputs] = React.useState<Record<string, string>>({});
   const [sendingPath, setSendingPath] = React.useState<string | null>(null);
   const [lastResult, setSendResult] = React.useState<SendResult | null>(null);
   const latestSend = React.useRef(0);
@@ -256,8 +258,15 @@ export function DocsClient({
       if (ep.tryIt === 'bearer' && bearerToken.trim()) {
         headers.Authorization = `Bearer ${bearerToken.trim()}`;
       }
+      const query = new URLSearchParams();
+      for (const p of ep.params) {
+        const value = queryInputs[`${ep.id}:${p.name}`]?.trim();
+        if (p.location === 'query' && value) query.set(p.name, value);
+      }
+      const qs = query.toString();
+      const url = qs ? `${ep.path}?${qs}` : ep.path;
       // Same-origin only: the explorer is served by the issuer itself.
-      const res = await fetch(ep.path, { method: primaryMethod(ep.method), headers });
+      const res = await fetch(url, { method: primaryMethod(ep.method), headers });
       const text = await res.text();
       let body = text;
       try {
@@ -622,6 +631,30 @@ export function DocsClient({
                     </p>
                   </div>
                 )}
+                {currentEndpoint.params
+                  .filter((p) => p.location === 'query')
+                  .map((p) => {
+                    const key = `${currentEndpoint.id}:${p.name}`;
+                    return (
+                      <div key={key} className="space-y-1.5">
+                        <label htmlFor={`docs-query-${p.name}`} className={labelStyles}>
+                          {p.name}
+                          {p.required ? '' : ' (optional)'}
+                        </label>
+                        <input
+                          id={`docs-query-${p.name}`}
+                          type="text"
+                          autoComplete="off"
+                          spellCheck={false}
+                          required={p.required}
+                          placeholder={p.example}
+                          value={queryInputs[key] ?? ''}
+                          onChange={(e) => setQueryInputs((prev) => ({ ...prev, [key]: e.target.value }))}
+                          className={controlStyles}
+                        />
+                      </div>
+                    );
+                  })}
                 <Button type="submit" className="w-full" loading={sending}>
                   Send request
                 </Button>
