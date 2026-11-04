@@ -277,6 +277,16 @@ describe('DocsPage & DocsClient', () => {
     expect(screen.queryByTitle('Copy endpoint path')).toBeNull();
   });
 
+  it('renders backtick spans in resource docs as inline code, not literal backticks', () => {
+    render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
+    fireEvent.click(screen.getAllByText('/api/attendance')[0].closest('button')!);
+
+    const description = screen.getByText(/Classes held and attended per course/);
+    expect(description.textContent).not.toContain('`');
+    expect(description.querySelector('code')?.textContent).toBe('attendance:read');
+    expect(description.textContent).not.toMatch(/beta/i);
+  });
+
   it('handles dual-method endpoint badge variant for userinfo', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
     const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');

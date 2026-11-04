@@ -58,6 +58,23 @@ interface SendResult {
   body: string;
 }
 
+/** Renders `backtick` spans in doc copy as inline code; the same text stays Markdown for Copy for LLM. */
+export function InlineCode({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/`([^`]+)`/).map((part, i) =>
+        i % 2 === 1 ? (
+          <code key={i} className="font-mono text-[0.9em] bg-code border border-line px-1 py-0.5 rounded text-fg">
+            {part}
+          </code>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 function FieldRows({ fields }: { fields: ParamDoc[] }) {
   return (
     <div className="border-t border-line">
@@ -75,7 +92,7 @@ function FieldRows({ fields }: { fields: ParamDoc[] }) {
             <Badge variant={p.required ? 'required' : 'optional'}>{p.required ? 'Required' : 'Optional'}</Badge>
           </div>
           <div className="text-sm text-soft leading-[1.65] max-[700px]:col-span-2 [overflow-wrap:anywhere]">
-            <p>{p.description}</p>
+            <p><InlineCode text={p.description} /></p>
             {p.allowedValues && (
               <p className="mt-1 text-xs">
                 <span className="eyebrow">Allowed </span>
@@ -415,11 +432,11 @@ export function DocsClient({
                     )}
                   </Button>
                 </div>
-                <p className="text-soft leading-[1.65]">{currentEndpoint.description}</p>
+                <p className="text-soft leading-[1.65]"><InlineCode text={currentEndpoint.description} /></p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                   <span>
                     <span className="eyebrow">Authentication</span>{' '}
-                    <span className="text-soft">{currentEndpoint.auth}</span>
+                    <span className="text-soft"><InlineCode text={currentEndpoint.auth} /></span>
                   </span>
                   <span>
                     <span className="eyebrow">Category</span>{' '}
@@ -490,7 +507,7 @@ export function DocsClient({
                   if (!resp) return null;
                   return (
                     <div className="space-y-3">
-                      <p className="text-sm text-soft">{resp.description}</p>
+                      <p className="text-sm text-soft"><InlineCode text={resp.description} /></p>
                       <CodeBlock
                         code={JSON.stringify(resp.sample, null, 2)}
                         copyId={`resp-${currentEndpoint.id}-${currentRespTab}`}

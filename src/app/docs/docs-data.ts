@@ -164,8 +164,8 @@ export function resourceEndpointDocs(
       title: spec.title,
       category: 'Resource Server' as const,
       summary: spec.summary,
-      description: `${spec.summary} Requires the \`${spec.scope}\` scope and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned. Beta: field coverage depends on what PESU Academy returns for each account.`,
-      auth: `Bearer <access_token> with ${spec.scope}`,
+      description: `${spec.summary} Requires the \`${spec.scope}\` scope and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned; a field PESU Academy does not send for an account is left out. Not live yet: until this PESU Academy feature is switched on, the endpoint answers \`501 resource_unavailable\`.`,
+      auth: `Bearer <access_token> with \`${spec.scope}\``,
       tryIt: 'bearer' as const,
       headers: [
         {
@@ -173,7 +173,7 @@ export function resourceEndpointDocs(
           location: 'header' as const,
           type: 'string',
           required: true,
-          description: `Bearer access token whose scope includes ${spec.scope}.`,
+          description: `Bearer access token whose scope includes \`${spec.scope}\`.`,
           example: 'Bearer eyJhbGciOiJSUzI1NiIs...',
         },
       ],
