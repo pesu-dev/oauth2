@@ -8,6 +8,7 @@ import {
   unwrapJsonStrings,
 } from '@/lib/academy/client';
 import {
+  ACADEMY_MENU_ID,
   RESOURCES,
   ResourceUnavailableError,
   fetchResource,
@@ -124,9 +125,11 @@ describe('resource catalog', () => {
       menuIdOverrides('{"attendance":"123","seating":456,"bogus":"1","courses":"12a","timetable":{}}')
     ).toEqual({ attendance: '123', seating: '456' });
 
-    expect(resolveMenuId(RESOURCES.attendance)).toBeNull();
-    process.env.ACADEMY_MENU_IDS = '{"attendance":"777"}';
+    expect(resolveMenuId(RESOURCES.timetable)).toBeNull();
+    expect(resolveMenuId(RESOURCES.attendance)).toBe(ACADEMY_MENU_ID);
+    process.env.ACADEMY_MENU_IDS = '{"attendance":"777","timetable":"778"}';
     expect(resolveMenuId(RESOURCES.attendance)).toBe('777');
+    expect(resolveMenuId(RESOURCES.timetable)).toBe('778');
   });
 
   it('finds the largest nested row array and keeps only allowlisted scalar fields', () => {
@@ -135,17 +138,14 @@ describe('resource catalog', () => {
       data: {
         small: [{ x: 1 }],
         list: [
-          { subjectCode: ' UE20CS301 ', subjectName: 'DBMS', totalClasses: 40, attendedClasses: 36, FatherName: 'secret' },
-          { SubjectCode: 'UE20CS302', attendancePercentage: '90', nested: { a: 1 } },
+          { batchClassId: 11, className: ' Sem-1 ', FatherName: 'secret' },
+          { batchClassId: 12, nested: { a: 1 } },
           'stray',
         ],
       },
     };
-    const rows = normalizeRows(RESOURCES.attendance, payload);
-    expect(rows).toEqual([
-      { code: 'UE20CS301', name: 'DBMS', classesHeld: 40, classesAttended: 36 },
-      { code: 'UE20CS302', percentage: '90' },
-    ]);
+    const rows = normalizeRows(RESOURCES.semesters, payload);
+    expect(rows).toEqual([{ id: 11, name: 'Sem-1' }, { id: 12 }]);
     expect(JSON.stringify(rows)).not.toContain('secret');
   });
 
@@ -159,6 +159,68 @@ describe('resource catalog', () => {
       title: 'A',
     });
   });
+
+  // Fixtures follow the structure PESU Academy returned on 2026-11-03; values are made up.
+  const subjects = [
+    { SubjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Status: 1, SubjectStatusText: 'Enrolled', StudentId: 'secret-id' },
+  ];
+
+  it('reads courses from STUDENT_SUBJECTS', () => {
+    expect(normalizeRows(RESOURCES.courses, { STUDENT_SUBJECTS: subjects, BATCH_CLASSID: 9 })).toEqual([
+      { id: 1, code: 'UE18CS351', name: 'Cloud Computing', status: 'Enrolled' },
+    ]);
+    expect(normalizeRows(RESOURCES.courses, 'unexpected')).toEqual([]);
+  });
+
+  it('reads attendance from ATTENDANCE_LIST, Academy spelling included, and omits null counts', () => {
+    const payload = {
+      STUDENT_SUBJECTS: [...subjects, ...subjects],
+      ATTENDANCE_LIST: [
+        { SubjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', TotalClasses: 40, AttendedClasses: 36, AttendancePercenrage: 90 },
+        { SubjectId: 2, SubjectCode: 'UE18CS352', SubjectName: 'Compilers', TotalClasses: null, AttendedClasses: null, AttendancePercenrage: null },
+      ],
+    };
+    expect(normalizeRows(RESOURCES.attendance, payload)).toEqual([
+      { code: 'UE18CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: 90 },
+      { code: 'UE18CS352', name: 'Compilers' },
+    ]);
+  });
+
+  const results = {
+    STUDENT_ALL_SUBJECTS: [
+      {
+        subjectCode: 'UE18CS351',
+        SubjectName: 'Cloud Computing',
+        Semester: 6,
+        grade: 'A',
+        Credits: 4,
+        EarnedCredit: 4,
+        ISARESULTS: [
+          { SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 1', Marks: '34', MaxISAMarks: '40', ISAMarksMasterId: 7 },
+          { SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 2', Marks: '30', MaxISAMarks: '40' },
+        ],
+      },
+      { subjectCode: 'UE18CS352', SubjectName: 'Compilers', Semester: 6, grade: 'B', Credits: 4, EarnedCredit: 4 },
+    ],
+    CGPA_SEMESTERWISE: [{ StudentId: 'secret-id', SGPA: '8.90', CGPA: '8.60', Grade: 'A' }],
+  };
+
+  it('flattens the ISA marks nested in each course', () => {
+    expect(normalizeRows(RESOURCES.isa_results, results)).toEqual([
+      { code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
+      { code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 2', marks: '30', maxMarks: '40' },
+    ]);
+  });
+
+  it('adds the semester SGPA and CGPA to each ESA course row', () => {
+    const rows = normalizeRows(RESOURCES.esa_results, results);
+    expect(rows).toEqual([
+      { code: 'UE18CS351', name: 'Cloud Computing', semester: 6, grade: 'A', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' },
+      { code: 'UE18CS352', name: 'Compilers', semester: 6, grade: 'B', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain('secret');
+    expect(normalizeRows(RESOURCES.esa_results, { STUDENT_ALL_SUBJECTS: [{ subjectCode: 'X' }] })).toEqual([{ code: 'X' }]);
+  });
 });
 
 describe('fetchResource', () => {
@@ -171,21 +233,24 @@ describe('fetchResource', () => {
   it('refuses to guess when no menu id is configured', async () => {
     const dispatch = vi.fn();
     await expect(
-      fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.attendance, ctx())
+      fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.seating, ctx())
     ).rejects.toBeInstanceOf(ResourceUnavailableError);
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('dispatches with the configured menu id and resource params', async () => {
-    process.env.ACADEMY_MENU_IDS = JSON.stringify({ courses: '11', esa_results: '12', timetable: '13', announcements: '14', semesters: '15' });
-    const dispatch = vi.fn().mockResolvedValue([{ subjectCode: 'C1' }]);
+  it('dispatches with the menu id and resource params', async () => {
+    process.env.ACADEMY_MENU_IDS = JSON.stringify({ timetable: '13', announcements: '14' });
+    const dispatch = vi.fn().mockResolvedValue({ STUDENT_SUBJECTS: [{ SubjectCode: 'C1' }] });
     const client = { dispatch } as unknown as AcademyClient;
+    const M = ACADEMY_MENU_ID;
 
     await expect(fetchResource(client, SESSION, RESOURCES.courses, ctx('semester=5'))).resolves.toEqual([{ code: 'C1' }]);
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 2, menuId: '11', selectedSemester: '5' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 2, menuId: M, batchClassId: '5' });
 
-    await fetchResource(client, SESSION, RESOURCES.esa_results, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 3, menuId: '12', usn: 'PES1UG20CS001' });
+    await fetchResource(client, SESSION, RESOURCES.esa_results, ctx('semester=6'));
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 11, menuId: M, batchClassId: '6' });
+    await fetchResource(client, SESSION, RESOURCES.isa_results, ctx('semester=6'));
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 11, menuId: M, batchClassId: '6' });
 
     await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: '13' });
@@ -198,9 +263,45 @@ describe('fetchResource', () => {
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 5, menuId: '14', pageNo: '3' });
 
     await fetchResource(client, SESSION, RESOURCES.semesters, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 1, menuId: '15' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 1, menuId: M });
+  });
 
-    await fetchResource(client, SESSION, RESOURCES.courses, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 2, menuId: '11', selectedSemester: undefined });
+  it('defaults to the latest semester by batchClassOrder', async () => {
+    const dispatch = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { batchClassId: 8, className: 'Sem-8', batchClassOrder: 2021081099 },
+        { batchClassId: 3, className: 'Sem-3', batchClassOrder: 2019070199 },
+        { batchClassId: 9, className: 'Sem-9' },
+        { batchClassOrder: 2030010199 },
+      ])
+      .mockResolvedValueOnce({ ATTENDANCE_LIST: [{ SubjectCode: 'C1' }] });
+    const client = { dispatch } as unknown as AcademyClient;
+
+    await expect(fetchResource(client, SESSION, RESOURCES.attendance, ctx())).resolves.toEqual([{ code: 'C1' }]);
+    expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 18, mode: 1, menuId: ACADEMY_MENU_ID });
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 6, menuId: ACADEMY_MENU_ID, batchClassId: '8' });
+  });
+
+  it('returns no rows when the student has no semesters', async () => {
+    const dispatch = vi.fn().mockResolvedValueOnce([]);
+    await expect(
+      fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx())
+    ).resolves.toEqual([]);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses the semester default when the semesters menu id is cleared', async () => {
+    const original = RESOURCES.semesters.menuId;
+    RESOURCES.semesters.menuId = null;
+    const dispatch = vi.fn();
+    try {
+      await expect(
+        fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx())
+      ).rejects.toBeInstanceOf(ResourceUnavailableError);
+    } finally {
+      RESOURCES.semesters.menuId = original;
+    }
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

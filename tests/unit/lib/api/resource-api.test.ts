@@ -120,7 +120,7 @@ describe('resource route handlers', () => {
   it('returns normalized rows with no-store caching', async () => {
     allowAll();
     mockWithSession.mockImplementation(async (sub: string, fn: (...a: unknown[]) => unknown) =>
-      fn({ dispatch: vi.fn().mockResolvedValue([{ subjectCode: 'C1', FatherName: 'x' }]) }, { token: 't' }, 'PES1')
+      fn({ dispatch: vi.fn().mockResolvedValue({ ATTENDANCE_LIST: [{ subjectCode: 'C1', FatherName: 'x' }] }) }, { token: 't' }, 'PES1')
     );
     process.env.ACADEMY_MENU_IDS = '{"attendance":"5"}';
     try {
@@ -150,7 +150,7 @@ describe('resource route handlers', () => {
     expect(bad.status).toBe(400);
     expect((await bad.json()).error_description).toBe('Invalid value for semester');
     allowAll('results:read');
-    expect((await getEsa(request('/api/v1/results/esa?semester=1'))).status).toBe(400);
+    expect((await getEsa(request('/api/v1/results/esa?page=1'))).status).toBe(400);
   });
 
   it.each([

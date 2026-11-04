@@ -2,4 +2,4 @@ import { createResourceHandler } from '@/lib/api/resource-route';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = createResourceHandler('isa_results');
+export const GET = createResourceHandler('isa_results', ['semester']);

@@ -55,8 +55,19 @@ export interface ResourceDocSpec {
   resource?: string;
   summary: string;
   query?: ParamDoc[];
+  /** Not yet seen returning real data from PESU Academy; answers 501 for now. */
+  pending?: boolean;
   sample: Record<string, unknown>[];
 }
+
+const SEMESTER_QUERY: ParamDoc = {
+  name: 'semester',
+  location: 'query',
+  type: 'string (digits)',
+  required: false,
+  description: 'Semester id from /semesters. Defaults to the latest semester.',
+  example: '2291',
+};
 
 const RESOURCE_DOCS: ResourceDocSpec[] = [
   {
@@ -65,29 +76,25 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     title: 'Semesters',
     scope: 'courses:read',
     summary: "The student's semesters, used as the semester filter for courses and attendance.",
-    sample: [{ id: '2291', name: 'Sem-6' }],
+    sample: [{ id: 2291, name: 'Sem-6' }],
   },
   {
     id: 'courses',
     path: 'courses',
     title: 'Courses',
     scope: 'courses:read',
-    summary: 'Courses the student is enrolled in, optionally for one semester.',
-    query: [
-      { name: 'semester', location: 'query', type: 'string (digits)', required: false, description: 'Semester id from /semesters. Defaults to the current semester.', example: '2291' },
-    ],
-    sample: [{ id: '20412', code: 'UE20CS351', name: 'Cloud Computing', faculty: 'Dr. A. Rao', status: 'Enrolled' }],
+    summary: 'Courses the student is enrolled in for one semester.',
+    query: [SEMESTER_QUERY],
+    sample: [{ id: 20412, code: 'UE20CS351', name: 'Cloud Computing', status: 'Enrolled' }],
   },
   {
     id: 'attendance',
     path: 'attendance',
     title: 'Attendance',
     scope: 'attendance:read',
-    summary: 'Classes held and attended per course.',
-    query: [
-      { name: 'semester', location: 'query', type: 'string (digits)', required: false, description: 'Semester id from /semesters.', example: '2291' },
-    ],
-    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: '90' }],
+    summary: 'Classes held and attended per course for one semester.',
+    query: [SEMESTER_QUERY],
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: 90 }],
   },
   {
     id: 'results-isa',
@@ -95,8 +102,9 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     title: 'ISA Results',
     scope: 'results:read',
     resource: 'isa_results',
-    summary: 'In-semester assessment marks per course and assessment.',
-    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: 34, maxMarks: 40 }],
+    summary: 'In-semester assessment marks per course and assessment for one semester. Marks are strings as PESU Academy sends them.',
+    query: [SEMESTER_QUERY],
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' }],
   },
   {
     id: 'results-esa',
@@ -104,14 +112,16 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     title: 'ESA Results',
     scope: 'results:read',
     resource: 'esa_results',
-    summary: 'End-semester grades, credits, SGPA and CGPA.',
-    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', semester: 'Sem-5', grade: 'A', credits: 4, sgpa: 8.9, cgpa: 8.6 }],
+    summary: "End-semester grade and credits per course for one semester, with that semester's SGPA and the CGPA on every row.",
+    query: [SEMESTER_QUERY],
+    sample: [{ code: 'UE20CS351', name: 'Cloud Computing', semester: 6, grade: 'A', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' }],
   },
   {
     id: 'timetable',
     path: 'timetable',
     title: 'Timetable',
     scope: 'timetable:read',
+    pending: true,
     summary: "The student's weekly timetable, or a single day.",
     query: [
       { name: 'day', location: 'query', type: 'string', required: false, description: 'Limit to one day: mon..sun or 1..7.', example: 'mon' },
@@ -123,6 +133,7 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     path: 'announcements',
     title: 'Announcements',
     scope: 'announcements:read',
+    pending: true,
     summary: 'Announcements posted to the student, newest first.',
     query: [
       { name: 'page', location: 'query', type: 'integer', required: false, defaultValue: '1', description: 'Page number, starting at 1.', example: '2' },
@@ -134,6 +145,7 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     path: 'assignments',
     title: 'Assignments',
     scope: 'assignments:read',
+    pending: true,
     summary: 'Assignments and their due dates.',
     sample: [{ id: '5521', title: 'Lab 4: Containers', code: 'UE20CS351', name: 'Cloud Computing', dueDate: '2026-10-30', status: 'Pending' }],
   },
@@ -142,6 +154,7 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     path: 'seating',
     title: 'Exam Seating',
     scope: 'seating:read',
+    pending: true,
     summary: 'Exam hall and seat allocations.',
     sample: [{ code: 'UE20CS351', name: 'Cloud Computing', date: '2026-11-18', time: '09:30', room: 'MRD-301', seat: '42' }],
   },
@@ -164,7 +177,7 @@ export function resourceEndpointDocs(
       title: spec.title,
       category: 'Resource Server' as const,
       summary: spec.summary,
-      description: `${spec.summary} Requires the \`${spec.scope}\` scope and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned; a field PESU Academy does not send for an account is left out. Not live yet: until this PESU Academy feature is switched on, the endpoint answers \`501 resource_unavailable\`.`,
+      description: `${spec.summary} Requires the \`${spec.scope}\` scope and the student's delegated consent. Data is read live from PESU Academy and only the documented fields are returned; a field PESU Academy does not send for an account is left out.${spec.pending ? ' Not live yet: this endpoint answers \`501 resource_unavailable\` until it has been checked against real PESU Academy data.' : ''}`,
       auth: `Bearer <access_token> with \`${spec.scope}\``,
       tryIt: 'bearer' as const,
       headers: [
@@ -197,12 +210,16 @@ export function resourceEndpointDocs(
           description: 'Invalid or expired token, or the student revoked consent (takes effect immediately).',
           sample: { error: 'invalid_token', error_description: 'Consent for this scope was revoked' },
         },
-        {
-          status: 501,
-          statusText: 'Not Implemented',
-          description: 'This resource is not available from PESU Academy yet.',
-          sample: { error: 'resource_unavailable', error_description: 'PESU Academy data is not available yet' },
-        },
+        ...(spec.pending
+          ? [
+              {
+                status: 501,
+                statusText: 'Not Implemented',
+                description: 'This resource is not available from PESU Academy yet.',
+                sample: { error: 'resource_unavailable', error_description: `PESU Academy ${spec.resource ?? spec.id} is not available yet` },
+              },
+            ]
+          : []),
         {
           status: 502,
           statusText: 'Bad Gateway',

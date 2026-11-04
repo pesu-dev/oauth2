@@ -8,7 +8,7 @@ Unofficial OAuth2 / OpenID Connect authorization server for PESU Academy. Third-
 | --- | --- |
 | Design (canonical) | Approved — [docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md](docs/superpowers/specs/2026-09-03-oidc-authorization-server-design.md) |
 | Implementation plan | [docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md](docs/superpowers/plans/2026-09-09-nextjs-oauth2-migration.md) (Next.js; the earlier [Python MVP plan](docs/superpowers/plans/2026-09-04-oidc-authorization-server-mvp.md) is historical) |
-| Resource API & scopes | [docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) — `resource:read` scopes, student consent, `/api/v1/*` (beta: Academy menu ids pending) |
+| Resource API & scopes | [docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md) — `resource:read` scopes, student consent, `/api/v1/*` (timetable, announcements, assignments and seating pending) |
 | Product ADRs (historical) | [docs/plans/architecture.md](docs/plans/architecture.md) — **outdated for build detail**; ADRs remain useful background |
 | Bootstrap tech notes | [docs/plans/technical.md](docs/plans/technical.md) — **outdated stub**; hosting/Mongo choices still generally valid |
 | HTTP API | OIDC discovery, JWKS, authorize, token, userinfo, revoke; resource API (`/api/v1/*`); portal, admin, settings; public FAQ/privacy/docs |
@@ -38,7 +38,7 @@ MongoDB runs as a replica set because transactions require one, and is published
 Local notes:
 
 - Without `TOKEN_SIGNING_KEY_PATH`, the RS256 key is generated per process, so restarting the app invalidates issued tokens.
-- Resource endpoints answer `501 resource_unavailable` until their PESU Academy menu ids are known; verified ids can be supplied with `ACADEMY_MENU_IDS='{"attendance":"…"}'` (see the [resource API design](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md)).
+- Timetable, announcements, assignments and seating answer `501 resource_unavailable` until they are checked against a current student's PESU Academy data (see the [resource API design](docs/superpowers/specs/2026-10-23-resource-api-and-scopes-design.md)).
 
 ## Development
 

@@ -120,11 +120,11 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
 
     // 3. The resource API returns only allowlisted fields from Academy's payload
     dispatch.mockResolvedValue({
-      ATTENDANCE: [{ subjectCode: 'UE20CS301', subjectName: 'DBMS', totalClasses: 40, attendedClasses: 37, FatherMobileNo: '9999999999' }],
+      ATTENDANCE_LIST: [{ SubjectCode: 'UE20CS301', SubjectName: 'DBMS', TotalClasses: 40, AttendedClasses: 37, FatherMobileNo: '9999999999' }],
     });
     const call = () =>
       getAttendance(
-        new Request('http://localhost:3000/api/v1/attendance', {
+        new Request('http://localhost:3000/api/v1/attendance?semester=7', {
           headers: { Authorization: `Bearer ${granted.body.access_token}` },
         })
       );
@@ -135,7 +135,7 @@ describe('Resource API: scoped access, delegated consent and live revocation (In
     expect(JSON.stringify(okBody)).not.toContain('9999999999');
     const [session, form] = dispatch.mock.calls[0];
     expect(session).toMatchObject({ token: 'academy-mobile-token', accessToken: 'academy-access-token' });
-    expect(form).toMatchObject({ action: 18, mode: 6, menuId: '424242' });
+    expect(form).toMatchObject({ action: 18, mode: 6, menuId: '424242', batchClassId: '7' });
 
     // 4. An identity-only token for the same app cannot read attendance
     const identityCred = pendingCredentialStore.put({ username: student.srn, password: 'student-password' });
