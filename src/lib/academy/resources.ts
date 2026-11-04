@@ -54,6 +54,8 @@ export interface ResourceDefinition {
   params?: (ctx: ResourceContext) => Record<string, string | undefined>;
   /** Picks the row objects out of the payload. Defaults to the largest array found. */
   rows?: (payload: unknown) => Record<string, unknown>[];
+  /** Drops normalized rows that do not match the request (for filters Academy does not apply). */
+  filter?: (row: NormalizedRecord, ctx: ResourceContext) => boolean;
   fields: FieldMap;
 }
 
@@ -99,6 +101,26 @@ function squish(value: unknown): unknown {
 
 function flag(value: unknown): boolean | undefined {
   return value === 1 || value === 0 ? value === 1 : undefined;
+}
+
+/** Academy numbers timetable days 1 = Monday .. 6 = Saturday; 0 and 7 are both read as Sunday. */
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** `?day=` as a weekday name: `mon`, `Monday` or `1`..`7` (1 = Monday, 7 = Sunday). */
+export function weekdayName(value: string): string | undefined {
+  if (/^[1-7]$/.test(value)) return WEEKDAYS[Number(value)];
+  const prefix = value.slice(0, 3).toLowerCase();
+  return WEEKDAYS.find((name) => name.slice(0, 3).toLowerCase() === prefix);
+}
+
+/** Academy sends slot times as `HH:MM:SS` with arbitrary seconds; keep `HH:MM`. */
+export function clockTime(value: unknown): string | undefined {
+  return typeof value === 'string' && /^\d{2}:\d{2}/.test(value) ? value.slice(0, 5) : undefined;
+}
+
+function sortKey(row: { dayNumber?: unknown; start?: string }): string {
+  const day = typeof row.dayNumber === 'number' ? (row.dayNumber || 7) : 9;
+  return `${day}|${row.start ?? '99:99'}`;
 }
 
 export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
@@ -276,17 +298,33 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'timetable',
     scope: 'timetable:read',
     action: 16,
-    mode: 1, // TimetableMode.GET_TIMETABLE (mode 2 + day for a single day)
-    menuId: null, // not yet seen returning data
-    params: ({ query }) => (query.get('day') ? { day: query.get('day')! } : {}),
+    mode: 1, // TimetableMode.GET_TIMETABLE; the per-day mode 2 returns nothing, so `day` filters here
+    menuId: ACADEMY_MENU_ID,
+    rows: (payload) =>
+      findRows(payload)
+        .map((row) => ({
+          day: typeof row.day === 'number' ? WEEKDAYS[row.day] : undefined,
+          dayNumber: row.day,
+          start: clockTime(row.startTime),
+          end: clockTime(row.endTime),
+          subjectCode: row.subjectCode,
+          subjectName: row.subjectName,
+          faculty: row.facultyName,
+          room: row.roomName,
+        }))
+        .sort((a, b) => sortKey(a).localeCompare(sortKey(b))),
+    filter: (row, { query }) => {
+      const day = query.get('day');
+      return !day || row.day === weekdayName(day);
+    },
     fields: {
-      day: ['day', 'Day', 'dayName'],
-      start: ['startTime', 'StartTime', 'fromTime'],
-      end: ['endTime', 'EndTime', 'toTime'],
-      code: CODE,
-      name: NAME,
-      faculty: ['facultyName', 'FacultyName'],
-      room: ['roomName', 'RoomName', 'additionalInfo'],
+      day: ['day'],
+      start: ['start'],
+      end: ['end'],
+      code: ['subjectCode'],
+      name: ['subjectName'],
+      faculty: ['faculty'],
+      room: ['room'],
     },
   },
   announcements: {
@@ -439,8 +477,7 @@ export async function fetchResource(
     if (!semester) return [];
     extra.batchClassId = semester;
   }
-  // Timetable has a dedicated per-day mode
-  const mode = def.id === 'timetable' && extra.day ? 2 : def.mode;
-  const payload = await client.dispatch(session, { action: def.action, mode, menuId, ...extra });
-  return normalizeRows(def, payload);
+  const payload = await client.dispatch(session, { action: def.action, mode: def.mode, menuId, ...extra });
+  const rows = normalizeRows(def, payload);
+  return def.filter ? rows.filter((row) => def.filter!(row, ctx)) : rows;
 }

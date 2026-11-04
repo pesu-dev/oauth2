@@ -9,6 +9,7 @@ import {
 } from '@/lib/academy/client';
 import {
   ACADEMY_MENU_ID,
+  clockTime,
   RESOURCES,
   ResourceUnavailableError,
   decodeEntities,
@@ -19,6 +20,7 @@ import {
   normalizeRows,
   pickFields,
   resolveMenuId,
+  weekdayName,
 } from '@/lib/academy/resources';
 import { getScope } from '@/lib/oidc/scopes';
 
@@ -136,11 +138,11 @@ describe('resource catalog', () => {
       menuIdOverrides('{"attendance":"123","seating":456,"bogus":"1","courses":"12a","timetable":{}}')
     ).toEqual({ attendance: '123', seating: '456' });
 
-    expect(resolveMenuId(RESOURCES.timetable)).toBeNull();
+    expect(resolveMenuId(RESOURCES.seating)).toBeNull();
     expect(resolveMenuId(RESOURCES.attendance)).toBe(ACADEMY_MENU_ID);
-    process.env.ACADEMY_MENU_IDS = '{"attendance":"777","timetable":"778"}';
+    process.env.ACADEMY_MENU_IDS = '{"attendance":"777","seating":"778"}';
     expect(resolveMenuId(RESOURCES.attendance)).toBe('777');
-    expect(resolveMenuId(RESOURCES.timetable)).toBe('778');
+    expect(resolveMenuId(RESOURCES.seating)).toBe('778');
   });
 
   it('finds the largest nested row array and keeps only allowlisted scalar fields', () => {
@@ -337,6 +339,58 @@ describe('fetchResource', () => {
     delete process.env.ACADEMY_MENU_IDS;
   });
 
+  it('normalizes the weekly timetable, sorted by day and time, and filters by day', async () => {
+    // Shape of a live 16/1 response (values are placeholders)
+    const slot = (day: number | null, start: string | null, end: string | null, code: string) => ({
+      timeTableId: 'tt-1',
+      userId: 'u-1',
+      day,
+      dayNull: day === null,
+      startTime: start,
+      endTime: end,
+      timeSlotOrder: 1,
+      subjectCode: code,
+      subjectName: `Course ${code}`,
+      facultyName: null,
+      facultyNameAbbreviation: '',
+      roomName: 'B402',
+      batchName: '',
+      templateName: 'DEFAULT_TIME_SLOTS',
+    });
+    const payload = [
+      slot(2, '11:30:12', '12:30:12', 'C3'),
+      slot(1, '13:15:53', '14:15:53', 'C2'),
+      slot(1, null, null, 'C4'),
+      slot(1, '08:45:53', '09:45:53', 'C1'),
+      slot(null, '10:00:00', '11:00:00', 'C5'),
+    ];
+    const dispatch = vi.fn().mockResolvedValue(payload);
+    const client = { dispatch } as unknown as AcademyClient;
+
+    const week = await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
+    expect(week).toEqual([
+      { day: 'Monday', start: '08:45', end: '09:45', code: 'C1', name: 'Course C1', room: 'B402' },
+      { day: 'Monday', start: '13:15', end: '14:15', code: 'C2', name: 'Course C2', room: 'B402' },
+      { day: 'Monday', code: 'C4', name: 'Course C4', room: 'B402' },
+      { day: 'Tuesday', start: '11:30', end: '12:30', code: 'C3', name: 'Course C3', room: 'B402' },
+      { start: '10:00', end: '11:00', code: 'C5', name: 'Course C5', room: 'B402' },
+    ]);
+    for (const day of ['tue', 'Tuesday', '2']) {
+      expect((await fetchResource(client, SESSION, RESOURCES.timetable, ctx(`day=${day}`))).map((r) => r.code)).toEqual(['C3']);
+    }
+    expect(await fetchResource(client, SESSION, RESOURCES.timetable, ctx('day=sun'))).toEqual([]);
+  });
+
+  it('reads weekday names and clock times', () => {
+    expect(weekdayName('mon')).toBe('Monday');
+    expect(weekdayName('SATURDAY')).toBe('Saturday');
+    expect(weekdayName('7')).toBe('Sunday');
+    expect(weekdayName('xyz')).toBeUndefined();
+    expect(clockTime('08:45:53')).toBe('08:45');
+    expect(clockTime('9:45')).toBeUndefined();
+    expect(clockTime(null)).toBeUndefined();
+  });
+
   it('refuses to guess when no menu id is configured', async () => {
     const dispatch = vi.fn();
     await expect(
@@ -346,7 +400,7 @@ describe('fetchResource', () => {
   });
 
   it('dispatches with the menu id and resource params', async () => {
-    process.env.ACADEMY_MENU_IDS = JSON.stringify({ timetable: '13', announcements: '14' });
+    process.env.ACADEMY_MENU_IDS = JSON.stringify({ announcements: '14' });
     const dispatch = vi.fn().mockResolvedValue({ STUDENT_SUBJECTS: [{ SubjectCode: 'C1' }] });
     const client = { dispatch } as unknown as AcademyClient;
     const M = ACADEMY_MENU_ID;
@@ -360,9 +414,10 @@ describe('fetchResource', () => {
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 11, menuId: M, batchClassId: '6' });
 
     await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: '13' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: M });
+    // Academy's per-day mode returns nothing, so `day` is applied to the weekly list instead
     await fetchResource(client, SESSION, RESOURCES.timetable, ctx('day=mon'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 2, menuId: '13', day: 'mon' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: M });
 
     await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 5, menuId: '14', pageNo: '1' });

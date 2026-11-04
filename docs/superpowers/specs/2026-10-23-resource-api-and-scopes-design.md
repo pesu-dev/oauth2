@@ -1,6 +1,6 @@
 # PESU Resource API & Expanded Scopes — Design
 
-**Status:** Implemented. Semesters, courses, attendance and results are checked against live PESU Academy data; timetable, announcements, assignments and seating are not yet (see [Open items](#open-items)).
+**Status:** Implemented. Semesters, courses, syllabus, attendance, results, calendar and timetable are checked against live PESU Academy data; announcements, assignments and seating are not yet (see [Open items](#open-items)).
 **Date:** 2026-10-23
 **Extends:** [OIDC authorization server MVP design](2026-09-03-oidc-authorization-server-design.md)
 **Amends:** ADR-0003 in [architecture.md](../../plans/architecture.md) (resource API deployable)
@@ -32,7 +32,7 @@ Let third-party apps read a student's own PESU Academy data (courses, attendance
 | `courses:read` | `GET /api/v1/semesters`, `GET /api/v1/courses?semester=`, `GET /api/v1/courses/syllabus?course=` | 18 / 1, 18 / 2, 18 / 11 |
 | `attendance:read` | `GET /api/v1/attendance?semester=` | 18 / 6 |
 | `results:read` | `GET /api/v1/results/isa?semester=`, `GET /api/v1/results/esa?semester=`, `GET /api/v1/results/cgpa` | 7 / 11 for ISA and ESA (ISA marks are nested per course), 7 / 6 for CGPA |
-| `timetable:read` | `GET /api/v1/timetable?day=`, `GET /api/v1/calendar` | 16 / 1 (16 / 2 with `day`), 14 / 1 |
+| `timetable:read` | `GET /api/v1/timetable?day=`, `GET /api/v1/calendar` | 16 / 1 (`day` is applied by the server; 16 / 2 returns nothing), 14 / 1 |
 | `announcements:read` | `GET /api/v1/announcements?page=` | 20 / 5 |
 | `assignments:read` | `GET /api/v1/assignments` | 37 / 1 |
 | `seating:read` | `GET /api/v1/seating` | 13 / 3 |
@@ -70,6 +70,8 @@ None.
 
 ## Open items
 
-- **Timetable, announcements, assignments, seating.** The account used on 2026-11-03 belongs to a student who has graduated, so these returned nothing. They answer `501 resource_unavailable` until checked with a current student's account; then set `menuId` in `RESOURCES` (`src/lib/academy/resources.ts`) and fix their field lists.
+- **Announcements, assignments, seating.** None of the accounts checked on 2026-11-03 and 2026-11-04 returned data for these in any mode (assignments mode 3 answers HTTP 500). They answer `501 resource_unavailable` until checked with an account that has some; then set `menuId` in `RESOURCES` (`src/lib/academy/resources.ts`) and fix their field lists.
+- **Timetable faculty.** PESU Academy leaves `facultyName` null in every timetable seen so far, so `faculty` is mapped but not yet observed.
+- **Default semester.** The latest semester is the one with the highest `batchClassOrder`, which can be a minor or summer-term course rather than the main semester; apps should pass `?semester=` from `/api/v1/semesters` when it matters.
 - **Attendance figures.** PESU Academy returned held/attended counts for only some courses and older semesters; fields it leaves null are omitted.
 - **`aud`.** Access tokens keep `aud = client_id`; the resource server lives on the issuer origin, so no separate audience is needed yet.

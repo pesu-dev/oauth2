@@ -197,12 +197,15 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     path: 'timetable',
     title: 'Timetable',
     scope: 'timetable:read',
-    pending: true,
-    summary: "The student's weekly timetable, or a single day.",
+    summary:
+      "The student's weekly timetable for their current term, sorted by day and start time. Times are IST, `HH:MM`. Slots PESU Academy has not timed come without `start` and `end`. A slot can list several courses (electives or lab batches the section shares); match `code` against `/courses` for the student's own.",
     query: [
-      { name: 'day', location: 'query', type: 'string', required: false, description: 'Limit to one day: mon..sun or 1..7.', example: 'mon' },
+      { name: 'day', location: 'query', type: 'string', required: false, description: 'Limit to one day: a name such as `mon` or `Monday`, or 1..7 with 1 = Monday.', example: 'mon' },
     ],
-    sample: [{ day: 'Monday', start: '09:00', end: '10:00', code: 'UE20CS351', name: 'Cloud Computing', faculty: 'Dr. A. Rao', room: 'B-402' }],
+    sample: [
+      { day: 'Monday', start: '08:45', end: '09:45', code: 'UE21CS351A', name: 'Cloud Computing', room: 'B402' },
+      { day: 'Monday', start: '09:45', end: '10:45', code: 'UE21CS352A', name: 'Compiler Design', room: 'B402' },
+    ],
   },
   {
     id: 'announcements',
