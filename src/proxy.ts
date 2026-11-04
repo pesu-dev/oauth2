@@ -21,6 +21,7 @@ export const RESOURCE_ENDPOINTS = [
   'courses',
   'attendance',
   'results',
+  'calendar',
   'timetable',
   'announcements',
   'assignments',

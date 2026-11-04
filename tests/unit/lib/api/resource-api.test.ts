@@ -9,6 +9,7 @@ import { AcademyRequestError, AcademySessionExpiredError } from '@/lib/academy/c
 import { ResourceUnavailableError } from '@/lib/academy/resources';
 import { GET as getAttendance } from '@/app/api/v1/attendance/route';
 import { GET as getEsa } from '@/app/api/v1/results/esa/route';
+import { GET as getSyllabus } from '@/app/api/v1/courses/syllabus/route';
 
 vi.mock('@/lib/db/connection', () => ({ connectToDatabase: vi.fn().mockResolvedValue(null) }));
 
@@ -151,6 +152,13 @@ describe('resource route handlers', () => {
     expect((await bad.json()).error_description).toBe('Invalid value for semester');
     allowAll('results:read');
     expect((await getEsa(request('/api/v1/results/esa?page=1'))).status).toBe(400);
+    allowAll('courses:read');
+    const missing = await getSyllabus(request('/api/v1/courses/syllabus'));
+    expect(missing.status).toBe(400);
+    expect((await missing.json()).error_description).toBe('Missing query parameter: course');
+    allowAll('courses:read');
+    expect((await getSyllabus(request('/api/v1/courses/syllabus?course=x1'))).status).toBe(400);
+    expect(mockWithSession).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -11,6 +11,8 @@ import {
   ACADEMY_MENU_ID,
   RESOURCES,
   ResourceUnavailableError,
+  decodeEntities,
+  istDate,
   fetchResource,
   findRows,
   menuIdOverrides,
@@ -84,6 +86,15 @@ describe('AcademyClient.dispatch', () => {
 
     const http = clientWith({ status: 500, data: '' });
     await expect(http.client.dispatch(SESSION, { action: 1, mode: 1 })).rejects.toBeInstanceOf(AcademyRequestError);
+
+    // Academy's bare error page for an unsupported call is not a session problem
+    const errorPage = clientWith({
+      status: 200,
+      data: '<html><head><title>Error</title></head><body>Internal Server Error</body></html>',
+    });
+    const pageError = errorPage.client.dispatch(SESSION, { action: 14, mode: 2 });
+    await expect(pageError).rejects.toBeInstanceOf(AcademyRequestError);
+    await expect(pageError).rejects.not.toBeInstanceOf(AcademySessionExpiredError);
 
     const bad = clientWith({ status: 200, data: 'not json' });
     await expect(bad.client.dispatch(SESSION, { action: 1, mode: 1 })).rejects.toThrow('Invalid dispatcher response format');
@@ -162,12 +173,22 @@ describe('resource catalog', () => {
 
   // Fixtures follow the structure PESU Academy returned on 2026-11-03; values are made up.
   const subjects = [
-    { SubjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Status: 1, SubjectStatusText: 'Enrolled', StudentId: 'secret-id' },
+    {
+      SubjectId: 1,
+      SubjectCode: 'UE18CS351',
+      SubjectName: 'Cloud Computing',
+      Status: 1,
+      SubjectStatusText: 'Completed',
+      Description: 'Core',
+      Name: 'CC',
+      BatchClassId: 9,
+      StudentId: 'secret-id',
+    },
   ];
 
   it('reads courses from STUDENT_SUBJECTS', () => {
     expect(normalizeRows(RESOURCES.courses, { STUDENT_SUBJECTS: subjects, BATCH_CLASSID: 9 })).toEqual([
-      { id: 1, code: 'UE18CS351', name: 'Cloud Computing', status: 'Enrolled' },
+      { id: 1, code: 'UE18CS351', name: 'Cloud Computing', type: 'Core', status: 'Completed', semesterId: 9 },
     ]);
     expect(normalizeRows(RESOURCES.courses, 'unexpected')).toEqual([]);
   });
@@ -181,50 +202,131 @@ describe('resource catalog', () => {
       ],
     };
     expect(normalizeRows(RESOURCES.attendance, payload)).toEqual([
-      { code: 'UE18CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: 90 },
-      { code: 'UE18CS352', name: 'Compilers' },
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', classesHeld: 40, classesAttended: 36, percentage: 90 },
+      { courseId: 2, code: 'UE18CS352', name: 'Compilers' },
     ]);
   });
 
   const results = {
     STUDENT_ALL_SUBJECTS: [
       {
+        SubjectId: 1,
         subjectCode: 'UE18CS351',
         SubjectName: 'Cloud Computing',
         Semester: 6,
+        Description: 'MAY 2021',
+        EsaId: 99,
         grade: 'A',
         Credits: 4,
         EarnedCredit: 4,
         ISARESULTS: [
-          { SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 1', Marks: '34', MaxISAMarks: '40', ISAMarksMasterId: 7 },
-          { SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 2', Marks: '30', MaxISAMarks: '40' },
+          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 1', Marks: '34', MaxISAMarks: '40', ISAMarksMasterId: 7 },
+          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'Lab', Marks: '9', MaxISAMarks: '10' },
         ],
+        FinalISA: [{ SubjectId: 1, Marks: '46', ISAMaster: 'Final ISA ', ISAMarksMasterId: '1' }],
       },
-      { subjectCode: 'UE18CS352', SubjectName: 'Compilers', Semester: 6, grade: 'B', Credits: 4, EarnedCredit: 4 },
+      {
+        SubjectId: 2,
+        subjectCode: 'UE18CS352',
+        SubjectName: 'Compilers',
+        Semester: 6,
+        Description: 'MAY 2021',
+        grade: 'B',
+        Credits: 4,
+        EarnedCredit: 4,
+        FinalISA: [{ Marks: '40' }],
+      },
     ],
     CGPA_SEMESTERWISE: [{ StudentId: 'secret-id', SGPA: '8.90', CGPA: '8.60', Grade: 'A' }],
   };
 
-  it('flattens the ISA marks nested in each course', () => {
+  it('flattens the ISA marks nested in each course and adds the final ISA total', () => {
     expect(normalizeRows(RESOURCES.isa_results, results)).toEqual([
-      { code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
-      { code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 2', marks: '30', maxMarks: '40' },
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Lab', marks: '9', maxMarks: '10' },
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Final ISA', marks: '46' },
+      { courseId: 2, code: 'UE18CS352', name: 'Compilers', assessment: 'Final ISA', marks: '40' },
     ]);
   });
 
   it('adds the semester SGPA and CGPA to each ESA course row', () => {
     const rows = normalizeRows(RESOURCES.esa_results, results);
+    const common = { semester: 6, examSession: 'MAY 2021', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' };
     expect(rows).toEqual([
-      { code: 'UE18CS351', name: 'Cloud Computing', semester: 6, grade: 'A', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' },
-      { code: 'UE18CS352', name: 'Compilers', semester: 6, grade: 'B', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' },
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', grade: 'A', ...common },
+      { courseId: 2, code: 'UE18CS352', name: 'Compilers', grade: 'B', ...common },
     ]);
     expect(JSON.stringify(rows)).not.toContain('secret');
     expect(normalizeRows(RESOURCES.esa_results, { STUDENT_ALL_SUBJECTS: [{ subjectCode: 'X' }] })).toEqual([{ code: 'X' }]);
   });
+
+  it('reads a course syllabus in order with HTML entities decoded', () => {
+    const payload = {
+      COURSE_MENU: [],
+      COURSE_CONTENT: [
+        { SubjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', CourseContentType: 'Course Units', Heading: 'Unit 1: Basics', CourseContent: 'Models &amp; services &#8211; &lt;intro&gt; &bogus;', CourseContentOrder: 1, CreatedBy: 'secret-id' },
+        { SubjectId: 1, CourseContentType: 'Reference Books', Heading: 'Text Book:', CourseContent: null, CourseContentOrder: 0 },
+      ],
+    };
+    expect(normalizeRows(RESOURCES.syllabus, payload)).toEqual([
+      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', section: 'Course Units', heading: 'Unit 1: Basics', content: 'Models & services \u2013 <intro> &bogus;', order: 1 },
+      { courseId: 1, section: 'Reference Books', heading: 'Text Book:', order: 0 },
+    ]);
+  });
+
+  it('reads the overall CGPA row', () => {
+    const payload = {
+      StudentCGPAWISE: [{ USN: 'secret-usn', Credits: 160, EarnedCredits: 158, CGPA: '8.60' }],
+      StudentSemesterWise: [{ BatchClassId: 1 }, { BatchClassId: 2 }],
+    };
+    expect(normalizeRows(RESOURCES.cgpa, payload)).toEqual([{ cgpa: '8.60', credits: 160, earnedCredits: 158 }]);
+  });
+
+  it('turns calendar events into inclusive IST dates and booleans', () => {
+    const day = 86_400_000;
+    const aug15 = Date.UTC(2026, 7, 14, 18, 30); // midnight IST on 2026-08-15
+    const payload = [
+      {
+        name: 'Independence  Day',
+        description: 'Independence Day',
+        eventType: 'National Festival',
+        startDate: aug15,
+        endDate: aug15 + day,
+        isHoliday: 1,
+        isClass: 0,
+        calendarOfEventName: 'Aug 2026 - Dec 2026',
+        color: '#b12000',
+        batchId: 7,
+      },
+      { name: 'Odd row', startDate: 'soon', endDate: null, isHoliday: null },
+    ];
+    expect(normalizeRows(RESOURCES.calendar, payload)).toEqual([
+      {
+        name: 'Independence Day',
+        description: 'Independence Day',
+        type: 'National Festival',
+        startDate: '2026-08-15',
+        endDate: '2026-08-15',
+        holiday: true,
+        classDay: false,
+        term: 'Aug 2026 - Dec 2026',
+      },
+      { name: 'Odd row' },
+    ]);
+  });
+
+  it('decodes entities and dates defensively', () => {
+    expect(decodeEntities(5)).toBe(5);
+    expect(decodeEntities('A &AMP; B &apos;C&apos;&nbsp;D')).toBe("A & B 'C' D");
+    expect(decodeEntities('&#128218; &#0; &#99999999;')).toBe('\u{1F4DA} &#0; &#99999999;');
+    expect(istDate(Number.NaN)).toBeUndefined();
+    expect(istDate('2026-08-15')).toBeUndefined();
+    expect(istDate(Date.UTC(2026, 7, 14, 18, 30))).toBe('2026-08-15');
+  });
 });
 
 describe('fetchResource', () => {
-  const ctx = (q: string = '', username = 'PES1UG20CS001') => ({ query: new URLSearchParams(q), username });
+  const ctx = (q: string = '') => ({ query: new URLSearchParams(q) });
 
   afterEach(() => {
     delete process.env.ACADEMY_MENU_IDS;
@@ -281,6 +383,25 @@ describe('fetchResource', () => {
     await expect(fetchResource(client, SESSION, RESOURCES.attendance, ctx())).resolves.toEqual([{ code: 'C1' }]);
     expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 18, mode: 1, menuId: ACADEMY_MENU_ID });
     expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 6, menuId: ACADEMY_MENU_ID, batchClassId: '8' });
+  });
+
+  it('sends the course id for a syllabus', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ COURSE_CONTENT: [] });
+    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.syllabus, ctx('course=42'));
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 11, menuId: ACADEMY_MENU_ID, subjectId: '42' });
+    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.cgpa, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 6, menuId: ACADEMY_MENU_ID });
+    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.calendar, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 14, mode: 1, menuId: ACADEMY_MENU_ID });
+  });
+
+  it('falls back to the first listed semester when Academy sends no order', async () => {
+    const dispatch = vi
+      .fn()
+      .mockResolvedValueOnce([{ batchClassId: 8, batchClassOrder: null }, { batchClassId: 3 }])
+      .mockResolvedValueOnce({ STUDENT_SUBJECTS: [] });
+    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx());
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 2, menuId: ACADEMY_MENU_ID, batchClassId: '8' });
   });
 
   it('returns no rows when the student has no semesters', async () => {

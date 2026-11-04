@@ -13,6 +13,7 @@ const NO_STORE = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
 
 const QUERY_RULES: Record<string, RegExp> = {
   semester: /^\d{1,12}$/,
+  course: /^\d{1,12}$/,
   page: /^[1-9]\d{0,3}$/,
   day: /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$|^[1-7]$/i,
 };
@@ -22,7 +23,11 @@ function errorResponse(status: number, error: string, description: string) {
 }
 
 /** Builds the GET handler for one read-only PESU Academy resource. */
-export function createResourceHandler(resourceId: ResourceId, allowedQuery: string[] = []) {
+export function createResourceHandler(
+  resourceId: ResourceId,
+  allowedQuery: string[] = [],
+  requiredQuery: string[] = []
+) {
   const def = RESOURCES[resourceId];
 
   return async function GET(request: Request) {
@@ -40,10 +45,14 @@ export function createResourceHandler(resourceId: ResourceId, allowedQuery: stri
       }
       query.set(key, value);
     }
+    const missing = requiredQuery.find((key) => !query.has(key));
+    if (missing) {
+      return errorResponse(400, 'invalid_request', `Missing query parameter: ${missing}`);
+    }
 
     try {
-      const data = await withAcademySession(guard.sub, (client, session, username) =>
-        fetchResource(client, session, def, { query, username })
+      const data = await withAcademySession(guard.sub, (client, session) =>
+        fetchResource(client, session, def, { query })
       );
       return NextResponse.json(
         { resource: def.id, data, fetched_at: new Date().toISOString() },

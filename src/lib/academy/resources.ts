@@ -22,9 +22,12 @@ export const ACADEMY_MENU_ID = '11172';
 export type ResourceId =
   | 'semesters'
   | 'courses'
+  | 'syllabus'
   | 'attendance'
   | 'isa_results'
   | 'esa_results'
+  | 'cgpa'
+  | 'calendar'
   | 'timetable'
   | 'announcements'
   | 'assignments'
@@ -37,8 +40,6 @@ export type NormalizedRecord = Record<string, Scalar>;
 export interface ResourceContext {
   /** Query parameters from the API request (already validated by the route). */
   query: URLSearchParams;
-  /** Login identifier (SRN/PRN) the vault credentials belong to. */
-  username: string;
 }
 
 export interface ResourceDefinition {
@@ -69,6 +70,37 @@ function rowsAt(payload: unknown, key: string): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isPlainObject) : [];
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** Academy stores some text HTML-escaped (e.g. `&amp;`); return plain text. */
+export function decodeEntities(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value.replace(/&(#\d+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity.startsWith('#')) {
+      const code = Number(entity.slice(1));
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    return ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
+const IST_OFFSET_MS = 330 * 60 * 1000;
+
+/** Academy dates are epoch milliseconds at midnight IST; return the IST calendar date. */
+export function istDate(value: unknown): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return new Date(value + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Collapses runs of whitespace, which Academy leaves inside some names. */
+function squish(value: unknown): unknown {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ') : value;
+}
+
+function flag(value: unknown): boolean | undefined {
+  return value === 1 || value === 0 ? value === 1 : undefined;
+}
+
 export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
   semesters: {
     id: 'semesters',
@@ -93,7 +125,32 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
       id: ['SubjectId', 'subjectId'],
       code: CODE,
       name: NAME,
+      type: ['Description'], // Core or Elective
       status: ['SubjectStatusText', 'status', 'Status'],
+      semesterId: ['BatchClassId'],
+    },
+  },
+  syllabus: {
+    id: 'syllabus',
+    scope: 'courses:read',
+    action: 18,
+    mode: 11, // StudentCourseMode.COURSE_INFO
+    menuId: ACADEMY_MENU_ID,
+    params: ({ query }) => ({ subjectId: query.get('course') ?? undefined }),
+    rows: (payload) =>
+      rowsAt(payload, 'COURSE_CONTENT').map((row) => ({
+        ...row,
+        Heading: decodeEntities(row.Heading),
+        CourseContent: decodeEntities(row.CourseContent),
+      })),
+    fields: {
+      courseId: ['SubjectId'],
+      code: CODE,
+      name: NAME,
+      section: ['CourseContentType'], // Course Objectives, Course Outcome, Course Units, Reference Books
+      heading: ['Heading'],
+      content: ['CourseContent'],
+      order: ['CourseContentOrder'],
     },
   },
   attendance: {
@@ -106,6 +163,7 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     // The payload also repeats STUDENT_SUBJECTS; attendance figures are only in ATTENDANCE_LIST.
     rows: (payload) => rowsAt(payload, 'ATTENDANCE_LIST'),
     fields: {
+      courseId: ['SubjectId'],
       code: CODE,
       name: NAME,
       classesHeld: ['TotalClasses', 'totalClasses'],
@@ -122,8 +180,20 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     mode: 11, // ESAResultsMode.GET_DETAILED
     menuId: ACADEMY_MENU_ID,
     bySemester: true,
-    rows: (payload) => rowsAt(payload, 'STUDENT_ALL_SUBJECTS').flatMap((subject) => rowsAt(subject, 'ISARESULTS')),
+    rows: (payload) =>
+      rowsAt(payload, 'STUDENT_ALL_SUBJECTS').flatMap((subject) => [
+        ...rowsAt(subject, 'ISARESULTS'),
+        // The course's final ISA total has no name or code of its own.
+        ...rowsAt(subject, 'FinalISA').map((final) => ({
+          subjectId: subject.SubjectId,
+          SubjectCode: subject.subjectCode,
+          SubjectName: subject.SubjectName,
+          Name: typeof final.ISAMaster === 'string' ? final.ISAMaster : 'Final ISA',
+          Marks: final.Marks,
+        })),
+      ]),
     fields: {
+      courseId: ['subjectId', 'SubjectId'],
       code: CODE,
       name: NAME,
       assessment: ['Name'],
@@ -148,14 +218,58 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
       }));
     },
     fields: {
+      courseId: ['SubjectId'],
       code: CODE,
       name: NAME,
       semester: ['Semester'],
+      examSession: ['Description'], // e.g. MAY 2021
       grade: ['grade', 'Grade'],
       credits: ['Credits'],
       earnedCredits: ['EarnedCredit', 'EarnedCredits'],
       sgpa: ['SGPA'],
       cgpa: ['CGPA'],
+    },
+  },
+  cgpa: {
+    id: 'cgpa',
+    scope: 'results:read',
+    action: 7,
+    mode: 6, // ESAResultsMode.GET_SEM_LIST, which also carries the overall CGPA
+    menuId: ACADEMY_MENU_ID,
+    rows: (payload) => rowsAt(payload, 'StudentCGPAWISE'),
+    fields: {
+      cgpa: ['CGPA'],
+      credits: ['Credits'],
+      earnedCredits: ['EarnedCredits'],
+    },
+  },
+  calendar: {
+    id: 'calendar',
+    scope: 'timetable:read',
+    action: 14,
+    mode: 1, // CALENDAR_EVENTS for the student's current term
+    menuId: ACADEMY_MENU_ID,
+    rows: (payload) =>
+      findRows(payload).map((row) => ({
+        name: squish(row.name),
+        description: squish(row.description),
+        type: row.eventType,
+        startDate: istDate(row.startDate),
+        // Academy's end is exclusive (midnight after the last day).
+        endDate: typeof row.endDate === 'number' ? istDate(row.endDate - 1) : undefined,
+        holiday: flag(row.isHoliday),
+        classDay: flag(row.isClass),
+        term: row.calendarOfEventName,
+      })),
+    fields: {
+      name: ['name'],
+      description: ['description'],
+      type: ['type'], // University Events, Test Schedule, National Festival, ...
+      startDate: ['startDate'],
+      endDate: ['endDate'],
+      holiday: ['holiday'],
+      classDay: ['classDay'],
+      term: ['term'],
     },
   },
   timetable: {
@@ -291,12 +405,15 @@ async function latestSemesterId(client: AcademyClient, session: AcademySession):
   const menuId = resolveMenuId(def);
   if (!menuId) throw new ResourceUnavailableError(def.id);
   const rows = findRows(await client.dispatch(session, { action: def.action, mode: def.mode, menuId }));
+  const withId = rows.filter((row) => row.batchClassId !== undefined && row.batchClassId !== null);
   let latest: { id: string; order: number } | null = null;
-  for (const row of rows) {
-    const order = Number(row.batchClassOrder);
-    if (row.batchClassId === undefined || row.batchClassId === null || !Number.isFinite(order)) continue;
+  for (const row of withId) {
+    const order = row.batchClassOrder;
+    if (typeof order !== 'number' || !Number.isFinite(order)) continue;
     if (!latest || order > latest.order) latest = { id: String(row.batchClassId), order };
   }
+  // Without an order, trust Academy's own listing, which puts the newest semester first.
+  if (!latest && withId.length) return String(withId[0].batchClassId);
   return latest?.id ?? null;
 }
 

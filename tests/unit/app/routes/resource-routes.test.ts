@@ -4,9 +4,12 @@ import { RESOURCE_ENDPOINTS } from '@/proxy';
 const ROUTES = [
   ['semesters', () => import('@/app/api/v1/semesters/route')],
   ['courses', () => import('@/app/api/v1/courses/route')],
+  ['courses/syllabus', () => import('@/app/api/v1/courses/syllabus/route')],
   ['attendance', () => import('@/app/api/v1/attendance/route')],
   ['results/isa', () => import('@/app/api/v1/results/isa/route')],
   ['results/esa', () => import('@/app/api/v1/results/esa/route')],
+  ['results/cgpa', () => import('@/app/api/v1/results/cgpa/route')],
+  ['calendar', () => import('@/app/api/v1/calendar/route')],
   ['timetable', () => import('@/app/api/v1/timetable/route')],
   ['announcements', () => import('@/app/api/v1/announcements/route')],
   ['assignments', () => import('@/app/api/v1/assignments/route')],

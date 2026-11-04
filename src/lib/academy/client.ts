@@ -307,6 +307,11 @@ export class AcademyClient {
     if (typeof data === 'string') {
       const text = data.trim();
       if (text.toLowerCase().startsWith('<') || text.toLowerCase().includes('<html')) {
+        // Academy answers some unsupported calls with a bare error page while the session is fine;
+        // logging in again would not help.
+        if (/<title>\s*error\s*<\/title>/i.test(text)) {
+          throw new AcademyRequestError('Dispatcher returned an error page');
+        }
         throw new AcademySessionExpiredError('Dispatcher returned an HTML page (session expired)');
       }
       if (!text) return null;

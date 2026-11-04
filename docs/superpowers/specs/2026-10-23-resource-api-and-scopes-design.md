@@ -22,17 +22,17 @@ Let third-party apps read a student's own PESU Academy data (courses, attendance
 | Data minimization | Responses are allowlists: each resource maps a fixed set of output fields from candidate Academy keys. Raw Academy objects (which include parents' contact details, addresses, etc.) are never passed through. |
 | Revocation | Every API call re-checks the user (not deleted), the client (not suspended) and the consent (delegated, includes the scope). Revoking in Settings takes effect immediately, not when the 1-hour access JWT expires. |
 | Rate limiting | 30 requests/min per student+app (`apiLimiter`), on top of the proxy's per-IP limits, to protect PESU Academy. |
-| Excluded in v1 | `change_password`, placement, admin SRN search, `raw_request`, e-learning, daily feedback. Photo (`photo:read`) is planned with images. |
+| Excluded in v1 | `change_password`, placement, admin SRN search, `raw_request`, e-learning, course notes and files, daily feedback. From the profile record: parents' names and contacts, addresses, blood group, admission quota, entrance exam rank and school marks. Photo (`photo:read`) is planned with images. |
 
 ## Scope catalog (v1)
 
 | Scope | Endpoints | Academy action / mode |
 | --- | --- | --- |
 | `openid`, `profile`, `email`, `phone`, `offline_access` | `/api/v1/userinfo`, ID token | unchanged |
-| `courses:read` | `GET /api/v1/semesters`, `GET /api/v1/courses?semester=` | 18 / 1, 18 / 2 |
+| `courses:read` | `GET /api/v1/semesters`, `GET /api/v1/courses?semester=`, `GET /api/v1/courses/syllabus?course=` | 18 / 1, 18 / 2, 18 / 11 |
 | `attendance:read` | `GET /api/v1/attendance?semester=` | 18 / 6 |
-| `results:read` | `GET /api/v1/results/isa?semester=`, `GET /api/v1/results/esa?semester=` | 7 / 11 for both (ISA marks are nested per course) |
-| `timetable:read` | `GET /api/v1/timetable?day=` | 16 / 1 (16 / 2 with `day`) |
+| `results:read` | `GET /api/v1/results/isa?semester=`, `GET /api/v1/results/esa?semester=`, `GET /api/v1/results/cgpa` | 7 / 11 for ISA and ESA (ISA marks are nested per course), 7 / 6 for CGPA |
+| `timetable:read` | `GET /api/v1/timetable?day=`, `GET /api/v1/calendar` | 16 / 1 (16 / 2 with `day`), 14 / 1 |
 | `announcements:read` | `GET /api/v1/announcements?page=` | 20 / 5 |
 | `assignments:read` | `GET /api/v1/assignments` | 37 / 1 |
 | `seating:read` | `GET /api/v1/seating` | 13 / 3 |
