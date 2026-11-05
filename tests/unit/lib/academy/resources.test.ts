@@ -369,11 +369,11 @@ describe('fetchResource', () => {
 
     const week = await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
     expect(week).toEqual([
-      { day: 'Monday', start: '08:45', end: '09:45', code: 'C1', name: 'Course C1', room: 'B402' },
-      { day: 'Monday', start: '13:15', end: '14:15', code: 'C2', name: 'Course C2', room: 'B402' },
+      { day: 'Monday', start: '08:45:00+05:30', end: '09:45:00+05:30', code: 'C1', name: 'Course C1', room: 'B402' },
+      { day: 'Monday', start: '13:15:00+05:30', end: '14:15:00+05:30', code: 'C2', name: 'Course C2', room: 'B402' },
       { day: 'Monday', code: 'C4', name: 'Course C4', room: 'B402' },
-      { day: 'Tuesday', start: '11:30', end: '12:30', code: 'C3', name: 'Course C3', room: 'B402' },
-      { start: '10:00', end: '11:00', code: 'C5', name: 'Course C5', room: 'B402' },
+      { day: 'Tuesday', start: '11:30:00+05:30', end: '12:30:00+05:30', code: 'C3', name: 'Course C3', room: 'B402' },
+      { start: '10:00:00+05:30', end: '11:00:00+05:30', code: 'C5', name: 'Course C5', room: 'B402' },
     ]);
     for (const day of ['tue', 'Tuesday', '2']) {
       expect((await fetchResource(client, SESSION, RESOURCES.timetable, ctx(`day=${day}`))).map((r) => r.code)).toEqual(['C3']);
@@ -386,7 +386,7 @@ describe('fetchResource', () => {
     expect(weekdayName('SATURDAY')).toBe('Saturday');
     expect(weekdayName('7')).toBe('Sunday');
     expect(weekdayName('xyz')).toBeUndefined();
-    expect(clockTime('08:45:53')).toBe('08:45');
+    expect(clockTime('08:45:53')).toBe('08:45:00+05:30');
     expect(clockTime('9:45')).toBeUndefined();
     expect(clockTime(null)).toBeUndefined();
   });

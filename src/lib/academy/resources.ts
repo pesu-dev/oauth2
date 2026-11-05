@@ -113,9 +113,12 @@ export function weekdayName(value: string): string | undefined {
   return WEEKDAYS.find((name) => name.slice(0, 3).toLowerCase() === prefix);
 }
 
-/** Academy sends slot times as `HH:MM:SS` with arbitrary seconds; keep `HH:MM`. */
+/**
+ * Academy sends slot times as IST `HH:MM:SS` with arbitrary seconds. Return an ISO 8601 time with
+ * an explicit offset (`08:45:00+05:30`): a weekly slot has no date, so this is the standard form.
+ */
 export function clockTime(value: unknown): string | undefined {
-  return typeof value === 'string' && /^\d{2}:\d{2}/.test(value) ? value.slice(0, 5) : undefined;
+  return typeof value === 'string' && /^\d{2}:\d{2}/.test(value) ? `${value.slice(0, 5)}:00+05:30` : undefined;
 }
 
 function sortKey(row: { dayNumber?: unknown; start?: string }): string {

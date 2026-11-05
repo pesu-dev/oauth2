@@ -45,6 +45,8 @@ Action/mode codes come from the reverse-engineered mobile app ([Vision2822/pesu-
 
 **Menu id.** Every dispatcher call needs a `menuId`. PESU Academy checks that the account can open that menu, but not that it belongs to the action, so the profile menu id (`11172`), which every student has, works for all read actions. The mobile app's other menu ids are not exposed (the web portal's ids are rejected). If PESU Academy starts matching menu ids to actions, these calls fail with `502 academy_unavailable`, and verified ids can be set per resource with `ACADEMY_MENU_IDS='{"attendance":"…"}'` without a code change.
 
+**Dates and times.** Instants (`fetched_at`) are ISO 8601 in UTC. Calendar days (`startDate`, `endDate`) are ISO 8601 dates (`2026-08-15`) as observed in IST. Weekly timetable slots have no date, so `start` and `end` are ISO 8601 times with the IST offset (`08:45:00+05:30`); PESU Academy's seconds are not meaningful and are set to `00`.
+
 ## Flow
 
 1. **Authorize / consent** — The client adds resource scopes to its authorization request. The consent screen lists a "PESU Academy data" group with plain-language labels and the delegated storage sentence, and the student allows or denies. Unknown scopes are dropped.
