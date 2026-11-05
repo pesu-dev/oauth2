@@ -8,13 +8,14 @@ import {
   unwrapJsonStrings,
 } from '@/lib/academy/client';
 import {
-  ACADEMY_MENU_ID,
+  MENU,
   clockTime,
   htmlToText,
   RESOURCES,
   ResourceUnavailableError,
   decodeEntities,
   istDate,
+  isAvailable,
   fetchResource,
   findRows,
   menuIdOverrides,
@@ -36,25 +37,34 @@ function formEntries(form: FormData): Record<string, string> {
   return Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
 }
 
+// Shape of a live 7/7 response (values are placeholders)
+const esa = {
+  RESULTS: [
+    { subjectCode: 'UE18CS351', Semester: 6, grade: 'A', SubjectName: 'Cloud Computing', EarnedCredit: 4, Credits: 4, EsaId: 99, Description: 'MAY 2021', SubjectId: 1, SUMMARY: [] },
+    { subjectCode: 'UE18CS352', Semester: 6, grade: 'B', SubjectName: 'Compilers', EarnedCredit: 4, Credits: 4, EsaId: 99, Description: 'MAY 2021', SubjectId: 2, SUMMARY: [] },
+  ],
+  CGPA_SEMESTERWISE: [{ StudentId: 'secret-id', EsaId: 99, Grade: 'A', Semester: '6', BatchClassId: 6, SGPA: '8.90', CGPA: '8.60' }],
+};
+
 describe('AcademyClient.dispatch', () => {
-  it('posts action, mode, userId and a cache buster with session headers', async () => {
+  it('posts action, mode and a cache buster with the bearer token and mobile headers, like the official app', async () => {
     const { client, post } = clientWith({ status: 200, data: { rows: [] } });
     await client.dispatch(SESSION, { action: 18, mode: 6, menuId: '99', skip: undefined });
 
     const [url, form, options] = post.mock.calls[0];
     expect(url).toBe(DISPATCHER_URL);
     const fields = formEntries(form);
-    expect(fields).toMatchObject({ action: '18', mode: '6', menuId: '99', userId: 'u1' });
+    expect(fields).toMatchObject({ action: '18', mode: '6', menuId: '99' });
     expect(fields).not.toHaveProperty('skip');
+    expect(fields).not.toHaveProperty('userId');
     expect(Number(fields.randomNum)).toBeGreaterThanOrEqual(0);
-    expect(options.headers).toEqual({ mobileappauthenticationtoken: 'mob_tok', authorization: 'Bearer acc_tok' });
+    expect(options.headers).toEqual({ 'X-Client-Type': 'MOBILE', Accept: 'application/json', authorization: 'Bearer acc_tok' });
   });
 
-  it('omits bearer and userId when the session lacks them, and keeps an explicit userId', async () => {
+  it('falls back to the mobile token header without an access token, and passes explicit fields through', async () => {
     const { client, post } = clientWith({ status: 200, data: [] });
-    await client.dispatch({ ...SESSION, accessToken: null, userId: null }, { action: 1, mode: 1 });
-    expect(post.mock.calls[0][2].headers).toEqual({ mobileappauthenticationtoken: 'mob_tok' });
-    expect(formEntries(post.mock.calls[0][1])).not.toHaveProperty('userId');
+    await client.dispatch({ ...SESSION, accessToken: null }, { action: 1, mode: 1 });
+    expect(post.mock.calls[0][2].headers).toEqual({ 'X-Client-Type': 'MOBILE', Accept: 'application/json', mobileappauthenticationtoken: 'mob_tok' });
 
     await client.dispatch(SESSION, { action: 1, mode: 1, userId: 'explicit' });
     expect(formEntries(post.mock.calls[1][1]).userId).toBe('explicit');
@@ -140,10 +150,14 @@ describe('resource catalog', () => {
     ).toEqual({ attendance: '123', seating: '456' });
 
     expect(resolveMenuId(RESOURCES.seating)).toBeNull();
-    expect(resolveMenuId(RESOURCES.attendance)).toBe(ACADEMY_MENU_ID);
+    expect(resolveMenuId(RESOURCES.calendar)).toBeNull();
+    expect(resolveMenuId(RESOURCES.attendance)).toBe(MENU.attendance);
+    expect(isAvailable(RESOURCES.seating)).toBe(false);
+    expect(isAvailable(RESOURCES.calendar)).toBe(true);
     process.env.ACADEMY_MENU_IDS = '{"attendance":"777","seating":"778"}';
     expect(resolveMenuId(RESOURCES.attendance)).toBe('777');
     expect(resolveMenuId(RESOURCES.seating)).toBe('778');
+    expect(isAvailable(RESOURCES.seating)).toBe(true);
   });
 
   it('finds the largest nested row array and keeps only allowlisted scalar fields', () => {
@@ -212,67 +226,43 @@ describe('resource catalog', () => {
     ]);
   });
 
-  const results = {
-    STUDENT_ALL_SUBJECTS: [
-      {
-        SubjectId: 1,
-        subjectCode: 'UE18CS351',
-        SubjectName: 'Cloud Computing',
-        Semester: 6,
-        Description: 'MAY 2021',
-        EsaId: 99,
-        grade: 'A',
-        Credits: 4,
-        EarnedCredit: 4,
-        ISARESULTS: [
-          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 1', Marks: '34', MaxISAMarks: '40', ISAMarksMasterId: 7 },
-          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'Lab', Marks: '9', MaxISAMarks: '10' },
-          { subjectId: 1, SubjectCode: 'UE18CS351', SubjectName: 'Cloud Computing', Name: 'ISA 2', Marks: '30', MaxISAMarks: '  ' },
-        ],
-        FinalISA: [{ SubjectId: 1, Marks: '46', ISAMaster: 'Final ISA ', ISAMarksMasterId: '1' }],
-      },
-      {
-        SubjectId: 2,
-        subjectCode: 'UE18CS352',
-        SubjectName: 'Compilers',
-        Semester: 6,
-        Description: 'MAY 2021',
-        grade: 'B',
-        Credits: 4,
-        EarnedCredit: 4,
-        FinalISA: [{ Marks: '40' }],
-      },
-    ],
-    CGPA_SEMESTERWISE: [{ StudentId: 'secret-id', SGPA: '8.90', CGPA: '8.60', Grade: 'A' }],
-  };
-
-  it('flattens the ISA marks nested in each course and adds the final ISA total', () => {
-    expect(normalizeRows(RESOURCES.isa_results, results)).toEqual([
-      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
-      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Lab', marks: '9', maxMarks: '10' },
-      // A blank maximum is left out rather than sent as ""
-      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'ISA 2', marks: '30' },
-      { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', assessment: 'Final ISA', marks: '46' },
-      { courseId: 2, code: 'UE18CS352', name: 'Compilers', assessment: 'Final ISA', marks: '40' },
-    ]);
+  // Shape of a live 53/19 response (values are placeholders)
+  const isaRow = (subjectId: number, code: string, name: string, assessment: string, marks: string, max: number | string | null) => ({
+    StudentId: 'secret-student-id',
+    LoginId: 'secret-login-id',
+    NameAsInSSLC: 'SECRET NAME',
+    classBatchSectionId: '9114',
+    subjectId,
+    subjectCode: code,
+    subjectName: name,
+    Credits: 4.0,
+    marks,
+    ISAMarksMasterId: 1,
+    ISAMaster: assessment,
+    CutoffMarks: null,
+    batchClassId: 3529,
+    maxISAMarks: max,
+    OrderBy: 1,
   });
 
-  it('reads the ISA marks of the semester in progress, which come as flat rows', () => {
-    // Shape of a live 7/11 response for the current semester (values are placeholders)
-    const current = {
-      STUDENT_ALL_SUBJECTS: [],
-      CGPA_SEMESTERWISE: [],
-      Current_SEMESTERWISE: [
-        { ISAMarksMasterId: 1, subjectId: 9, SubjectCode: 'UE25CS251A', SubjectName: 'Data Structures', Marks: '25', Name: 'ISA 1', ClassBatchSectionId: 4, BatchClassId: 3, MaxISAMarks: '40' },
-        { ISAMarksMasterId: 286, subjectId: 10, SubjectCode: 'UE25CS252A', SubjectName: 'Digital Design', Marks: '16.5', Name: 'Internship IEC 1', ClassBatchSectionId: 4, BatchClassId: 3, MaxISAMarks: '20' },
-      ],
-    };
-    expect(normalizeRows(RESOURCES.isa_results, current)).toEqual([
-      { courseId: 9, code: 'UE25CS251A', name: 'Data Structures', assessment: 'ISA 1', marks: '25', maxMarks: '40' },
-      { courseId: 10, code: 'UE25CS252A', name: 'Digital Design', assessment: 'Internship IEC 1', marks: '16.5', maxMarks: '20' },
+  it('reads ISA rows with credits and leaves the student identifiers out', () => {
+    const payload = [
+      isaRow(1, 'UE18CS351', 'Cloud Computing', 'ISA 1', '34', 40.0),
+      isaRow(1, 'UE18CS351', 'Cloud Computing', 'Lab', '9', 10.0),
+      // A blank maximum is left out rather than sent as ""
+      isaRow(1, 'UE18CS351', 'Cloud Computing', 'ISA 2', '30', '  '),
+      isaRow(2, 'UE18CS352', 'Compilers', 'Final ISA ', '40', null),
+    ];
+    const rows = normalizeRows(RESOURCES.isa_results, payload);
+    const cc = { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', credits: 4 };
+    expect(rows).toEqual([
+      { ...cc, assessment: 'ISA 1', marks: '34', maxMarks: 40 },
+      { ...cc, assessment: 'Lab', marks: '9', maxMarks: 10 },
+      { ...cc, assessment: 'ISA 2', marks: '30' },
+      { courseId: 2, code: 'UE18CS352', name: 'Compilers', credits: 4, assessment: 'Final ISA', marks: '40' },
     ]);
-    // No results summary for a semester in progress, so ESA has nothing to return.
-    expect(normalizeRows(RESOURCES.esa_results, current)).toEqual([]);
+    expect(JSON.stringify(rows)).not.toContain('secret');
+    expect(JSON.stringify(rows)).not.toContain('SECRET');
   });
 
   it('normalizes the announcement feed to plain text', () => {
@@ -311,14 +301,16 @@ describe('resource catalog', () => {
   });
 
   it('adds the semester SGPA and CGPA to each ESA course row', () => {
-    const rows = normalizeRows(RESOURCES.esa_results, results);
+    const rows = normalizeRows(RESOURCES.esa_results, esa);
     const common = { semester: 6, examSession: 'MAY 2021', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' };
     expect(rows).toEqual([
       { courseId: 1, code: 'UE18CS351', name: 'Cloud Computing', grade: 'A', ...common },
       { courseId: 2, code: 'UE18CS352', name: 'Compilers', grade: 'B', ...common },
     ]);
     expect(JSON.stringify(rows)).not.toContain('secret');
-    expect(normalizeRows(RESOURCES.esa_results, { STUDENT_ALL_SUBJECTS: [{ subjectCode: 'X' }] })).toEqual([{ code: 'X' }]);
+    expect(normalizeRows(RESOURCES.esa_results, { RESULTS: [{ subjectCode: 'X' }] })).toEqual([{ code: 'X' }]);
+    // A semester in progress has no results yet
+    expect(normalizeRows(RESOURCES.esa_results, { RESULTS: [], CGPA_SEMESTERWISE: [] })).toEqual([]);
   });
 
   it('reads a course syllabus in order with HTML entities decoded', () => {
@@ -395,9 +387,11 @@ describe('fetchResource', () => {
 
   it('normalizes the weekly timetable, sorted by day and time, and filters by day', async () => {
     // Shape of a live 16/1 response (values are placeholders)
-    const slot = (day: number | null, start: string | null, end: string | null, code: string) => ({
+    const slot = (day: number | null, start: string | null, end: string | null, code: string, extra: Record<string, unknown> = {}) => ({
       timeTableId: 'tt-1',
-      userId: 'u-1',
+      userId: 'secret-user-id',
+      subjectId: Number(code.slice(1)),
+      isHistory: 0,
       day,
       dayNull: day === null,
       startTime: start,
@@ -410,25 +404,29 @@ describe('fetchResource', () => {
       roomName: 'B402',
       batchName: '',
       templateName: 'DEFAULT_TIME_SLOTS',
+      ...extra,
     });
     const payload = [
-      slot(2, '11:30:12', '12:30:12', 'C3'),
+      slot(2, '11:30:12', '12:30:12', 'C3', { batchName: 'B1' }),
       slot(1, '13:15:53', '14:15:53', 'C2'),
       slot(1, null, null, 'C4'),
       slot(1, '08:45:53', '09:45:53', 'C1'),
       slot(null, '10:00:00', '11:00:00', 'C5'),
+      // A superseded timetable's slot
+      slot(1, '08:00:00', '09:00:00', 'C6', { isHistory: 1 }),
     ];
     const dispatch = vi.fn().mockResolvedValue(payload);
     const client = { dispatch } as unknown as AcademyClient;
 
     const week = await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
     expect(week).toEqual([
-      { day: 'Monday', start: '08:45:00+05:30', end: '09:45:00+05:30', code: 'C1', name: 'Course C1', room: 'B402' },
-      { day: 'Monday', start: '13:15:00+05:30', end: '14:15:00+05:30', code: 'C2', name: 'Course C2', room: 'B402' },
-      { day: 'Monday', code: 'C4', name: 'Course C4', room: 'B402' },
-      { day: 'Tuesday', start: '11:30:00+05:30', end: '12:30:00+05:30', code: 'C3', name: 'Course C3', room: 'B402' },
-      { start: '10:00:00+05:30', end: '11:00:00+05:30', code: 'C5', name: 'Course C5', room: 'B402' },
+      { day: 'Monday', start: '08:45:00+05:30', end: '09:45:00+05:30', courseId: 1, code: 'C1', name: 'Course C1', room: 'B402' },
+      { day: 'Monday', start: '13:15:00+05:30', end: '14:15:00+05:30', courseId: 2, code: 'C2', name: 'Course C2', room: 'B402' },
+      { day: 'Monday', courseId: 4, code: 'C4', name: 'Course C4', room: 'B402' },
+      { day: 'Tuesday', start: '11:30:00+05:30', end: '12:30:00+05:30', courseId: 3, code: 'C3', name: 'Course C3', room: 'B402', batch: 'B1' },
+      { start: '10:00:00+05:30', end: '11:00:00+05:30', courseId: 5, code: 'C5', name: 'Course C5', room: 'B402' },
     ]);
+    expect(JSON.stringify(week)).not.toContain('secret');
     for (const day of ['tue', 'Tuesday', '2']) {
       expect((await fetchResource(client, SESSION, RESOURCES.timetable, ctx(`day=${day}`))).map((r) => r.code)).toEqual(['C3']);
     }
@@ -445,39 +443,113 @@ describe('fetchResource', () => {
     expect(clockTime(null)).toBeUndefined();
   });
 
-  it('refuses to guess when no menu id is configured', async () => {
+  it('refuses pending resources until ops enable them', async () => {
     const dispatch = vi.fn();
-    await expect(
-      fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.seating, ctx())
-    ).rejects.toBeInstanceOf(ResourceUnavailableError);
+    for (const def of [RESOURCES.seating, RESOURCES.assignments]) {
+      await expect(fetchResource({ dispatch } as unknown as AcademyClient, SESSION, def, ctx())).rejects.toBeInstanceOf(ResourceUnavailableError);
+    }
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('dispatches with the menu id and resource params', async () => {
-    process.env.ACADEMY_MENU_IDS = JSON.stringify({ announcements: '14' });
+  it("sends each call with the official app's menu id and fields", async () => {
     const dispatch = vi.fn().mockResolvedValue({ STUDENT_SUBJECTS: [{ SubjectCode: 'C1' }] });
     const client = { dispatch } as unknown as AcademyClient;
-    const M = ACADEMY_MENU_ID;
 
     await expect(fetchResource(client, SESSION, RESOURCES.courses, ctx('semester=5'))).resolves.toEqual([{ code: 'C1' }]);
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 2, menuId: M, batchClassId: '5' });
-
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 2, menuId: MENU.courses, batchClassId: '5' });
+    await fetchResource(client, SESSION, RESOURCES.attendance, ctx('semester=5'));
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 6, menuId: MENU.attendance, batchClassId: '5' });
+    // ESA alone spells it BatchClassId
     await fetchResource(client, SESSION, RESOURCES.esa_results, ctx('semester=6'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 11, menuId: M, batchClassId: '6' });
-    await fetchResource(client, SESSION, RESOURCES.isa_results, ctx('semester=6'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 11, menuId: M, batchClassId: '6' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 7, menuId: MENU.results, BatchClassId: '6' });
 
     await fetchResource(client, SESSION, RESOURCES.timetable, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: M });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: MENU.timetable, callMethod: 'background' });
     // Academy's per-day mode returns nothing, so `day` is applied to the weekly list instead
     await fetchResource(client, SESSION, RESOURCES.timetable, ctx('day=mon'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: M });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: MENU.timetable, callMethod: 'background' });
 
+    // The app sends no menu id for announcements and the calendar
     await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, menuId: '14' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, instId: '1,6' });
+    await fetchResource(client, SESSION, RESOURCES.calendar, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 14, mode: 1 });
 
     await fetchResource(client, SESSION, RESOURCES.semesters, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 1, menuId: M });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 1, menuId: MENU.semesters });
+    await fetchResource(client, SESSION, RESOURCES.cgpa, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 6, menuId: MENU.results });
+
+    // An ops override still wins
+    process.env.ACADEMY_MENU_IDS = JSON.stringify({ announcements: '14' });
+    await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, menuId: '14', instId: '1,6' });
+  });
+
+  const semesterList = [
+    { batchClassId: 3529, classBatchSectionId: 9114, classId: 3, className: 'Sem-3', batchClassOrder: 2026072799, studentRollNo: 44 },
+    { batchClassId: 3290, classBatchSectionId: 8648, classId: 2, className: 'Sem-2', batchClassOrder: 2026012799, studentRollNo: 42 },
+  ];
+
+  it("looks up the semester's section for ISA marks", async () => {
+    const dispatch = vi.fn().mockImplementation(async (_s, form) => (form.mode === 1 ? semesterList : []));
+    const client = { dispatch } as unknown as AcademyClient;
+
+    await fetchResource(client, SESSION, RESOURCES.isa_results, ctx('semester=3290'));
+    expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 18, mode: 1, menuId: MENU.semesters });
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, {
+      action: 53,
+      mode: 19,
+      menuId: MENU.isa,
+      batchClassId: '3290',
+      classBatchSectionId: '8648',
+      fetchId: '3290-8648',
+    });
+
+    // Default: the newest semester
+    await fetchResource(client, SESSION, RESOURCES.isa_results, ctx());
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, expect.objectContaining({ action: 53, fetchId: '3529-9114' }));
+
+    // A semester the student does not have, or one without a section, returns nothing
+    dispatch.mockClear();
+    await expect(fetchResource(client, SESSION, RESOURCES.isa_results, ctx('semester=1'))).resolves.toEqual([]);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    dispatch.mockReset().mockResolvedValueOnce([{ batchClassId: 7, classBatchSectionId: null }]);
+    await expect(fetchResource(client, SESSION, RESOURCES.isa_results, ctx())).resolves.toEqual([]);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults ESA to the newest semester with published results', async () => {
+    const dispatch = vi
+      .fn()
+      .mockResolvedValueOnce({ StudentCGPAWISE: [], StudentSemesterWise: [{ BatchClassId: null }, { BatchClassId: 3290, ClassName: 'Sem-2' }] })
+      .mockResolvedValueOnce(esa)
+      .mockResolvedValueOnce({ StudentCGPAWISE: [], StudentSemesterWise: [] });
+    const client = { dispatch } as unknown as AcademyClient;
+
+    await expect(fetchResource(client, SESSION, RESOURCES.esa_results, ctx())).resolves.toHaveLength(2);
+    expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 7, mode: 6, menuId: MENU.results });
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 7, mode: 7, menuId: MENU.results, BatchClassId: '3290' });
+    // No published results yet
+    await expect(fetchResource(client, SESSION, RESOURCES.esa_results, ctx())).resolves.toEqual([]);
+    expect(dispatch).toHaveBeenCalledTimes(3);
+  });
+
+  it('sends the semester section and class for seating once ops enable it', async () => {
+    process.env.ACADEMY_MENU_IDS = JSON.stringify({ seating: '11999' });
+    const dispatch = vi
+      .fn()
+      .mockResolvedValueOnce(semesterList)
+      .mockResolvedValueOnce({ seating_info: [], esa_registration_line: {}, events: [{ name: 'ISA 1' }] });
+    await expect(fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.seating, ctx())).resolves.toEqual([]);
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, {
+      action: 44,
+      mode: 4,
+      menuId: '11999',
+      batchClassId: '3529',
+      classBatchSectionId: '9114',
+      classId: '3',
+    });
   });
 
   it('defaults to the latest semester by batchClassOrder', async () => {
@@ -493,18 +565,14 @@ describe('fetchResource', () => {
     const client = { dispatch } as unknown as AcademyClient;
 
     await expect(fetchResource(client, SESSION, RESOURCES.attendance, ctx())).resolves.toEqual([{ code: 'C1' }]);
-    expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 18, mode: 1, menuId: ACADEMY_MENU_ID });
-    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 6, menuId: ACADEMY_MENU_ID, batchClassId: '8' });
+    expect(dispatch).toHaveBeenNthCalledWith(1, SESSION, { action: 18, mode: 1, menuId: MENU.semesters });
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 6, menuId: MENU.attendance, batchClassId: '8' });
   });
 
   it('sends the course id for a syllabus', async () => {
     const dispatch = vi.fn().mockResolvedValue({ COURSE_CONTENT: [] });
     await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.syllabus, ctx('course=42'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 11, menuId: ACADEMY_MENU_ID, subjectId: '42' });
-    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.cgpa, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 7, mode: 6, menuId: ACADEMY_MENU_ID });
-    await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.calendar, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 14, mode: 1, menuId: ACADEMY_MENU_ID });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 11, menuId: MENU.courses, subjectId: '42' });
   });
 
   it('falls back to the first listed semester when Academy sends no order', async () => {
@@ -513,7 +581,7 @@ describe('fetchResource', () => {
       .mockResolvedValueOnce([{ batchClassId: 8, batchClassOrder: null }, { batchClassId: 3 }])
       .mockResolvedValueOnce({ STUDENT_SUBJECTS: [] });
     await fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx());
-    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 2, menuId: ACADEMY_MENU_ID, batchClassId: '8' });
+    expect(dispatch).toHaveBeenNthCalledWith(2, SESSION, { action: 18, mode: 2, menuId: MENU.courses, batchClassId: '8' });
   });
 
   it('returns no rows when the student has no semesters', async () => {
@@ -522,19 +590,5 @@ describe('fetchResource', () => {
       fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx())
     ).resolves.toEqual([]);
     expect(dispatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('refuses the semester default when the semesters menu id is cleared', async () => {
-    const original = RESOURCES.semesters.menuId;
-    RESOURCES.semesters.menuId = null;
-    const dispatch = vi.fn();
-    try {
-      await expect(
-        fetchResource({ dispatch } as unknown as AcademyClient, SESSION, RESOURCES.courses, ctx())
-      ).rejects.toBeInstanceOf(ResourceUnavailableError);
-    } finally {
-      RESOURCES.semesters.menuId = original;
-    }
-    expect(dispatch).not.toHaveBeenCalled();
   });
 });

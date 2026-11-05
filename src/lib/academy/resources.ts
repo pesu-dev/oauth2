@@ -3,21 +3,30 @@ import type { AcademyClient, AcademySession } from '@/lib/academy/client';
 /**
  * Read-only PESU Academy resources exposed by the resource API.
  *
- * Action/mode codes start from the reverse-engineered mobile app (Vision2822/pesu-api,
- * `pesu_api/endpoints.py`) and were checked against live responses on 2026-11-03.
+ * Calls follow the team's PES API field guide, built from captures of the official mobile app:
+ * each feature's own action/mode and `menuId` (none for calendar, announcements and events), the
+ * semester context fields that feature sends, and bearer-token authentication. Everything here was
+ * checked against live responses on 2026-11-04. Calls the guide does not cover (syllabus, and
+ * assignments) come from the reverse-engineered pesu-api client.
  *
- * Every dispatcher call needs a `menuId`. Academy checks that the account can open that menu,
- * not that it belongs to the action, so the profile menu every student has (ACADEMY_MENU_ID)
- * serves the other read actions too. Resources not yet seen returning real data keep
- * `menuId: null` and answer 501 instead of guessing. Ops can set or override ids without a
- * code change via ACADEMY_MENU_IDS='{"timetable":"12345",...}'.
+ * Resources not yet seen returning real data are `pending` and answer 501 instead of guessing.
+ * Ops can enable one, or override any menu id, without a code change via
+ * ACADEMY_MENU_IDS='{"seating":"12345",...}'.
  *
  * Normalizers are allowlists: only the fields listed here leave the server, so new or
  * sensitive Academy fields are never passed through to third-party apps.
  */
 
-/** The profile menu id, the only mobile menu id known; see the note above. */
-export const ACADEMY_MENU_ID = '11172';
+/** Menu ids of the official app's screens, from the field guide. */
+export const MENU = {
+  semesters: '11100',
+  courses: '11166',
+  attendance: '11169',
+  isa: '11171',
+  results: '11162',
+  profile: '11172',
+  timetable: '11105',
+} as const;
 
 export type ResourceId =
   | 'semesters'
@@ -42,14 +51,33 @@ export interface ResourceContext {
   query: URLSearchParams;
 }
 
+/** One of the student's semesters, as listed by Academy (shared by everyone in that batch/section). */
+export interface SemesterContext {
+  batchClassId: string;
+  classBatchSectionId?: string;
+  classId?: string;
+}
+
+export interface SemesterSpec {
+  /** Dispatcher fields that carry the semester (casing differs per call, e.g. ESA's `BatchClassId`). */
+  fields: (semester: SemesterContext) => Record<string, string>;
+  /** The call also needs the student's section, which only the semester list has. */
+  needsSection?: boolean;
+  /** Without `?semester=`: the newest semester (default) or the newest one with published results. */
+  defaultTo?: 'latest' | 'published';
+}
+
 export interface ResourceDefinition {
   id: ResourceId;
   scope: string;
   action: number;
   mode: number;
-  menuId: string | null;
-  /** Sends Academy's `batchClassId` from `?semester=`, defaulting to the latest semester. */
-  bySemester?: boolean;
+  /** Sent as `menuId` when set; the official app sends none for some calls. */
+  menuId?: string;
+  /** Not yet seen returning real data: answers 501 unless ops enable it via ACADEMY_MENU_IDS. */
+  pending?: boolean;
+  /** Takes the semester from `?semester=`, defaulting per `defaultTo`. */
+  semester?: SemesterSpec;
   /** Extra dispatcher form fields derived from the request. */
   params?: (ctx: ResourceContext) => Record<string, string | undefined>;
   /** Picks the row objects out of the payload. Defaults to the largest array found. */
@@ -149,13 +177,15 @@ function sortKey(row: { dayNumber?: unknown; start?: string }): string {
   return `${day}|${row.start ?? '99:99'}`;
 }
 
+const BATCH: SemesterSpec = { fields: (s) => ({ batchClassId: s.batchClassId }) };
+
 export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
   semesters: {
     id: 'semesters',
     scope: 'courses:read',
     action: 18,
-    mode: 1, // StudentCourseMode.GET_SEMESTERS
-    menuId: ACADEMY_MENU_ID,
+    mode: 1, // semester list, newest first
+    menuId: MENU.semesters,
     fields: {
       id: ['batchClassId'],
       name: ['className'],
@@ -165,9 +195,9 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'courses',
     scope: 'courses:read',
     action: 18,
-    mode: 2, // StudentCourseMode.GET_SUBJECTS_BY_SEMESTER
-    menuId: ACADEMY_MENU_ID,
-    bySemester: true,
+    mode: 2, // course list; the app also sends section, class and semIndexVal, which change nothing
+    menuId: MENU.courses,
+    semester: BATCH,
     rows: (payload) => rowsAt(payload, 'STUDENT_SUBJECTS'),
     fields: {
       id: ['SubjectId', 'subjectId'],
@@ -182,8 +212,8 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'syllabus',
     scope: 'courses:read',
     action: 18,
-    mode: 11, // StudentCourseMode.COURSE_INFO
-    menuId: ACADEMY_MENU_ID,
+    mode: 11, // course info (pesu-api); not in the guide, and it needs a course-screen menu id
+    menuId: MENU.courses,
     params: ({ query }) => ({ subjectId: query.get('course') ?? undefined }),
     rows: (payload) =>
       rowsAt(payload, 'COURSE_CONTENT').map((row) => ({
@@ -205,9 +235,9 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'attendance',
     scope: 'attendance:read',
     action: 18,
-    mode: 6, // StudentCourseMode.GET_ATTENDANCE
-    menuId: ACADEMY_MENU_ID,
-    bySemester: true,
+    mode: 6,
+    menuId: MENU.attendance,
+    semester: BATCH,
     // The payload also repeats STUDENT_SUBJECTS; attendance figures are only in ATTENDANCE_LIST.
     rows: (payload) => rowsAt(payload, 'ATTENDANCE_LIST'),
     fields: {
@@ -223,46 +253,41 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
   isa_results: {
     id: 'isa_results',
     scope: 'results:read',
-    // ISA marks come nested in the per-semester results call; ISA mode 9 returns nothing.
-    action: 7,
-    mode: 11, // ESAResultsMode.GET_DETAILED
-    menuId: ACADEMY_MENU_ID,
-    bySemester: true,
-    rows: (payload) => [
-      // The semester in progress has no per-course results yet; its ISA marks come as flat rows.
-      ...rowsAt(payload, 'Current_SEMESTERWISE'),
-      ...rowsAt(payload, 'STUDENT_ALL_SUBJECTS').flatMap((subject) => [
-        ...rowsAt(subject, 'ISARESULTS'),
-        // The course's final ISA total has no name or code of its own.
-        ...rowsAt(subject, 'FinalISA').map((final) => ({
-          subjectId: subject.SubjectId,
-          SubjectCode: subject.subjectCode,
-          SubjectName: subject.SubjectName,
-          Name: typeof final.ISAMaster === 'string' ? final.ISAMaster : 'Final ISA',
-          Marks: final.Marks,
-        })),
-      ]),
-    ],
+    action: 53,
+    mode: 19, // every ISA, assignment and lab mark of one semester, including the final ISA total
+    menuId: MENU.isa,
+    semester: {
+      needsSection: true,
+      fields: (s) => ({
+        batchClassId: s.batchClassId,
+        classBatchSectionId: s.classBatchSectionId ?? '',
+        fetchId: `${s.batchClassId}-${s.classBatchSectionId}`,
+      }),
+    },
+    // Rows also carry the student's name and login id; the allowlist leaves them out.
     fields: {
-      courseId: ['subjectId', 'SubjectId'],
-      code: CODE,
-      name: NAME,
-      assessment: ['Name'],
-      marks: ['Marks'],
-      maxMarks: ['MaxISAMarks'],
+      courseId: ['subjectId'],
+      code: ['subjectCode'],
+      name: ['subjectName'],
+      assessment: ['ISAMaster'],
+      marks: ['marks'],
+      maxMarks: ['maxISAMarks'],
+      credits: ['Credits'],
     },
   },
   esa_results: {
     id: 'esa_results',
     scope: 'results:read',
     action: 7,
-    mode: 11, // ESAResultsMode.GET_DETAILED
-    menuId: ACADEMY_MENU_ID,
-    bySemester: true,
+    mode: 7,
+    menuId: MENU.results,
+    // ESA is the one call that spells it BatchClassId. A semester in progress has no results yet,
+    // so the default is the newest semester that has some.
+    semester: { fields: (s) => ({ BatchClassId: s.batchClassId }), defaultTo: 'published' },
     // One row per course; the semester's SGPA and CGPA sit in a separate summary row.
     rows: (payload) => {
       const summary = rowsAt(payload, 'CGPA_SEMESTERWISE')[0] ?? {};
-      return rowsAt(payload, 'STUDENT_ALL_SUBJECTS').map((subject) => ({
+      return rowsAt(payload, 'RESULTS').map((subject) => ({
         ...subject,
         SGPA: summary.SGPA,
         CGPA: summary.CGPA,
@@ -285,8 +310,8 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'cgpa',
     scope: 'results:read',
     action: 7,
-    mode: 6, // ESAResultsMode.GET_SEM_LIST, which also carries the overall CGPA
-    menuId: ACADEMY_MENU_ID,
+    mode: 6, // overall CGPA, plus the semesters that have published results
+    menuId: MENU.results,
     rows: (payload) => rowsAt(payload, 'StudentCGPAWISE'),
     fields: {
       cgpa: ['CGPA'],
@@ -298,8 +323,7 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'calendar',
     scope: 'timetable:read',
     action: 14,
-    mode: 1, // CALENDAR_EVENTS for the student's current term
-    menuId: ACADEMY_MENU_ID,
+    mode: 1, // the institution's calendar for the current term; the app sends no menu id
     rows: (payload) =>
       findRows(payload).map((row) => ({
         name: squish(row.name),
@@ -327,19 +351,24 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'timetable',
     scope: 'timetable:read',
     action: 16,
-    mode: 1, // TimetableMode.GET_TIMETABLE; the per-day mode 2 returns nothing, so `day` filters here
-    menuId: ACADEMY_MENU_ID,
+    mode: 1, // the student's section, resolved from the token; the per-day mode returns nothing, so `day` filters here
+    menuId: MENU.timetable,
+    params: () => ({ callMethod: 'background' }),
     rows: (payload) =>
       findRows(payload)
+        // isHistory marks a superseded timetable
+        .filter((row) => row.isHistory !== 1)
         .map((row) => ({
           day: typeof row.day === 'number' ? WEEKDAYS[row.day] : undefined,
           dayNumber: row.day,
           start: clockTime(row.startTime),
           end: clockTime(row.endTime),
+          subjectId: row.subjectId,
           subjectCode: row.subjectCode,
           subjectName: row.subjectName,
           faculty: row.facultyName,
           room: row.roomName,
+          batch: row.batchName, // lab batch; empty for theory slots
         }))
         .sort((a, b) => sortKey(a).localeCompare(sortKey(b))),
     filter: (row, { query }) => {
@@ -350,20 +379,22 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
       day: ['day'],
       start: ['start'],
       end: ['end'],
+      courseId: ['subjectId'],
       code: ['subjectCode'],
       name: ['subjectName'],
       faculty: ['faculty'],
       room: ['room'],
+      batch: ['batch'],
     },
   },
   announcements: {
     id: 'announcements',
     scope: 'announcements:read',
     action: 20,
-    // Mode 7 lists the student's announcement feed, newest first; pesu-api's mode 5 returns nothing.
-    // Academy ignores `pageNo` and always returns the whole feed.
+    // The student's announcement feed, newest first. The app sends instId and no menu id; Academy has
+    // no paging and returns the whole feed.
     mode: 7,
-    menuId: ACADEMY_MENU_ID,
+    params: () => ({ instId: '1,6' }),
     rows: (payload) =>
       findRows(payload).map((row) => ({
         id: row.announcementId,
@@ -388,8 +419,8 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'assignments',
     scope: 'assignments:read',
     action: 37,
-    mode: 1, // AssignmentsMode.GET_LIST
-    menuId: null, // not yet seen returning data
+    mode: 1, // pesu-api's assignment list; not in the field guide
+    pending: true, // no account has returned data in any mode
     fields: {
       id: ['assignmentId', 'AssignmentId', 'id'],
       title: ['title', 'Title', 'assignmentName', 'AssignmentName'],
@@ -402,9 +433,15 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
   seating: {
     id: 'seating',
     scope: 'seating:read',
-    action: 13,
-    mode: 3, // SeatingMode.GET
-    menuId: null, // not yet seen returning data
+    // Exam seating rides on the app's events call, with the semester's section and class.
+    action: 44,
+    mode: 4,
+    pending: true, // seating_info has been empty on every account so far; its field names are unverified
+    semester: {
+      needsSection: true,
+      fields: (s) => ({ batchClassId: s.batchClassId, classBatchSectionId: s.classBatchSectionId ?? '', classId: s.classId ?? '' }),
+    },
+    rows: (payload) => rowsAt(payload, 'seating_info'),
     fields: {
       code: CODE,
       name: NAME,
@@ -442,7 +479,17 @@ export function menuIdOverrides(raw: string | undefined = process.env.ACADEMY_ME
 }
 
 export function resolveMenuId(def: ResourceDefinition): string | null {
-  return menuIdOverrides()[def.id] ?? def.menuId;
+  return menuIdOverrides()[def.id] ?? def.menuId ?? null;
+}
+
+/** Live resources, plus pending ones ops have enabled with a verified menu id. */
+export function isAvailable(def: ResourceDefinition): boolean {
+  return !def.pending || menuIdOverrides()[def.id] !== undefined;
+}
+
+function dispatchForm(def: ResourceDefinition, extra: Record<string, string | undefined> = {}) {
+  const menuId = resolveMenuId(def);
+  return { action: def.action, mode: def.mode, ...(menuId ? { menuId } : {}), ...extra };
 }
 
 /** Finds the array of row objects in a dispatcher payload (top level or nested a few levels). */
@@ -488,22 +535,49 @@ export function normalizeRows(def: ResourceDefinition, payload: unknown): Normal
     .filter((row) => Object.keys(row).length > 0);
 }
 
-/** Academy's id for the student's latest semester, or null when it lists none. */
-async function latestSemesterId(client: AcademyClient, session: AcademySession): Promise<string | null> {
-  const def = RESOURCES.semesters;
-  const menuId = resolveMenuId(def);
-  if (!menuId) throw new ResourceUnavailableError(def.id);
-  const rows = findRows(await client.dispatch(session, { action: def.action, mode: def.mode, menuId }));
-  const withId = rows.filter((row) => row.batchClassId !== undefined && row.batchClassId !== null);
-  let latest: { id: string; order: number } | null = null;
-  for (const row of withId) {
+function semesterOf(row: Record<string, unknown>): SemesterContext {
+  const str = (value: unknown) => (value === undefined || value === null || value === '' ? undefined : String(value));
+  return {
+    batchClassId: String(row.batchClassId),
+    classBatchSectionId: str(row.classBatchSectionId),
+    classId: str(row.classId),
+  };
+}
+
+/** The newest semester by batchClassOrder, else the first listed (Academy lists newest first). */
+function latestSemester(rows: Record<string, unknown>[]): Record<string, unknown> | undefined {
+  let latest: { row: Record<string, unknown>; order: number } | undefined;
+  for (const row of rows) {
     const order = row.batchClassOrder;
     if (typeof order !== 'number' || !Number.isFinite(order)) continue;
-    if (!latest || order > latest.order) latest = { id: String(row.batchClassId), order };
+    if (!latest || order > latest.order) latest = { row, order };
   }
-  // Without an order, trust Academy's own listing, which puts the newest semester first.
-  if (!latest && withId.length) return String(withId[0].batchClassId);
-  return latest?.id ?? null;
+  return latest?.row ?? rows[0];
+}
+
+/**
+ * The semester a request is about: `?semester=` or the default. Looks up the student's semester
+ * list only when it must (no `?semester=`, or the call needs the section). Null when the student
+ * has no such semester.
+ */
+async function resolveSemester(
+  client: AcademyClient,
+  session: AcademySession,
+  spec: SemesterSpec,
+  requested: string | null
+): Promise<SemesterContext | null> {
+  if (requested && !spec.needsSection) return { batchClassId: requested };
+  if (!requested && spec.defaultTo === 'published') {
+    // The results summary lists semesters with published results, newest first.
+    const published = rowsAt(await client.dispatch(session, dispatchForm(RESOURCES.cgpa)), 'StudentSemesterWise');
+    const id = published.find((row) => row.BatchClassId !== undefined && row.BatchClassId !== null)?.BatchClassId;
+    return id === undefined ? null : { batchClassId: String(id) };
+  }
+  const rows = findRows(await client.dispatch(session, dispatchForm(RESOURCES.semesters))).filter(
+    (row) => row.batchClassId !== undefined && row.batchClassId !== null
+  );
+  const row = requested ? rows.find((r) => String(r.batchClassId) === requested) : latestSemester(rows);
+  return row ? semesterOf(row) : null;
 }
 
 export async function fetchResource(
@@ -512,16 +586,15 @@ export async function fetchResource(
   def: ResourceDefinition,
   ctx: ResourceContext
 ): Promise<NormalizedRecord[]> {
-  const menuId = resolveMenuId(def);
-  if (!menuId) throw new ResourceUnavailableError(def.id);
+  if (!isAvailable(def)) throw new ResourceUnavailableError(def.id);
 
   const extra = def.params?.(ctx) ?? {};
-  if (def.bySemester) {
-    const semester = ctx.query.get('semester') ?? (await latestSemesterId(client, session));
-    if (!semester) return [];
-    extra.batchClassId = semester;
+  if (def.semester) {
+    const semester = await resolveSemester(client, session, def.semester, ctx.query.get('semester'));
+    if (!semester || (def.semester.needsSection && !semester.classBatchSectionId)) return [];
+    Object.assign(extra, def.semester.fields(semester));
   }
-  const payload = await client.dispatch(session, { action: def.action, mode: def.mode, menuId, ...extra });
+  const payload = await client.dispatch(session, dispatchForm(def, extra));
   const rows = normalizeRows(def, payload);
   return def.filter ? rows.filter((row) => def.filter!(row, ctx)) : rows;
 }

@@ -26,6 +26,8 @@ export interface VaultPlaintext {
     token: string;
     access_token?: string | null;
     user_id?: string | null;
+    /** PESU Academy refresh token; never returned by token exchange. */
+    refresh_token?: string | null;
   } | null;
 }
 

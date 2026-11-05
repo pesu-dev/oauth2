@@ -132,11 +132,11 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     scope: 'results:read',
     resource: 'isa_results',
     summary:
-      "In-semester assessment marks per course for one semester: each ISA, assignment and lab, plus the course's Final ISA total. Marks are strings as PESU Academy sends them.",
+      "In-semester assessment marks per course for one semester, the semester in progress included: each ISA, assignment and lab, plus the course's Final ISA total once it is published. `marks` is a string as PESU Academy sends it; `maxMarks` and the course's `credits` are numbers.",
     query: [SEMESTER_QUERY],
     sample: [
-      { courseId: 20412, code: 'UE20CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: '40' },
-      { courseId: 20412, code: 'UE20CS351', name: 'Cloud Computing', assessment: 'Final ISA', marks: '46' },
+      { courseId: 20412, code: 'UE20CS351', name: 'Cloud Computing', assessment: 'ISA 1', marks: '34', maxMarks: 40, credits: 4 },
+      { courseId: 20412, code: 'UE20CS351', name: 'Cloud Computing', assessment: 'Final ISA', marks: '46', credits: 4 },
     ],
   },
   {
@@ -147,7 +147,12 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     resource: 'esa_results',
     summary:
       "End-semester grade and credits per course for one semester. Every row repeats that semester's SGPA and the CGPA as of that semester.",
-    query: [SEMESTER_QUERY],
+    query: [
+      {
+        ...SEMESTER_QUERY,
+        description: 'Semester id from /semesters. Defaults to the latest semester with published results (a semester in progress has none yet).',
+      },
+    ],
     sample: [
       {
         courseId: 20412,
@@ -198,13 +203,13 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     title: 'Timetable',
     scope: 'timetable:read',
     summary:
-      "The student's weekly timetable for their current term, sorted by day and start time. Times are ISO 8601 with the IST offset, e.g. `08:45:00+05:30`. Slots PESU Academy has not timed come without `start` and `end`. A slot can list several courses (electives or lab batches the section shares); match `code` against `/courses` for the student's own.",
+      "The student's weekly timetable for their current term, sorted by day and start time. Times are ISO 8601 with the IST offset, e.g. `08:45:00+05:30`. Slots PESU Academy has not timed come without `start` and `end`. A slot can list several courses (electives or lab batches the section shares); match `courseId` against `/courses` for the student's own. `batch` names the lab batch for lab slots.",
     query: [
       { name: 'day', location: 'query', type: 'string', required: false, description: 'Limit to one day: a name such as `mon` or `Monday`, or 1..7 with 1 = Monday.', example: 'mon' },
     ],
     sample: [
-      { day: 'Monday', start: '08:45:00+05:30', end: '09:45:00+05:30', code: 'UE21CS351A', name: 'Cloud Computing', room: 'B402' },
-      { day: 'Monday', start: '09:45:00+05:30', end: '10:45:00+05:30', code: 'UE21CS352A', name: 'Compiler Design', room: 'B402' },
+      { day: 'Monday', start: '08:45:00+05:30', end: '09:45:00+05:30', courseId: 20412, code: 'UE21CS351A', name: 'Cloud Computing', room: 'B402' },
+      { day: 'Monday', start: '11:00:00+05:30', end: '13:00:00+05:30', courseId: 20413, code: 'UE21CS352A', name: 'Compiler Design', room: 'Lab 3', batch: 'B1' },
     ],
   },
   {
