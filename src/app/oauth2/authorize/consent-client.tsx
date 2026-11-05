@@ -44,6 +44,8 @@ interface ConsentClientProps {
   nonce?: string;
   codeChallenge: string;
   codeChallengeMethod: string;
+  /** Set for the RFC 8628 device flow: approves this user code instead of redirecting. */
+  deviceUserCode?: string;
 }
 
 export function ConsentClient({
@@ -56,15 +58,33 @@ export function ConsentClient({
   nonce,
   codeChallenge,
   codeChallengeMethod,
+  deviceUserCode,
 }: ConsentClientProps) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [deviceResult, setDeviceResult] = React.useState<'approved' | 'denied' | null>(null);
 
   const handleAction = async (action: 'allow' | 'deny') => {
     setLoading(true);
     setError(null);
 
     try {
+      if (deviceUserCode) {
+        const res = await fetch('/api/internal/device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userCode: deviceUserCode, action }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error_description || data.error || 'Failed to process device sign-in');
+        }
+        setDeviceResult(data.status);
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch('/api/internal/consent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,6 +121,24 @@ export function ConsentClient({
     .map((name) => getScope(name))
     .filter((def): def is NonNullable<typeof def> => def?.kind === 'resource');
 
+  if (deviceResult) {
+    return (
+      <div className="flex justify-center py-6 min-[701px]:py-12">
+        <div role="status" className="w-full max-w-[520px] space-y-3">
+          <p className="eyebrow">Device sign-in</p>
+          <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg">
+            {deviceResult === 'approved' ? 'You’re signed in.' : 'Sign-in denied.'}
+          </h1>
+          <p className="text-sm text-soft">
+            {deviceResult === 'approved'
+              ? `Return to your device; ${client.name} will finish signing in on its own. You can close this page.`
+              : `${client.name} will not be signed in. You can close this page.`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-center py-6 min-[701px]:py-12">
       <div className="w-full max-w-[520px] space-y-6">
@@ -131,8 +169,22 @@ export function ConsentClient({
                 <dd className="font-mono text-soft break-all">{client.ownerSub}</dd>
               </>
             ) : null}
-            <dt className="eyebrow pt-0.5">Redirects to</dt>
-            <dd className="font-mono text-soft break-all">{redirectUri}</dd>
+            {deviceUserCode ? (
+              <>
+                <dt className="eyebrow pt-0.5">Device code</dt>
+                <dd className="font-mono text-fg text-base tracking-[0.15em]">
+                  {deviceUserCode}
+                  <span className="block font-sans text-[11px] tracking-normal text-muted mt-1">
+                    Only continue if this matches the code on your device.
+                  </span>
+                </dd>
+              </>
+            ) : (
+              <>
+                <dt className="eyebrow pt-0.5">Redirects to</dt>
+                <dd className="font-mono text-soft break-all">{redirectUri}</dd>
+              </>
+            )}
           </dl>
 
           <div className="px-5 pt-4">

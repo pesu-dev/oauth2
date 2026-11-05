@@ -8,6 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       disallow: [
         '/oauth2/',
         '/login',
+        '/device',
         '/settings',
         '/portal',
         '/admin',
