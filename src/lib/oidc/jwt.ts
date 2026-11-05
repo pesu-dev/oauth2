@@ -137,7 +137,7 @@ export async function mintIdToken({
   const { privateKey, kid } = await getKeyPair();
   const now = Math.floor(Date.now() / 1000);
 
-  const claims = profileClaims(user, scopes);
+  const claims = profileClaims(user, scopes, issuer);
   if (accessToken) {
     claims.at_hash = calculateAtHash(accessToken);
   }
