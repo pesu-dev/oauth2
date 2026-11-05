@@ -72,7 +72,11 @@ describe('user codes', () => {
   });
 
   it('seals pending credentials into a vault document', () => {
-    const doc = sealPendingCredentials('usr_1', { username: '', password: 'pw', sessionToken: 't', expiresAt: new Date(5) }, 'k');
+    const doc = sealPendingCredentials(
+      'usr_1',
+      { username: '', password: 'pw', sessionToken: 't', expiresAt: new Date(5), refreshToken: 'r' },
+      'k'
+    );
     const plain = unpackVaultPlaintext(
       open(masterKeyFromSecret('k'), {
         nonce: doc.nonce as Buffer,
@@ -82,9 +86,25 @@ describe('user codes', () => {
         keyVersion: 1,
       })
     );
-    expect(plain).toEqual({ username: 'usr_1', password: 'pw', session: { token: 't', access_token: null, user_id: null } });
+    // The login's refresh token is sealed too, so the first renewal needs no password
+    expect(plain).toEqual({
+      username: 'usr_1',
+      password: 'pw',
+      session: { token: 't', access_token: null, user_id: null, refresh_token: 'r' },
+    });
     expect(doc.session_expires_at).toEqual(new Date(5));
-    expect(sealPendingCredentials('usr_1', { username: 'u', password: 'p' }, 'k').session_expires_at).toBeUndefined();
+    const bare = sealPendingCredentials('usr_1', { username: 'u', password: 'p', sessionToken: 't2' }, 'k');
+    expect(bare.session_expires_at).toBeUndefined();
+    const barePlain = unpackVaultPlaintext(
+      open(masterKeyFromSecret('k'), {
+        nonce: bare.nonce as Buffer,
+        ciphertext: bare.ciphertext as Buffer,
+        wrapNonce: bare.wrap_nonce as Buffer,
+        wrappedDek: bare.wrapped_dek as Buffer,
+        keyVersion: 1,
+      })
+    );
+    expect(barePlain.session?.refresh_token).toBeNull();
   });
 });
 
