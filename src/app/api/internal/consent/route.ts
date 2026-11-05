@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
                 token: pending.sessionToken,
                 access_token: pending.accessToken || null,
                 user_id: pending.userId || null,
+                refresh_token: pending.refreshToken || null,
               }
             : null,
         };

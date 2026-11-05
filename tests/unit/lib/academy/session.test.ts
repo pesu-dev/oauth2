@@ -108,6 +108,15 @@ describe('Academy session service', () => {
     expect(doc.session_expires_at).toBe(expiresAt);
   });
 
+  it('surfaces a vault write failure after a refresh instead of logging in with the password', async () => {
+    const doc = vaultDoc({ token: 'old', refresh_token: 'r1' }, new Date(0));
+    doc.save.mockRejectedValueOnce(new Error('write conflict'));
+    vi.spyOn(Vault, 'findOne').mockResolvedValue(doc as never);
+    mockRefresh.mockResolvedValue({ token: 'old', accessToken: 'a2', userId: null, expiresAt: null, refreshToken: 'r1' });
+    await expect(getAcademySession('usr_1')).rejects.toThrow('write conflict');
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
   it('falls back to the password when the refresh token is rejected', async () => {
     vi.spyOn(Vault, 'findOne').mockResolvedValue(vaultDoc({ token: 'old', refresh_token: 'expired' }, new Date(0)) as never);
     mockRefresh.mockRejectedValue(new AcademySessionExpiredError('Refresh rejected: HTTP 401'));

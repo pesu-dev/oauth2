@@ -392,9 +392,11 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     scope: 'announcements:read',
     action: 20,
     // The student's announcement feed, newest first. The app sends instId and no menu id; Academy has
-    // no paging and returns the whole feed.
+    // no paging and returns the whole feed. The guide's capture sent `1,6`; Academy returned the same
+    // feed with `1,6`, the login's `1,6,7,14` or none for institutions 1 and 6, so send the login's
+    // list to keep students of the other institutions covered.
     mode: 7,
-    params: () => ({ instId: '1,6' }),
+    params: () => ({ instId: '1,6,7,14' }),
     rows: (payload) =>
       findRows(payload).map((row) => ({
         id: row.announcementId,

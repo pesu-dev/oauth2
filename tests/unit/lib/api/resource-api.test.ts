@@ -8,6 +8,7 @@ import { VaultSessionError } from '@/lib/academy/session';
 import { AcademyRequestError, AcademySessionExpiredError } from '@/lib/academy/client';
 import { ResourceUnavailableError } from '@/lib/academy/resources';
 import { GET as getAttendance } from '@/app/api/v1/attendance/route';
+import { GET as getTimetable } from '@/app/api/v1/timetable/route';
 import { GET as getEsa } from '@/app/api/v1/results/esa/route';
 import { GET as getSyllabus } from '@/app/api/v1/courses/syllabus/route';
 
@@ -146,6 +147,10 @@ describe('resource route handlers', () => {
   it('validates query parameters', async () => {
     allowAll();
     expect((await getAttendance(request('/api/v1/attendance?day=mon'))).status).toBe(400);
+    for (const day of ['monkey', 'sunshine', '8', '0']) {
+      allowAll('timetable:read');
+      expect((await getTimetable(request(`/api/v1/timetable?day=${day}`))).status).toBe(400);
+    }
     allowAll();
     const bad = await getAttendance(request('/api/v1/attendance?semester=1;drop'));
     expect(bad.status).toBe(400);

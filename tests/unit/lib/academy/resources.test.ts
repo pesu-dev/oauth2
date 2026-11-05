@@ -471,7 +471,7 @@ describe('fetchResource', () => {
 
     // The app sends no menu id for announcements and the calendar
     await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, instId: '1,6' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, instId: '1,6,7,14' });
     await fetchResource(client, SESSION, RESOURCES.calendar, ctx());
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 14, mode: 1 });
 
@@ -483,7 +483,7 @@ describe('fetchResource', () => {
     // An ops override still wins
     process.env.ACADEMY_MENU_IDS = JSON.stringify({ announcements: '14' });
     await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, menuId: '14', instId: '1,6' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, menuId: '14', instId: '1,6,7,14' });
   });
 
   const semesterList = [

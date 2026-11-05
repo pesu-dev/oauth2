@@ -14,7 +14,7 @@ const NO_STORE = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
 const QUERY_RULES: Record<string, RegExp> = {
   semester: /^\d{1,12}$/,
   course: /^\d{1,12}$/,
-  day: /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$|^[1-7]$/i,
+  day: /^(mon(day)?|tue(sday)?|wed(nesday)?|thu(rsday)?|fri(day)?|sat(urday)?|sun(day)?|[1-7])$/i,
 };
 
 function errorResponse(status: number, error: string, description: string) {

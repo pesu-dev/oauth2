@@ -126,11 +126,13 @@ export async function getAcademySession(
 
   // Renew with the refresh token first, so the stored password is used as rarely as possible
   if (!forceLogin && plaintext.session?.refresh_token) {
+    let renewed: AcademySession | null = null;
     try {
-      return await store(await academy.refresh(toAcademySession(plaintext.session)), 'refresh');
+      renewed = await academy.refresh(toAcademySession(plaintext.session));
     } catch {
       // Expired or rejected refresh token: fall back to a password login below
     }
+    if (renewed) return store(renewed, 'refresh');
   }
 
   let authResult;

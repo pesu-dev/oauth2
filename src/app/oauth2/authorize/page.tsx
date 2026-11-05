@@ -249,6 +249,7 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
                   token: pending.sessionToken,
                   access_token: pending.accessToken || null,
                   user_id: pending.userId || null,
+                  refresh_token: pending.refreshToken || null,
                 }
               : null,
           };
