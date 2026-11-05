@@ -79,6 +79,8 @@ export default function ClientDetailPage() {
   const [justification, setJustification] = React.useState('');
   const [delegatedRequested, setDelegatedRequested] = React.useState(false);
   const [deviceSaving, setDeviceSaving] = React.useState(false);
+  const [permissions, setPermissions] = React.useState<{ secrets: boolean; publish: boolean }>({ secrets: true, publish: true });
+  const [team, setTeam] = React.useState<{ team_id: string; name: string } | null>(null);
 
   const toggleDeviceFlow = async (enabled: boolean) => {
     setDeviceSaving(true);
@@ -106,6 +108,8 @@ export default function ClientDetailPage() {
       if (res.ok) {
         setClient(data.client);
         setTesters(data.testers || []);
+        setPermissions(data.permissions ?? { secrets: true, publish: true });
+        setTeam(data.team ?? null);
         setRedirectUris(data.client.redirect_uris || []);
       }
     } finally {
@@ -277,6 +281,11 @@ export default function ClientDetailPage() {
               <h1 className="font-serif text-[36px] font-normal leading-[1.05] text-fg break-words">
                 {client.name}
               </h1>
+              {team ? (
+                <Link href={`/portal/teams/${team.team_id}`} className="no-underline">
+                  <Badge variant="neutral">Team: {team.name}</Badge>
+                </Link>
+              ) : null}
               <Badge variant={client.publishing_status}>
                 {client.publishing_status.replace('_', ' ')}
               </Badge>
@@ -300,7 +309,7 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
-          {client.publishing_status === 'testing' ? (
+          {permissions.publish && client.publishing_status === 'testing' ? (
             <Drawer open={isProdDrawerOpen} onOpenChange={setIsProdDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button variant="primary">
@@ -466,6 +475,8 @@ export default function ClientDetailPage() {
                 type="button"
                 variant="secondary"
                 size="sm"
+                disabled={!permissions.secrets}
+                title={permissions.secrets ? undefined : 'Only team owners and admins can rotate the secret'}
                 onClick={() => setIsRotateSecretOpen(true)}
                 className="shrink-0 text-xs flex items-center gap-1.5 text-soft"
               >
