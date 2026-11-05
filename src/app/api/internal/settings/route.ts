@@ -231,6 +231,7 @@ export async function PATCH(request: NextRequest) {
           token: authResult.session.token,
           access_token: authResult.session.accessToken || null,
           user_id: authResult.session.userId || null,
+          refresh_token: authResult.session.refreshToken || null,
         }
       : null,
   };

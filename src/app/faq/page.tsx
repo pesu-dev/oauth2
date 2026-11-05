@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: 'Does "Sign in with PESU" store my password?',
-    a: 'For identity-only sign-ins, no — your password is verified against Academy and immediately discarded; nothing is stored in the credential vault. If you explicitly grant delegated access to an authorized client, an encrypted credential vault entry is created so an internal first-party API can refresh Academy sessions. Third-party applications never see your password either way.',
+    a: 'For identity-only sign-ins, no — your password is verified against Academy and immediately discarded; nothing is stored in the credential vault. If you explicitly grant delegated access to a client, an encrypted credential vault entry is created so this service can refresh Academy sessions on your behalf. Third-party applications never see your password either way.',
   },
   {
     q: 'What is Testing vs Production for apps?',

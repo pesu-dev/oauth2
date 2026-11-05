@@ -4,6 +4,7 @@ import {
   createEndpoints,
   generateEndpointMarkdownForLlm,
   generateFullApiReferenceMarkdown,
+  resourceEndpointDocs,
 } from '@/app/docs/docs-data';
 
 describe('API Reference Documentation Data & LLM Generators', () => {
@@ -135,5 +136,21 @@ describe('API Reference Documentation Data & LLM Generators', () => {
     expect(userinfoEp.curlSample).toContain('/api/v2/userinfo');
     expect(userinfoEp.fetchSample).toContain('/api/v2/userinfo');
     expect(userinfoEp.pythonSample).toContain('/api/v2/userinfo');
+  });
+
+  it('builds resource samples from the declared method', () => {
+    const spec = { id: 'x', path: 'x', title: 'X', scope: 'x:write', summary: 'X', sample: [] };
+
+    const [get] = resourceEndpointDocs('https://auth.pesu.dev', 'v1', [spec]);
+    expect(get.method).toBe('GET');
+    expect(get.curlSample).toContain('curl -X GET');
+    expect(get.fetchSample).toContain('method: "GET"');
+    expect(get.pythonSample).toContain('requests.get(');
+
+    const [del] = resourceEndpointDocs('https://auth.pesu.dev', 'v1', [{ ...spec, method: 'DELETE' }]);
+    expect(del.method).toBe('DELETE');
+    expect(del.curlSample).toContain('curl -X DELETE');
+    expect(del.fetchSample).toContain('method: "DELETE"');
+    expect(del.pythonSample).toContain('requests.delete(');
   });
 });

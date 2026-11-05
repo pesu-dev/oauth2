@@ -99,7 +99,7 @@ function LoginForm() {
         </Card>
 
         <p className="text-xs text-muted leading-[1.65]">
-          For identity-only apps your password is used once and never stored. Apps approved for delegated access say so
+          For identity-only apps your password is used once and never stored. Apps that need delegated access say so
           on the next screen before anything is kept.{' '}
           <a href="/privacy" className="underline hover:text-fg">Privacy</a> ·{' '}
           <a href="/faq" className="underline hover:text-fg">FAQ</a>

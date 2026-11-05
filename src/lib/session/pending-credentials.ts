@@ -7,6 +7,8 @@ export interface PendingCredentials {
   accessToken?: string | null;
   userId?: string | null;
   expiresAt?: Date | null;
+  /** Academy refresh token from the same login, sealed into the vault with the session. */
+  refreshToken?: string | null;
 }
 
 interface StoredItem {

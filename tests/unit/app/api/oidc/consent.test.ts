@@ -5,6 +5,7 @@ import { AuthCode, Client, ClientTester, Consent, Vault } from '@/lib/db/models'
 import * as cookieHelper from '@/lib/session/cookie';
 import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { getConfig } from '@/lib/config';
+import { masterKeyFromSecret, open, unpackVaultPlaintext } from '@/lib/crypto/envelope';
 
 vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
@@ -379,6 +380,8 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
         username: 'student1',
         password: 'password_in_memory',
         sessionToken: 'academy_token',
+        accessToken: 'academy_access',
+        refreshToken: 'academy_refresh',
       });
 
       // Session token and pending token mocks
@@ -424,6 +427,18 @@ describe('Consent Endpoint (/api/oidc/consent)', () => {
         }),
         expect.any(Object)
       );
+      // The login's refresh token is sealed with the session, so renewals need no password
+      const row = vaultSpy.mock.calls[0][1] as Record<string, Buffer>;
+      const sealed = unpackVaultPlaintext(
+        open(masterKeyFromSecret('super-secret-vault-master-key-32b'), {
+          nonce: row.nonce,
+          ciphertext: row.ciphertext,
+          wrapNonce: row.wrap_nonce,
+          wrappedDek: row.wrapped_dek,
+          keyVersion: 1,
+        })
+      );
+      expect(sealed.session).toEqual({ token: 'academy_token', access_token: 'academy_access', user_id: null, refresh_token: 'academy_refresh' });
     });
 
     it('refuses to use pending credentials of another account (pendingToken.sub !== session.sub) and does not store them into caller vault', async () => {
