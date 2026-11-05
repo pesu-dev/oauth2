@@ -10,6 +10,7 @@ import {
 import {
   ACADEMY_MENU_ID,
   clockTime,
+  htmlToText,
   RESOURCES,
   ResourceUnavailableError,
   decodeEntities,
@@ -256,6 +257,59 @@ describe('resource catalog', () => {
     ]);
   });
 
+  it('reads the ISA marks of the semester in progress, which come as flat rows', () => {
+    // Shape of a live 7/11 response for the current semester (values are placeholders)
+    const current = {
+      STUDENT_ALL_SUBJECTS: [],
+      CGPA_SEMESTERWISE: [],
+      Current_SEMESTERWISE: [
+        { ISAMarksMasterId: 1, subjectId: 9, SubjectCode: 'UE25CS251A', SubjectName: 'Data Structures', Marks: '25', Name: 'ISA 1', ClassBatchSectionId: 4, BatchClassId: 3, MaxISAMarks: '40' },
+        { ISAMarksMasterId: 286, subjectId: 10, SubjectCode: 'UE25CS252A', SubjectName: 'Digital Design', Marks: '16.5', Name: 'Internship IEC 1', ClassBatchSectionId: 4, BatchClassId: 3, MaxISAMarks: '20' },
+      ],
+    };
+    expect(normalizeRows(RESOURCES.isa_results, current)).toEqual([
+      { courseId: 9, code: 'UE25CS251A', name: 'Data Structures', assessment: 'ISA 1', marks: '25', maxMarks: '40' },
+      { courseId: 10, code: 'UE25CS252A', name: 'Digital Design', assessment: 'Internship IEC 1', marks: '16.5', maxMarks: '20' },
+    ]);
+    // No results summary for a semester in progress, so ESA has nothing to return.
+    expect(normalizeRows(RESOURCES.esa_results, current)).toEqual([]);
+  });
+
+  it('normalizes the announcement feed to plain text', () => {
+    // Shape of a live 20/7 response (values are placeholders)
+    const aug15 = Date.UTC(2026, 7, 14, 18, 30);
+    const payload = [
+      {
+        announcementId: 7697,
+        announcementName: 'Open Source &amp;  Hardware Hackathon',
+        announcementType: 2,
+        description:
+          '<p><span style="x">Registrations&nbsp;open.</span><br>Details: <a href="https://pes.edu/e">here</a></p><ul><li>Round 1</li><li>Round 2</li></ul><p></p><p></p><p>See <a href="https://pes.edu/f">https://pes.edu/f</a></p>',
+        startdate: aug15,
+        status: 'Active',
+        announcementPriority: 1,
+        pictureIconPath: '',
+        isBannerImage: 1,
+        bannerImagePath: 'https://files.pesuacademy.com/announcements/7697/image.png?X-Amz-Expires=600',
+        bannerIconPath: 'https://files.pesuacademy.com/announcements/7697/icon.png',
+        files: [],
+      },
+      { announcementId: 6206, announcementName: 'ISA timetable', description: null, startdate: aug15, bannerImagePath: 'javascript:alert(1)', files: ['6206/tt.pdf'] },
+    ];
+    expect(normalizeRows(RESOURCES.announcements, payload)).toEqual([
+      {
+        id: 7697,
+        title: 'Open Source & Hardware Hackathon',
+        date: '2026-08-15',
+        description: 'Registrations open.\nDetails: here (https://pes.edu/e)\n- Round 1\n- Round 2\n\nSee https://pes.edu/f',
+        image: 'https://files.pesuacademy.com/announcements/7697/image.png?X-Amz-Expires=600',
+        attachments: 0,
+      },
+      { id: 6206, title: 'ISA timetable', date: '2026-08-15', attachments: 1 },
+    ]);
+    expect(htmlToText(42)).toBeUndefined();
+  });
+
   it('adds the semester SGPA and CGPA to each ESA course row', () => {
     const rows = normalizeRows(RESOURCES.esa_results, results);
     const common = { semester: 6, examSession: 'MAY 2021', credits: 4, earnedCredits: 4, sgpa: '8.90', cgpa: '8.60' };
@@ -420,9 +474,7 @@ describe('fetchResource', () => {
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 16, mode: 1, menuId: M });
 
     await fetchResource(client, SESSION, RESOURCES.announcements, ctx());
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 5, menuId: '14', pageNo: '1' });
-    await fetchResource(client, SESSION, RESOURCES.announcements, ctx('page=3'));
-    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 5, menuId: '14', pageNo: '3' });
+    expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 20, mode: 7, menuId: '14' });
 
     await fetchResource(client, SESSION, RESOURCES.semesters, ctx());
     expect(dispatch).toHaveBeenLastCalledWith(SESSION, { action: 18, mode: 1, menuId: M });

@@ -212,12 +212,19 @@ const RESOURCE_DOCS: ResourceDocSpec[] = [
     path: 'announcements',
     title: 'Announcements',
     scope: 'announcements:read',
-    pending: true,
-    summary: 'Announcements posted to the student, newest first.',
-    query: [
-      { name: 'page', location: 'query', type: 'integer', required: false, defaultValue: '1', description: 'Page number, starting at 1.', example: '2' },
+    summary:
+      "The student's PESU Academy announcement feed, newest first. `date` is the IST posting date. `description` is plain text (PESU Academy's HTML is stripped; links are kept as `text (url)`). `image` is a pre-signed PESU Academy link that expires, so download it rather than storing the URL. Attachments can only be opened in PESU Academy, so `attachments` is just their number.",
+    sample: [
+      {
+        id: 7697,
+        title: 'Open Source Hackathon',
+        date: '2026-11-03',
+        description: 'Registrations are open till 10 November.\nDetails: https://pes.edu/events',
+        image: 'https://files.pesuacademy.com/announcements/7697/image.png?X-Amz-Expires=…',
+        attachments: 0,
+      },
+      { id: 6206, title: 'ISA 1 practical timetable', date: '2026-09-15', description: 'Please find the timetable attached.', attachments: 1 },
     ],
-    sample: [{ id: '88213', title: 'ISA 2 schedule', date: '2026-10-20' }],
   },
   {
     id: 'assignments',

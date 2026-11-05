@@ -14,7 +14,6 @@ const NO_STORE = { 'Cache-Control': 'no-store', Pragma: 'no-cache' };
 const QUERY_RULES: Record<string, RegExp> = {
   semester: /^\d{1,12}$/,
   course: /^\d{1,12}$/,
-  page: /^[1-9]\d{0,3}$/,
   day: /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$|^[1-7]$/i,
 };
 

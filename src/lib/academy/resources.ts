@@ -99,6 +99,29 @@ function squish(value: unknown): unknown {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ') : value;
 }
 
+/**
+ * Plain text from Academy's announcement HTML: block tags become line breaks, links keep their URL,
+ * every other tag is dropped and entities are decoded. Apps get text they can show safely.
+ */
+export function htmlToText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value
+    .replace(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, label: string) => {
+      const inner = label.replace(/<[^>]*>/g, '').trim();
+      return inner && inner !== href ? `${inner} (${href})` : href;
+    })
+    .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '- ')
+    .replace(/<[^>]*>/g, '');
+  const decoded = String(decodeEntities(text));
+  return decoded
+    .split('\n')
+    .map((line) => line.replace(/[ \t\u00a0]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function flag(value: unknown): boolean | undefined {
   return value === 1 || value === 0 ? value === 1 : undefined;
 }
@@ -205,8 +228,10 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     mode: 11, // ESAResultsMode.GET_DETAILED
     menuId: ACADEMY_MENU_ID,
     bySemester: true,
-    rows: (payload) =>
-      rowsAt(payload, 'STUDENT_ALL_SUBJECTS').flatMap((subject) => [
+    rows: (payload) => [
+      // The semester in progress has no per-course results yet; its ISA marks come as flat rows.
+      ...rowsAt(payload, 'Current_SEMESTERWISE'),
+      ...rowsAt(payload, 'STUDENT_ALL_SUBJECTS').flatMap((subject) => [
         ...rowsAt(subject, 'ISARESULTS'),
         // The course's final ISA total has no name or code of its own.
         ...rowsAt(subject, 'FinalISA').map((final) => ({
@@ -217,6 +242,7 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
           Marks: final.Marks,
         })),
       ]),
+    ],
     fields: {
       courseId: ['subjectId', 'SubjectId'],
       code: CODE,
@@ -334,13 +360,28 @@ export const RESOURCES: Record<ResourceId, ResourceDefinition> = {
     id: 'announcements',
     scope: 'announcements:read',
     action: 20,
-    mode: 5, // AnnouncementMode.LIST
-    menuId: null, // not yet seen returning data
-    params: ({ query }) => ({ pageNo: query.get('page') ?? '1' }),
+    // Mode 7 lists the student's announcement feed, newest first; pesu-api's mode 5 returns nothing.
+    // Academy ignores `pageNo` and always returns the whole feed.
+    mode: 7,
+    menuId: ACADEMY_MENU_ID,
+    rows: (payload) =>
+      findRows(payload).map((row) => ({
+        id: row.announcementId,
+        title: squish(decodeEntities(row.announcementName)),
+        date: istDate(row.startdate),
+        description: htmlToText(row.description),
+        // A pre-signed PESU Academy link that expires; download it rather than storing the URL.
+        image: typeof row.bannerImagePath === 'string' && /^https:\/\//.test(row.bannerImagePath) ? row.bannerImagePath : undefined,
+        // Attachments need a link only PESU Academy can sign, so only their number is returned.
+        attachments: Array.isArray(row.files) ? row.files.length : undefined,
+      })),
     fields: {
-      id: ['announcementId', 'AnnouncementId', 'id'],
-      title: ['title', 'Title', 'announcementTitle', 'subject'],
-      date: ['date', 'announcementDate', 'createdDate', 'postedDate'],
+      id: ['id'],
+      title: ['title'],
+      date: ['date'],
+      description: ['description'],
+      image: ['image'],
+      attachments: ['attachments'],
     },
   },
   assignments: {

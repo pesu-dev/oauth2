@@ -1,6 +1,6 @@
 # PESU Resource API & Expanded Scopes — Design
 
-**Status:** Implemented. Semesters, courses, syllabus, attendance, results, calendar and timetable are checked against live PESU Academy data; announcements, assignments and seating are not yet (see [Open items](#open-items)).
+**Status:** Implemented. Semesters, courses, syllabus, attendance, results, calendar, timetable and announcements are checked against live PESU Academy data; assignments and seating are not yet (see [Open items](#open-items)).
 **Date:** 2026-10-23
 **Extends:** [OIDC authorization server MVP design](2026-09-03-oidc-authorization-server-design.md)
 **Amends:** ADR-0003 in [architecture.md](../../plans/architecture.md) (resource API deployable)
@@ -33,7 +33,7 @@ Let third-party apps read a student's own PESU Academy data (courses, attendance
 | `attendance:read` | `GET /api/v1/attendance?semester=` | 18 / 6 |
 | `results:read` | `GET /api/v1/results/isa?semester=`, `GET /api/v1/results/esa?semester=`, `GET /api/v1/results/cgpa` | 7 / 11 for ISA and ESA (ISA marks are nested per course), 7 / 6 for CGPA |
 | `timetable:read` | `GET /api/v1/timetable?day=`, `GET /api/v1/calendar` | 16 / 1 (`day` is applied by the server; 16 / 2 returns nothing), 14 / 1 |
-| `announcements:read` | `GET /api/v1/announcements?page=` | 20 / 5 |
+| `announcements:read` | `GET /api/v1/announcements` | 20 / 7 (pesu-api's 20 / 5 returns nothing; `pageNo` is ignored, so the whole feed comes back) |
 | `assignments:read` | `GET /api/v1/assignments` | 37 / 1 |
 | `seating:read` | `GET /api/v1/seating` | 13 / 3 |
 
@@ -42,6 +42,7 @@ Action/mode codes come from the reverse-engineered mobile app ([Vision2822/pesu-
 - `semester` is sent to PESU Academy as `batchClassId` (pesu-api's `selectedSemester` returns nothing). Its value is the `id` from `/semesters`. Without it, the latest semester (highest `batchClassOrder`) is used.
 - ISA mode 9 and ESA mode 3 return nothing. ESA mode 11 with `batchClassId` returns each course's grade and credits, the semester's SGPA and CGPA, and the ISA marks.
 - PESU Academy spells the attendance percentage key `AttendancePercenrage`.
+- For the semester in progress, ESA mode 11 has no per-course results; its ISA marks come as flat rows under `Current_SEMESTERWISE`, which `/results/isa` reads too.
 
 **Menu id.** Every dispatcher call needs a `menuId`. PESU Academy checks that the account can open that menu, but not that it belongs to the action, so the profile menu id (`11172`), which every student has, works for all read actions. The mobile app's other menu ids are not exposed (the web portal's ids are rejected). If PESU Academy starts matching menu ids to actions, these calls fail with `502 academy_unavailable`, and verified ids can be set per resource with `ACADEMY_MENU_IDS='{"attendance":"…"}'` without a code change.
 
@@ -72,7 +73,8 @@ None.
 
 ## Open items
 
-- **Announcements, assignments, seating.** None of the accounts checked on 2026-11-03 and 2026-11-04 returned data for these in any mode (assignments mode 3 answers HTTP 500). They answer `501 resource_unavailable` until checked with an account that has some; then set `menuId` in `RESOURCES` (`src/lib/academy/resources.ts`) and fix their field lists.
+- **Assignments, seating.** No account checked on 2026-11-03 and 2026-11-04, including current students, returned data for these in any mode (assignments mode 3 and seating mode 5 answer HTTP 500; assignments mode 5 returns only the list of assignment types).
+- **Announcement attachments and banners.** Attachments are paths that only PESU Academy can sign, so only their count is returned. Banner `image` links are pre-signed and expire. They answer `501 resource_unavailable` until checked with an account that has some; then set `menuId` in `RESOURCES` (`src/lib/academy/resources.ts`) and fix their field lists.
 - **Timetable faculty.** PESU Academy leaves `facultyName` null in every timetable seen so far, so `faculty` is mapped but not yet observed.
 - **Default semester.** The latest semester is the one with the highest `batchClassOrder`, which can be a minor or summer-term course rather than the main semester; apps should pass `?semester=` from `/api/v1/semesters` when it matters.
 - **Attendance figures.** PESU Academy returned held/attended counts for only some courses and older semesters; fields it leaves null are omitted.
