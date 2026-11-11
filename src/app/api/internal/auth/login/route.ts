@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
         accessToken: result.session.accessToken,
         userId: result.session.userId,
         expiresAt: result.session.expiresAt,
+        refreshToken: result.session.refreshToken ?? null,
       });
 
       const pendingCredToken = await createSessionToken({

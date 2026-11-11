@@ -7,6 +7,8 @@ import {
   semesterFromClass,
   LOGIN_URL,
   DISPATCHER_URL,
+  REFRESH_URL,
+  AcademySessionExpiredError,
 } from '@/lib/academy/client';
 
 describe('PESU Academy Client & Profile Mapping', () => {
@@ -135,6 +137,11 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(result.session.token).toBe('auth-token-xyz');
       expect(result.session.userId).toBe('12345');
       expect(result.session.accessToken).toBe('token-abc');
+      // No refresh token in this response; the access token is assumed to last Academy's usual 30 minutes
+      expect(result.session.refreshToken).toBeNull();
+      const minutes = (result.session.expiresAt!.getTime() - Date.now()) / 60_000;
+      expect(minutes).toBeGreaterThan(29);
+      expect(minutes).toBeLessThanOrEqual(30);
 
       // Verify dispatcher was invoked with Bearer token and menuId
       expect(mockPost).toHaveBeenCalledTimes(2);
@@ -143,6 +150,29 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(dispUrl).toBe(DISPATCHER_URL);
       expect((dispFormData as FormData).get('menuId')).toBe('11172');
       expect(dispOptions.headers.authorization).toBe('Bearer token-abc');
+      expect(dispOptions.headers['X-Client-Type']).toBe('MOBILE');
+    });
+
+    it('keeps the refresh token and the stated access-token lifetime from login', async () => {
+      const mockPost = vi
+        .fn()
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'mob' },
+          data: {
+            mobileJsonObject: { login: 'SUCCESS', loginId: 'PES1UG20CS001', userId: 'u' },
+            accessToken: 'acc',
+            refreshToken: 'ref',
+            accessTokenExpiryMinutes: 15,
+            status: 200,
+          },
+        })
+        .mockResolvedValueOnce({ status: 200, data: { MESSAGE: 'SUCCESS', STUDENT_PHOTO: { nameAsInSSLC: 'TEST STUDENT' } } });
+      const { session } = await new AcademyClient({ post: mockPost } as unknown as AxiosInstance).login('x', 'y');
+      expect(session).toMatchObject({ token: 'mob', accessToken: 'acc', refreshToken: 'ref' });
+      const minutes = (session.expiresAt!.getTime() - Date.now()) / 60_000;
+      expect(minutes).toBeGreaterThan(14);
+      expect(minutes).toBeLessThanOrEqual(15);
     });
 
     it('throws AcademyAuthError when login response is missing accessToken', async () => {
@@ -423,6 +453,8 @@ describe('PESU Academy Client & Profile Mapping', () => {
       expect(mockPost).toHaveBeenCalledTimes(2);
       expect(mockPost).toHaveBeenNthCalledWith(2, DISPATCHER_URL, expect.any(FormData), {
         headers: {
+          'X-Client-Type': 'MOBILE',
+          Accept: 'application/json',
           mobileappauthenticationtoken: 'tok',
           authorization: 'Bearer acc',
         },
@@ -595,6 +627,50 @@ describe('PESU Academy Client & Profile Mapping', () => {
       await expect(client.login('PES1UG20CS001', 'pass')).rejects.toThrow(
         'Only student accounts are supported'
       );
+    });
+
+    it('renews the access token with the refresh token', async () => {
+      const base = { token: 'mob', accessToken: 'old', userId: 'u', expiresAt: null, refreshToken: 'ref' };
+      const post = vi
+        .fn()
+        // Academy answers with an empty refresh token: the old one stays valid
+        .mockResolvedValueOnce({ status: 200, headers: {}, data: { accessToken: 'new', accessTokenExpiryMinutes: 30, refreshToken: '' } })
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { mobileappauthenticationtoken: 'mob2' },
+          data: JSON.stringify({ accessToken: 'newer', refreshToken: 'ref2' }),
+        });
+      const client = new AcademyClient({ post } as unknown as AxiosInstance);
+
+      const renewed = await client.refresh(base);
+      expect(renewed).toMatchObject({ token: 'mob', accessToken: 'new', refreshToken: 'ref', userId: 'u' });
+      expect(renewed.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 29 * 60_000);
+      const [url, body, options] = post.mock.calls[0];
+      expect(url).toBe(REFRESH_URL);
+      expect(body).toEqual({ refreshToken: 'ref' });
+      expect(options.headers).toMatchObject({ 'X-Client-Type': 'MOBILE', 'Content-Type': 'application/json' });
+
+      await expect(client.refresh(base)).resolves.toMatchObject({ token: 'mob2', accessToken: 'newer', refreshToken: 'ref2' });
+    });
+
+    it('treats a missing or rejected refresh token as an expired session', async () => {
+      const base = { token: 'mob', accessToken: 'old', userId: null, expiresAt: null, refreshToken: 'ref' };
+      const post = vi
+        .fn()
+        .mockResolvedValueOnce({ status: 401, headers: {}, data: '' })
+        .mockResolvedValueOnce({ status: 200, headers: {}, data: 'not json' })
+        .mockResolvedValueOnce({ status: 200, headers: {}, data: null })
+        .mockRejectedValueOnce(new Error('ECONNRESET'))
+        .mockRejectedValueOnce('down');
+      const client = new AcademyClient({ post } as unknown as AxiosInstance);
+
+      await expect(client.refresh({ ...base, refreshToken: null })).rejects.toBeInstanceOf(AcademySessionExpiredError);
+      await expect(client.refresh(base)).rejects.toThrow('Refresh rejected: HTTP 401');
+      await expect(client.refresh(base)).rejects.toBeInstanceOf(AcademySessionExpiredError);
+      await expect(client.refresh(base)).rejects.toBeInstanceOf(AcademySessionExpiredError);
+      await expect(client.refresh(base)).rejects.toThrow('Refresh connection failed: ECONNRESET');
+      await expect(client.refresh(base)).rejects.toThrow('Refresh connection failed: down');
+      expect(post).toHaveBeenCalledTimes(5);
     });
 
     it('initializes with default CookieJar and AxiosInstance when no client is passed', () => {

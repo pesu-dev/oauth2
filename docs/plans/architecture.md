@@ -120,6 +120,8 @@ Status: **proposed** until this architecture is approved. Inlined so there is on
 
 ### ADR-0003: Two services; passwords never leave the AS
 
+> **Amended 2026-10-23:** the resource API ships inside the authorization server under `/api/v1/*` instead of as a separate deployable. Passwords still never leave the AS, and vault decryption is isolated in one module. See the [resource API design](../superpowers/specs/2026-10-23-resource-api-and-scopes-design.md).
+
 **Decision:** Authorization server and resource API are separate deployables. The API validates user access tokens and uses **token exchange** (AS-only, not for third parties) to get a short-lived Academy session. The API must not decrypt the vault.
 
 **Why:** Blast radius. The vault is the high-value target; the API is a proxy that will grow.

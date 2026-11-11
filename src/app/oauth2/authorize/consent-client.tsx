@@ -5,7 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
-import { Fingerprint, ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound } from 'lucide-react';
+import { Fingerprint, ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound, Database } from 'lucide-react';
+import { getScope, requiresDelegated } from '@/lib/oidc/scopes';
 
 function ScopePermissionRow({
   icon,
@@ -95,7 +96,10 @@ export function ConsentClient({
     }
   };
 
-  const isDelegated = mode === 'delegated' && client.delegatedAllowed;
+  const isDelegated = mode === 'delegated' && (client.delegatedAllowed || requiresDelegated(requestedScopes));
+  const resourceScopes = requestedScopes
+    .map((name) => getScope(name))
+    .filter((def): def is NonNullable<typeof def> => def?.kind === 'resource');
 
   return (
     <div className="flex justify-center py-6 min-[701px]:py-12">
@@ -176,6 +180,22 @@ export function ConsentClient({
             </ul>
           </div>
 
+          {resourceScopes.length > 0 ? (
+            <div className="px-5 pt-4 border-t border-line">
+              <p className="eyebrow">PESU Academy data, read on your behalf:</p>
+              <ul className="divide-y divide-line list-none p-0">
+                {resourceScopes.map((def) => (
+                  <ScopePermissionRow
+                    key={def.name}
+                    icon={<Database className={`w-4 h-4 mt-0.5 shrink-0 ${def.sensitive ? 'text-warning' : 'text-muted'}`} />}
+                    title={def.consentLabel}
+                    description={def.description}
+                  />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {/* Explicit storage sentence */}
           <div
             className={`m-5 mt-2 p-4 rounded-[5px] border text-xs leading-relaxed flex items-start gap-3 ${
@@ -186,7 +206,7 @@ export function ConsentClient({
               <>
                 <KeyRound className="w-4 h-4 shrink-0 text-json-key mt-0.5" />
                 <div>
-                  <span className="font-bold text-json-key">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this client is authorized to execute operations on your behalf.
+                  <span className="font-bold text-json-key">Delegated Credential Vault:</span> We will securely encrypt and store your PESU Academy password and session in our vault because this application needs them to act on your behalf.
                 </div>
               </>
             ) : (

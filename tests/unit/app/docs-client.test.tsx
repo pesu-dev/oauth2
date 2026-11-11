@@ -277,6 +277,16 @@ describe('DocsPage & DocsClient', () => {
     expect(screen.queryByTitle('Copy endpoint path')).toBeNull();
   });
 
+  it('renders backtick spans in resource docs as inline code, not literal backticks', () => {
+    render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
+    fireEvent.click(screen.getAllByText('/api/attendance')[0].closest('button')!);
+
+    const description = screen.getByText(/Classes held and attended per course/);
+    expect(description.textContent).not.toContain('`');
+    expect(description.querySelector('code')?.textContent).toBe('attendance:read');
+    expect(description.textContent).not.toMatch(/beta/i);
+  });
+
   it('handles dual-method endpoint badge variant for userinfo', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
     const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');
@@ -317,12 +327,13 @@ describe('DocsPage & DocsClient', () => {
 
   it('omits next button on the last item in documentation', () => {
     render(<DocsClient issuerUrl="https://auth.pesu.edu" />);
-    const userinfoBtn = screen.getAllByText('/api/userinfo')[0].closest('button');
-    expect(userinfoBtn).toBeDefined();
-    fireEvent.click(userinfoBtn!);
+    const seatingBtn = screen.getAllByText('/api/seating')[0].closest('button');
+    expect(seatingBtn).toBeDefined();
+    fireEvent.click(seatingBtn!);
 
-    // Since /api/v1/userinfo is the last item, Next button should not be present
+    // The last resource endpoint has no Next item
     expect(screen.queryByText('Next')).toBeNull();
+    expect(screen.getByText('Exam Seating')).toBeDefined();
   });
 
   it('renders and navigates to API Versioning guide and handles version selector', () => {
@@ -479,6 +490,34 @@ describe('DocsPage & DocsClient', () => {
       expect(screen.getByText('HTTP 200')).toBeDefined();
       expect(screen.getByTitle('Copy response')).toBeDefined();
       expect(document.body.textContent).toContain('"issuer": "x"');
+      vi.unstubAllGlobals();
+    });
+
+    it('sends the query parameters typed into the request panel', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, text: async () => '{"data":[]}' });
+      vi.stubGlobal('fetch', fetchMock);
+      render(<DocsClient issuerUrl="https://auth.pesu.edu" defaultSelectedId="syllabus" />);
+
+      const course = screen.getByLabelText('course') as HTMLInputElement;
+      expect(course.required).toBe(true);
+      expect(course.placeholder).toBe('20412');
+      fireEvent.change(screen.getByLabelText('Bearer token'), { target: { value: 'tok' } });
+      fireEvent.change(course, { target: { value: ' 42 ' } });
+      await act(async () => {
+        fireEvent.submit(course.closest('form')!);
+      });
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/courses/syllabus?course=42', {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: 'Bearer tok' },
+      });
+
+      // Optional parameters left blank are not sent.
+      fireEvent.click(screen.getAllByText('/api/courses')[0].closest('button')!);
+      expect(screen.getByLabelText('semester (optional)')).toBeDefined();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send request/i }));
+      });
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/courses', expect.anything());
       vi.unstubAllGlobals();
     });
 

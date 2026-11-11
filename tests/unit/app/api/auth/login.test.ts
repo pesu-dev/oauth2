@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as postLogin } from '@/app/api/internal/auth/login/route';
+import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { User, Client } from '@/lib/db/models';
 import { NextRequest } from 'next/server';
 import { AcademyClient } from '@/lib/academy/client';
@@ -124,8 +125,10 @@ describe('Auth Login Route (/api/auth/login)', () => {
         accessToken: 'acc_del',
         userId: 'u_del',
         expiresAt: null,
+        refreshToken: 'ref_del',
       },
     } as never);
+    const putSpy = vi.spyOn(pendingCredentialStore, 'put');
 
     vi.spyOn(User, 'findOne').mockResolvedValueOnce({
       sub: 'usr_delegated_1',
@@ -153,6 +156,7 @@ describe('Auth Login Route (/api/auth/login)', () => {
       expect.any(String),
       expect.objectContaining({ maxAge: 600 })
     );
+    expect(putSpy).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'acc_del', refreshToken: 'ref_del' }));
   });
 
   it('stores ephemeral pending credentials when returnTo lacks &mode=delegated but client has delegated_allowed', async () => {

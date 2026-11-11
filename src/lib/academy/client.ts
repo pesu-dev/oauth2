@@ -4,7 +4,18 @@ import { CookieJar } from 'tough-cookie';
 
 export const LOGIN_URL = 'https://www.pesuacademy.com/MAcademy/mobile/mobilelogin/auth';
 export const DISPATCHER_URL = 'https://www.pesuacademy.com/MAcademy/mobile/dispatcher';
+export const REFRESH_URL = 'https://www.pesuacademy.com/MAcademy/mobile/mobilelogin/refresh';
 
+/** Headers the official mobile app sends on every call (see the team's PES API field guide). */
+const MOBILE_HEADERS = { 'X-Client-Type': 'MOBILE', Accept: 'application/json' } as const;
+
+/** Access-token lifetime when Academy does not say (it sends `accessTokenExpiryMinutes: 30`). */
+const DEFAULT_TOKEN_MINUTES = 30;
+
+function expiryFrom(minutes: unknown): Date {
+  const value = typeof minutes === 'number' && minutes > 0 ? minutes : DEFAULT_TOKEN_MINUTES;
+  return new Date(Date.now() + value * 60_000);
+}
 const ACTION = '27';
 const MODE = '1';
 
@@ -59,6 +70,51 @@ export class AcademyAuthError extends Error {
   }
 }
 
+/** The cached mobile session was rejected; logging in again may fix it. */
+export class AcademySessionExpiredError extends AcademyAuthError {
+  constructor(message: string = 'Academy session expired') {
+    super(message);
+    this.name = 'AcademySessionExpiredError';
+  }
+}
+
+/** Academy answered, but refused or could not serve the request (e.g. missing menuId). */
+export class AcademyRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AcademyRequestError';
+  }
+}
+
+export interface DispatchForm {
+  action: number | string;
+  mode: number | string;
+  [field: string]: string | number | undefined;
+}
+
+/** Dispatcher payloads sometimes nest JSON documents inside string fields. */
+export function unwrapJsonStrings(value: unknown, depth: number = 0): unknown {
+  if (depth > 4) return value;
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+      try {
+        return unwrapJsonStrings(JSON.parse(t), depth + 1);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((v) => unwrapJsonStrings(v, depth + 1));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, unwrapJsonStrings(v, depth + 1)])
+    );
+  }
+  return value;
+}
+
 export interface AcademyProfile {
   name: string;
   prn: string | null;
@@ -77,6 +133,8 @@ export interface AcademySession {
   accessToken: string | null;
   userId: string | null;
   expiresAt: Date | null;
+  /** Renews the access token without the password (30-day lifetime). */
+  refreshToken?: string | null;
 }
 
 export interface AcademyAuthResult {
@@ -161,6 +219,7 @@ export class AcademyClient {
           timeout: 15000,
           headers: {
             'User-Agent': 'okhttp/3.12.1',
+            ...MOBILE_HEADERS,
           },
         })
       );
@@ -210,6 +269,7 @@ export class AcademyClient {
     const accessRaw = data.accessToken || mobileObj.accessToken;
     const accessToken = accessRaw ? String(accessRaw) : null;
     const userId = mobileObj.userId ? String(mobileObj.userId) : null;
+    const refreshToken = typeof data.refreshToken === 'string' && data.refreshToken ? data.refreshToken : null;
 
     if (!token || !accessToken) {
       throw new AcademyAuthError('Incomplete session metadata from authentication');
@@ -222,10 +282,118 @@ export class AcademyClient {
       token,
       accessToken,
       userId,
-      expiresAt: null,
+      expiresAt: expiryFrom(data.accessTokenExpiryMinutes),
+      refreshToken,
     };
 
     return { profile, session };
+  }
+
+  /**
+   * Swaps the session's refresh token for a new access token, so a lapsed session can be renewed
+   * without the password. Academy may answer with an empty refresh token; the old one stays valid.
+   */
+  async refresh(session: AcademySession): Promise<AcademySession> {
+    if (!session.refreshToken) throw new AcademySessionExpiredError('No refresh token');
+    let resp;
+    try {
+      resp = await this.client.post(
+        REFRESH_URL,
+        { refreshToken: session.refreshToken },
+        { headers: { ...MOBILE_HEADERS, 'Content-Type': 'application/json' }, validateStatus: () => true }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new AcademyRequestError(`Refresh connection failed: ${msg}`);
+    }
+    let data: unknown = resp.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        data = null;
+      }
+    }
+    const body = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    if (resp.status !== 200 || typeof body.accessToken !== 'string' || !body.accessToken) {
+      throw new AcademySessionExpiredError(`Refresh rejected: HTTP ${resp.status}`);
+    }
+    const headerToken = resp.headers?.mobileappauthenticationtoken;
+    return {
+      ...session,
+      token: typeof headerToken === 'string' && headerToken ? headerToken : session.token,
+      accessToken: body.accessToken,
+      expiresAt: expiryFrom(body.accessTokenExpiryMinutes),
+      refreshToken: typeof body.refreshToken === 'string' && body.refreshToken ? body.refreshToken : session.refreshToken,
+    };
+  }
+
+  /**
+   * POSTs one action/mode call to the mobile dispatcher with an existing session and returns
+   * the parsed payload. Throws AcademySessionExpiredError when the session must be renewed.
+   * Like the official app, it authenticates with the bearer token alone and sends no `userId`.
+   */
+  async dispatch(session: AcademySession, form: DispatchForm): Promise<unknown> {
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(form)) {
+      if (value !== undefined) formData.append(key, String(value));
+    }
+    formData.append('randomNum', String(Math.random()));
+
+    const headers: Record<string, string> = session.accessToken
+      ? { ...MOBILE_HEADERS, authorization: `Bearer ${session.accessToken}` }
+      : { ...MOBILE_HEADERS, mobileappauthenticationtoken: session.token };
+
+    let resp;
+    try {
+      resp = await this.client.post(DISPATCHER_URL, formData, { headers, validateStatus: () => true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new AcademyRequestError(`Dispatcher connection failed: ${msg}`);
+    }
+
+    if (resp.status === 401 || resp.status === 403) {
+      throw new AcademySessionExpiredError(`Dispatcher rejected the session: HTTP ${resp.status}`);
+    }
+    if (resp.status !== 200) {
+      throw new AcademyRequestError(`Dispatcher failed: HTTP ${resp.status}`);
+    }
+
+    let data: unknown = resp.data;
+    if (typeof data === 'string') {
+      const text = data.trim();
+      if (text.toLowerCase().startsWith('<') || text.toLowerCase().includes('<html')) {
+        // Academy answers some unsupported calls with a bare error page while the session is fine;
+        // logging in again would not help.
+        if (/<title>\s*error\s*<\/title>/i.test(text)) {
+          throw new AcademyRequestError('Dispatcher returned an error page');
+        }
+        throw new AcademySessionExpiredError('Dispatcher returned an HTML page (session expired)');
+      }
+      if (!text) return null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new AcademyRequestError('Invalid dispatcher response format');
+      }
+    }
+
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const obj = data as Record<string, unknown>;
+      if (obj.mobileAppTokenError === 'ERROR') {
+        throw new AcademySessionExpiredError('Dispatcher invalidated the session token');
+      }
+      // Error envelope: { status, message, errorCode, timestamp } with no payload
+      const keys = Object.keys(obj);
+      if (
+        typeof obj.message === 'string' &&
+        keys.every((k) => ['status', 'message', 'errorCode', 'timestamp'].includes(k))
+      ) {
+        throw new AcademyRequestError(obj.message);
+      }
+    }
+
+    return unwrapJsonStrings(data);
   }
 
   private async fetchProfileDetails(
@@ -238,6 +406,7 @@ export class AcademyClient {
     formData.append('menuId', '11172');
 
     const headers: Record<string, string> = {
+      ...MOBILE_HEADERS,
       mobileappauthenticationtoken: token,
       authorization: `Bearer ${accessToken}`,
     };

@@ -5,6 +5,7 @@ import { Client, Consent, RefreshToken, User, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
 import { AcademyClient } from '@/lib/academy/client';
 import { getConfig } from '@/lib/config';
+import { masterKeyFromSecret, open, unpackVaultPlaintext } from '@/lib/crypto/envelope';
 
 vi.mock('@/lib/db/connection', () => ({
   connectToDatabase: vi.fn().mockResolvedValue(null),
@@ -289,7 +290,7 @@ describe('Settings API (/api/settings)', () => {
       vi.spyOn(Vault, 'findOne').mockResolvedValueOnce({ sub: 'usr_test' } as never);
 
       vi.mocked(AcademyClient).prototype.login = vi.fn().mockResolvedValueOnce({
-        session: { token: 'tok_new', accessToken: 'acc_new', userId: '12345', expiresAt: null },
+        session: { token: 'tok_new', accessToken: 'acc_new', userId: '12345', expiresAt: null, refreshToken: 'ref_new' },
         profile: { prn: 'PES1202000001', srn: 'PES1202000001', name: 'Student', email: 's@p.edu' },
       } as never);
 
@@ -310,6 +311,17 @@ describe('Settings API (/api/settings)', () => {
         }),
         expect.objectContaining({ upsert: false })
       );
+      const row = vaultUpsertSpy.mock.calls[0][1] as Record<string, Buffer>;
+      const sealed = unpackVaultPlaintext(
+        open(masterKeyFromSecret('super-secret-vault-master-key-32b'), {
+          nonce: row.nonce,
+          ciphertext: row.ciphertext,
+          wrapNonce: row.wrap_nonce,
+          wrappedDek: row.wrapped_dek,
+          keyVersion: 1,
+        })
+      );
+      expect(sealed.session?.refresh_token).toBe('ref_new');
     });
 
     it('returns 404 when user record does not exist on PATCH', async () => {

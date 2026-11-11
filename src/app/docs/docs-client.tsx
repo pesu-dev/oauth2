@@ -58,6 +58,23 @@ interface SendResult {
   body: string;
 }
 
+/** Renders `backtick` spans in doc copy as inline code; the same text stays Markdown for Copy for LLM. */
+export function InlineCode({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/`([^`]+)`/).map((part, i) =>
+        i % 2 === 1 ? (
+          <code key={i} className="font-mono text-[0.9em] bg-code border border-line px-1 py-0.5 rounded text-fg">
+            {part}
+          </code>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 function FieldRows({ fields }: { fields: ParamDoc[] }) {
   return (
     <div className="border-t border-line">
@@ -75,7 +92,7 @@ function FieldRows({ fields }: { fields: ParamDoc[] }) {
             <Badge variant={p.required ? 'required' : 'optional'}>{p.required ? 'Required' : 'Optional'}</Badge>
           </div>
           <div className="text-sm text-soft leading-[1.65] max-[700px]:col-span-2 [overflow-wrap:anywhere]">
-            <p>{p.description}</p>
+            <p><InlineCode text={p.description} /></p>
             {p.allowedValues && (
               <p className="mt-1 text-xs">
                 <span className="eyebrow">Allowed </span>
@@ -120,6 +137,8 @@ export function DocsClient({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [selectedApiVersion, setSelectedApiVersion] = React.useState<string>(CURRENT_API_VERSION);
   const [bearerToken, setBearerToken] = React.useState('');
+  // Query parameter values typed into the request panel, keyed by `${endpoint id}:${param name}`.
+  const [queryInputs, setQueryInputs] = React.useState<Record<string, string>>({});
   const [sendingPath, setSendingPath] = React.useState<string | null>(null);
   const [lastResult, setSendResult] = React.useState<SendResult | null>(null);
   const latestSend = React.useRef(0);
@@ -239,8 +258,15 @@ export function DocsClient({
       if (ep.tryIt === 'bearer' && bearerToken.trim()) {
         headers.Authorization = `Bearer ${bearerToken.trim()}`;
       }
+      const query = new URLSearchParams();
+      for (const p of ep.params) {
+        const value = queryInputs[`${ep.id}:${p.name}`]?.trim();
+        if (p.location === 'query' && value) query.set(p.name, value);
+      }
+      const qs = query.toString();
+      const url = qs ? `${ep.path}?${qs}` : ep.path;
       // Same-origin only: the explorer is served by the issuer itself.
-      const res = await fetch(ep.path, { method: primaryMethod(ep.method), headers });
+      const res = await fetch(url, { method: primaryMethod(ep.method), headers });
       const text = await res.text();
       let body = text;
       try {
@@ -415,11 +441,11 @@ export function DocsClient({
                     )}
                   </Button>
                 </div>
-                <p className="text-soft leading-[1.65]">{currentEndpoint.description}</p>
+                <p className="text-soft leading-[1.65]"><InlineCode text={currentEndpoint.description} /></p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                   <span>
                     <span className="eyebrow">Authentication</span>{' '}
-                    <span className="text-soft">{currentEndpoint.auth}</span>
+                    <span className="text-soft"><InlineCode text={currentEndpoint.auth} /></span>
                   </span>
                   <span>
                     <span className="eyebrow">Category</span>{' '}
@@ -490,7 +516,7 @@ export function DocsClient({
                   if (!resp) return null;
                   return (
                     <div className="space-y-3">
-                      <p className="text-sm text-soft">{resp.description}</p>
+                      <p className="text-sm text-soft"><InlineCode text={resp.description} /></p>
                       <CodeBlock
                         code={JSON.stringify(resp.sample, null, 2)}
                         copyId={`resp-${currentEndpoint.id}-${currentRespTab}`}
@@ -605,6 +631,30 @@ export function DocsClient({
                     </p>
                   </div>
                 )}
+                {currentEndpoint.params
+                  .filter((p) => p.location === 'query')
+                  .map((p) => {
+                    const key = `${currentEndpoint.id}:${p.name}`;
+                    return (
+                      <div key={key} className="space-y-1.5">
+                        <label htmlFor={`docs-query-${p.name}`} className={labelStyles}>
+                          {p.name}
+                          {p.required ? '' : ' (optional)'}
+                        </label>
+                        <input
+                          id={`docs-query-${p.name}`}
+                          type="text"
+                          autoComplete="off"
+                          spellCheck={false}
+                          required={p.required}
+                          placeholder={p.example}
+                          value={queryInputs[key] ?? ''}
+                          onChange={(e) => setQueryInputs((prev) => ({ ...prev, [key]: e.target.value }))}
+                          className={controlStyles}
+                        />
+                      </div>
+                    );
+                  })}
                 <Button type="submit" className="w-full" loading={sending}>
                   Send request
                 </Button>
