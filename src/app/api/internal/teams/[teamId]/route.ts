@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const bySub = new Map(users.map((u) => [u.sub, u]));
 
   return NextResponse.json({
-    team: { team_id: team.team_id, name: team.name, slug: team.slug, created_at: team.created_at },
+    team: { team_id: team.team_id, name: team.name, slug: team.slug, avatar_id: team.avatar_id ?? null, created_at: team.created_at },
     role,
     members: members.map((m) => ({
       sub: m.sub,

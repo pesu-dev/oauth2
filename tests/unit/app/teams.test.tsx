@@ -291,7 +291,7 @@ describe('team page', () => {
     fireEvent.change(screen.getByLabelText('PRN or SRN of the new member'), { target: { value: 'PES1' } });
     fireEvent.change(screen.getByLabelText('Role for the new member'), { target: { value: 'admin' } });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /add/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
     });
     await waitFor(() => expect(screen.getByText('Member added')).toBeDefined());
 
@@ -305,6 +305,57 @@ describe('team page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove usr_dev' }));
     });
     await waitFor(() => expect(screen.getByText('Member removed')).toBeDefined());
+  });
+
+  it('uploads, reports errors for, and removes the team avatar', async () => {
+    let withAvatar = false;
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/internal/auth/status') return { ok: true, json: async () => ({ sub: 'usr_lead' }) } as Response;
+      if (url.endsWith('/avatar') && init?.method === 'POST') {
+        const ok = !withAvatar;
+        withAvatar = true;
+        return { ok, json: async () => (ok ? { avatar: { image_id: 'img_a' } } : { error: 'Images must be 256 KB or smaller' }) } as Response;
+      }
+      if (url.endsWith('/avatar') && init?.method === 'DELETE') {
+        withAvatar = false;
+        return { ok: true, json: async () => ({ success: true }) } as Response;
+      }
+      return { ok: true, json: async () => ({ ...detail, team: { ...detail.team, avatar_id: withAvatar ? 'img_a' : null } }) } as Response;
+    }) as never;
+    render(<TeamPage />);
+    await screen.findByText('Robotics Club');
+    const input = screen.getByLabelText('Choose team avatar');
+    fireEvent.click(screen.getByRole('button', { name: 'Add avatar' }));
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(['x'], 'a.png', { type: 'image/png' })] } });
+    });
+    expect(await screen.findByAltText('Robotics Club avatar')).toBeDefined();
+    expect(screen.getByText('Avatar updated')).toBeDefined();
+
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(['x'], 'b.png', { type: 'image/png' })] } });
+    });
+    expect(await screen.findByText('Images must be 256 KB or smaller')).toBeDefined();
+    fireEvent.change(input, { target: { files: [] } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove avatar' }));
+    });
+    await waitFor(() => expect(screen.queryByAltText('Robotics Club avatar')).toBeNull());
+  });
+
+  it('falls back to a generic upload error', async () => {
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/avatar') && init?.method === 'POST') return { ok: false, json: async () => { throw new Error('no json'); } } as unknown as Response;
+      if (url === '/api/internal/auth/status') return { ok: true, json: async () => ({ sub: 'usr_lead' }) } as Response;
+      return { ok: true, json: async () => detail } as Response;
+    }) as never;
+    render(<TeamPage />);
+    await screen.findByText('Robotics Club');
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Choose team avatar'), { target: { files: [new File(['x'], 'a.png')] } });
+    });
+    expect(await screen.findByText('Upload failed')).toBeDefined();
   });
 
   it('leaves the team and returns to the portal; shows API errors', async () => {
