@@ -28,7 +28,7 @@ Let third-party apps read a student's own PESU Academy data (courses, attendance
 
 | Scope | Endpoints | Academy action / mode (`menuId`) |
 | --- | --- | --- |
-| `openid`, `profile`, `email`, `phone`, `offline_access` | `/api/v1/userinfo`, ID token | unchanged |
+| `openid`, `name`, `profile`, `email`, `phone`, `offline_access` | `/api/v1/userinfo`, ID token | unchanged |
 | `courses:read` | `GET /api/v1/semesters`, `GET /api/v1/courses?semester=`, `GET /api/v1/courses/syllabus?course=` | 18 / 1 (11100), 18 / 2 (11166), 18 / 11 (11166) |
 | `attendance:read` | `GET /api/v1/attendance?semester=` | 18 / 6 (11169) |
 | `results:read` | `GET /api/v1/results/isa?semester=`, `GET /api/v1/results/esa?semester=`, `GET /api/v1/results/cgpa` | 53 / 19 (11171) for ISA, 7 / 7 (11162) for ESA, 7 / 6 (11162) for CGPA |

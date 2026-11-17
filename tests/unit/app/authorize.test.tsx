@@ -595,7 +595,7 @@ describe('Authorize Page & Consent', () => {
         delegatedAllowed: true,
       },
       userName: 'Alice Smith',
-      requestedScopes: ['openid', 'profile', 'email', 'phone', 'offline_access'],
+      requestedScopes: ['openid', 'name', 'profile', 'email', 'phone', 'offline_access'],
       mode: 'delegated' as const,
       redirectUri: 'https://portal.pesu.edu/callback',
       state: 'test_state',
@@ -640,6 +640,13 @@ describe('Authorize Page & Consent', () => {
       render(<ConsentClient {...defaultProps} requestedScopes={['openid', 'profile']} />);
       expect(screen.getByText('Confirm your Identity')).toBeDefined();
       expect(screen.getByText('Access your Student Profile')).toBeDefined();
+    });
+
+    it('shows the name row when name is requested', () => {
+      render(<ConsentClient {...defaultProps} requestedScopes={['openid', 'name']} />);
+      expect(screen.getByText('Confirm your Identity')).toBeDefined();
+      expect(screen.getByText('View your Full Name')).toBeDefined();
+      expect(screen.queryByText('Access your Student Profile')).toBeNull();
     });
 
     it('handles clicking Allow and redirects window.location.href', async () => {

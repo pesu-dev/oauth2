@@ -38,9 +38,11 @@ describe('scope registry', () => {
 
   it('looks scopes up by name', () => {
     expect(getScope('openid')?.consentLabel).toBe('Confirm your Identity');
+    expect(getScope('name')?.consentLabel).toBe('View your Full Name');
     expect(getScope('profile')?.consentLabel).toBe('Access your Student Profile');
     expect(getScope('nope')).toBeUndefined();
     expect(isKnownScope('openid')).toBe(true);
+    expect(isKnownScope('name')).toBe(true);
     expect(isKnownScope('admin')).toBe(false);
   });
 

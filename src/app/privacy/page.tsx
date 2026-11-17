@@ -44,7 +44,8 @@ export default function PrivacyPage() {
           </p>
           <ul className="list-disc pl-5 space-y-1 text-xs text-muted">
             <li><strong>openid:</strong> Opaque user identifier (<code className="font-mono">usr_...</code>).</li>
-            <li><strong>profile:</strong> Name, PRN, SRN, program, branch, semester, section, and campus.</li>
+            <li><strong>name:</strong> Your full name registered on PESU Academy (only if granted).</li>
+            <li><strong>profile:</strong> PRN, SRN, program, branch, semester, section, and campus.</li>
             <li><strong>email:</strong> Your email address registered on PESU Academy (only if granted).</li>
             <li><strong>phone:</strong> Contact phone number (only if granted).</li>
           </ul>

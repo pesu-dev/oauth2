@@ -83,14 +83,15 @@ No resource-owner password grant. No implicit. Confidential clients: client secr
 
 ### Scopes (v1)
 
-`openid`, `profile`, `email`, `phone`, `offline_access`
+`openid`, `name`, `profile`, `email`, `phone`, `offline_access`
 
 Do not name API resource scopes in v1.
 
 ### Claims
 
 - **`sub`:** opaque `usr_…`
-- **`profile`:** name, PRN, SRN, program, branch, semester, section, campus
+- **`name`:** full name registered on PESU Academy
+- **`profile`:** PRN, SRN, program, branch, semester, section, campus
 - **`email` / `phone`:** only when those scopes were granted
 - **Access JWT:** `iss`, `sub`, `aud` (default `client_id` until API exists), `client_id`, `scope`, `exp`, `iat`, `jti`
 - **ID token:** standard OIDC + scoped profile claims; include `at_hash` when issued with access token

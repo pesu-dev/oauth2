@@ -39,6 +39,9 @@ describe('Userinfo Endpoint (/userinfo)', () => {
     });
     const respGet = await getUserInfo(reqGet);
     expect(respGet.status).toBe(200);
+    const bodyGet = await respGet.json();
+    expect(bodyGet.prn).toBe('PES1UG20CS001');
+    expect(bodyGet.name).toBeUndefined();
 
     const reqPost = new Request('http://localhost:3000/userinfo', {
       method: 'POST',
@@ -46,6 +49,31 @@ describe('Userinfo Endpoint (/userinfo)', () => {
     });
     const respPost = await postUserInfo(reqPost);
     expect(respPost.status).toBe(200);
+  });
+
+  it('returns name claim when name scope is granted', async () => {
+    const token = await mintAccessToken({
+      issuer: 'http://localhost:3000',
+      sub: 'usr_test',
+      clientId: 'cli_test',
+      scopes: ['openid', 'name'],
+    });
+
+    vi.spyOn(User, 'findOne').mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        sub: 'usr_test',
+        name: 'Test Student',
+      }),
+    } as never);
+
+    const req = new Request('http://localhost:3000/userinfo', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const resp = await getUserInfo(req);
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.sub).toBe('usr_test');
+    expect(body.name).toBe('Test Student');
   });
 
   it('rejects missing Authorization header', async () => {

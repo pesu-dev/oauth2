@@ -9,9 +9,12 @@ export function profileClaims(
     sub: user.sub,
   };
 
+  if (scopeSet.has('name') && user.name) {
+    claims.name = user.name;
+  }
+
   if (scopeSet.has('profile')) {
     Object.assign(claims, {
-      name: user.name,
       prn: user.prn,
       srn: user.srn,
       program: user.program,

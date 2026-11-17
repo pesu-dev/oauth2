@@ -63,7 +63,7 @@ describe('OIDC Authorization Code Flow & PKCE (Integration)', () => {
         redirectUri: 'https://app.pesu.edu/callback',
         action: 'allow',
         mode: 'identity',
-        scope: 'openid profile email offline_access',
+        scope: 'openid name profile email offline_access',
         codeChallenge: challenge,
         codeChallengeMethod: 'S256',
         state: 'random-state-123',

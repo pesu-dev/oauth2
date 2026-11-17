@@ -22,14 +22,21 @@ describe('OIDC Claims Mapping', () => {
     const baseClaims = profileClaims(mockUser, ['openid']);
     expect(baseClaims).toEqual({ sub: 'usr_123' });
 
-    // With profile scope
+    // With profile scope (does NOT include name since name is a separate scope)
     const profile = profileClaims(mockUser, ['openid', 'profile']);
-    expect(profile.name).toBe('Student Name');
+    expect(profile.name).toBeUndefined();
     expect(profile.prn).toBe('PES1UG20CS001');
     expect(profile.email).toBeUndefined();
 
+    // With name scope
+    const nameOnly = profileClaims(mockUser, ['openid', 'name']);
+    expect(nameOnly.name).toBe('Student Name');
+    expect(nameOnly.prn).toBeUndefined();
+
     // With email and phone
-    const all = profileClaims(mockUser, ['openid', 'profile', 'email', 'phone']);
+    const all = profileClaims(mockUser, ['openid', 'name', 'profile', 'email', 'phone']);
+    expect(all.name).toBe('Student Name');
+    expect(all.prn).toBe('PES1UG20CS001');
     expect(all.email).toBe('student@pes.edu');
     expect(all.phone_number).toBe('9876543210');
   });

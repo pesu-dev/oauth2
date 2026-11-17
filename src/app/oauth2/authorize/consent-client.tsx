@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InlineAlert } from '@/components/ui/inline-alert';
-import { Fingerprint, ShieldAlert, UserCheck, Mail, Phone, RefreshCw, KeyRound, Database } from 'lucide-react';
+import { Fingerprint, ShieldAlert, User, UserCheck, Mail, Phone, RefreshCw, KeyRound, Database } from 'lucide-react';
 import { getScope, requiresDelegated } from '@/lib/oidc/scopes';
 
 function ScopePermissionRow({
@@ -198,11 +198,19 @@ export function ConsentClient({
                 />
               ) : null}
 
+              {requestedScopes.includes('name') ? (
+                <ScopePermissionRow
+                  icon={<User className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
+                  title="View your Full Name"
+                  description="Your full name registered on PESU Academy."
+                />
+              ) : null}
+
               {requestedScopes.includes('profile') ? (
                 <ScopePermissionRow
                   icon={<UserCheck className="w-4 h-4 text-muted mt-0.5 shrink-0" />}
                   title="Access your Student Profile"
-                  description="Name, PRN, SRN, program, branch, semester, section, and campus."
+                  description="PRN, SRN, program, branch, semester, section, and campus."
                 />
               ) : null}
 

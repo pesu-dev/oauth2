@@ -20,7 +20,7 @@ export interface ScopeDefinition {
   claims: string[];
 }
 
-export const IDENTITY_SCOPES = ['openid', 'profile', 'email', 'phone', 'offline_access'] as const;
+export const IDENTITY_SCOPES = ['openid', 'name', 'profile', 'email', 'phone', 'offline_access'] as const;
 
 export const SCOPES: readonly ScopeDefinition[] = [
   {
@@ -33,13 +33,22 @@ export const SCOPES: readonly ScopeDefinition[] = [
     claims: ['sub'],
   },
   {
+    name: 'name',
+    kind: 'identity',
+    consentLabel: 'View your Full Name',
+    description: 'Your full name registered on PESU Academy.',
+    sensitive: false,
+    requiresDelegated: false,
+    claims: ['name'],
+  },
+  {
     name: 'profile',
     kind: 'identity',
     consentLabel: 'Access your Student Profile',
-    description: 'Name, PRN, SRN, program, branch, semester, section, and campus.',
+    description: 'PRN, SRN, program, branch, semester, section, and campus.',
     sensitive: false,
     requiresDelegated: false,
-    claims: ['name', 'prn', 'srn', 'program', 'branch', 'semester', 'section', 'campus'],
+    claims: ['prn', 'srn', 'program', 'branch', 'semester', 'section', 'campus'],
   },
   {
     name: 'email',
