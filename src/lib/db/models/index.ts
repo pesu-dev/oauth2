@@ -10,3 +10,4 @@ export * from './admin';
 export * from './device-code';
 export * from './team';
 export * from './team-member';
+export * from './image';
