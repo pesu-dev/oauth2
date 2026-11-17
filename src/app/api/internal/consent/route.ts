@@ -13,7 +13,7 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext, SealedBlob } from '@/lib/crypto/envelope';
+import { sealPendingCredentials } from '@/lib/session/vault-seal';
 import { notifySubQuietly } from '@/lib/mailer';
 import { parseScopes, requiresDelegated } from '@/lib/oidc/scopes';
 
@@ -152,8 +152,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let sealedVaultData: SealedBlob | null = null;
-    let sessionExpiresAt: Date | undefined;
+    let vaultUpdate: Record<string, unknown> | null = null;
 
     // If delegated mode, process vault storage using pending credentials
     if (targetMode === 'delegated') {
@@ -184,27 +183,7 @@ export async function POST(request: NextRequest) {
             { status: 503 }
           );
         }
-        const username = pending.username || session.sub;
-
-        sessionExpiresAt = pending.expiresAt
-          ? new Date(pending.expiresAt)
-          : undefined;
-
-        const plaintext: VaultPlaintext = {
-          username,
-          password: pending.password,
-          session: pending.sessionToken
-            ? {
-                token: pending.sessionToken,
-                access_token: pending.accessToken || null,
-                user_id: pending.userId || null,
-                refresh_token: pending.refreshToken || null,
-              }
-            : null,
-        };
-
-        const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-        sealedVaultData = seal(masterKey, packVaultPlaintext(plaintext), 1);
+        vaultUpdate = sealPendingCredentials(session.sub, pending, config.vaultMasterKey);
       }
     } else {
       // Identity mode: pop and discard any pending credentials
@@ -242,21 +221,8 @@ export async function POST(request: NextRequest) {
         { upsert: true, session: dbSession }
       );
 
-      if (sealedVaultData) {
-        await Vault.findOneAndUpdate(
-          { sub: session.sub },
-          {
-            sub: session.sub,
-            nonce: sealedVaultData.nonce,
-            ciphertext: sealedVaultData.ciphertext,
-            wrap_nonce: sealedVaultData.wrapNonce,
-            wrapped_dek: sealedVaultData.wrappedDek,
-            key_version: sealedVaultData.keyVersion,
-            session_expires_at: sessionExpiresAt,
-            updated_at: new Date(),
-          },
-          { upsert: true, session: dbSession }
-        );
+      if (vaultUpdate) {
+        await Vault.findOneAndUpdate({ sub: session.sub }, vaultUpdate, { upsert: true, session: dbSession });
       }
 
       await AuthCode.create([authCodeData], { session: dbSession });

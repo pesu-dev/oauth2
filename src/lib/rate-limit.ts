@@ -43,6 +43,8 @@ export const tokenLimiter = new SlidingWindowRateLimiter({ limit: 60, windowSeco
 export const exchangeLimiter = new SlidingWindowRateLimiter({ limit: 30, windowSeconds: 60 });
 // Per student + app on the resource API; each call fans out to PESU Academy.
 export const apiLimiter = new SlidingWindowRateLimiter({ limit: 30, windowSeconds: 60 });
+// Starting device flows per IP; each start creates a pending code.
+export const deviceLimiter = new SlidingWindowRateLimiter({ limit: 20, windowSeconds: 60 });
 
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');

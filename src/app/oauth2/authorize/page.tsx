@@ -7,7 +7,7 @@ import { pendingCredentialStore } from '@/lib/session/pending-credentials';
 import { newAuthCode } from '@/lib/id/nanoid';
 import { sha256Hex } from '@/lib/crypto/hash';
 import { getConfig } from '@/lib/config';
-import { masterKeyFromSecret, seal, packVaultPlaintext, VaultPlaintext } from '@/lib/crypto/envelope';
+import { sealPendingCredentials } from '@/lib/session/vault-seal';
 import { parseScopes, requiresDelegated } from '@/lib/oidc/scopes';
 import { ConsentClient } from './consent-client';
 
@@ -236,39 +236,9 @@ export default async function AuthorizePage({ searchParams }: AuthorizePageProps
       if (pendingToken?.cred_id) {
         const pending = pendingCredentialStore.pop(pendingToken.cred_id);
         if (pending?.password && config.vaultMasterKey) {
-          const username = pending.username || session.sub;
-          const sessionExpiresAt: Date | undefined = pending.expiresAt
-            ? new Date(pending.expiresAt)
-            : undefined;
-
-          const plaintext: VaultPlaintext = {
-            username,
-            password: pending.password,
-            session: pending.sessionToken
-              ? {
-                  token: pending.sessionToken,
-                  access_token: pending.accessToken || null,
-                  user_id: pending.userId || null,
-                  refresh_token: pending.refreshToken || null,
-                }
-              : null,
-          };
-
-          const masterKey = masterKeyFromSecret(config.vaultMasterKey);
-          const sealed = seal(masterKey, packVaultPlaintext(plaintext), 1);
-
           await Vault.findOneAndUpdate(
             { sub: session.sub },
-            {
-              sub: session.sub,
-              nonce: sealed.nonce,
-              ciphertext: sealed.ciphertext,
-              wrap_nonce: sealed.wrapNonce,
-              wrapped_dek: sealed.wrappedDek,
-              key_version: sealed.keyVersion,
-              session_expires_at: sessionExpiresAt,
-              updated_at: new Date(),
-            },
+            sealPendingCredentials(session.sub, pending, config.vaultMasterKey),
             { upsert: true }
           );
         }

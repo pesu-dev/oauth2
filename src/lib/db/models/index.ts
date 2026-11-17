@@ -7,3 +7,4 @@ export * from './auth-code';
 export * from './refresh-token';
 export * from './production-request';
 export * from './admin';
+export * from './device-code';

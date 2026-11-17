@@ -52,18 +52,28 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { redirectUris } = body;
+  const { redirectUris, deviceFlowEnabled } = body;
 
-  const validated = parseAndValidateRedirectUris(redirectUris);
-  if (!validated.valid) {
-    return NextResponse.json({ error: validated.error }, { status: 400 });
+  const update: Record<string, unknown> = { updated_at: new Date() };
+  if (redirectUris !== undefined || deviceFlowEnabled === undefined) {
+    const validated = parseAndValidateRedirectUris(redirectUris);
+    if (!validated.valid) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+    update.redirect_uris = validated.uris;
+  }
+  if (deviceFlowEnabled !== undefined) {
+    if (typeof deviceFlowEnabled !== 'boolean') {
+      return NextResponse.json({ error: 'deviceFlowEnabled must be a boolean' }, { status: 400 });
+    }
+    update.device_flow_enabled = deviceFlowEnabled;
   }
 
   await connectToDatabase();
   const client = await Client.findOneAndUpdate(
     { client_id: clientId, owner_sub: session.sub },
-    { redirect_uris: validated.uris, updated_at: new Date() },
-    { returnDocument: 'after' }
+    update,
+    { returnDocument: 'after', projection: { client_secret_hash: 0 } }
   );
 
   if (!client) {

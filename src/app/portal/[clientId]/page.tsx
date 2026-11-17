@@ -38,6 +38,7 @@ interface ClientData {
   publishing_status: 'testing' | 'pending_production' | 'production' | 'suspended';
   redirect_uris: string[];
   delegated_allowed: boolean;
+  device_flow_enabled?: boolean;
   suspension_reason?: string | null;
   suspended_at?: string | null;
 }
@@ -77,6 +78,23 @@ export default function ClientDetailPage() {
   const [isProdDrawerOpen, setIsProdDrawerOpen] = React.useState(false);
   const [justification, setJustification] = React.useState('');
   const [delegatedRequested, setDelegatedRequested] = React.useState(false);
+  const [deviceSaving, setDeviceSaving] = React.useState(false);
+
+  const toggleDeviceFlow = async (enabled: boolean) => {
+    setDeviceSaving(true);
+    try {
+      const res = await fetch(`/api/internal/portal/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceFlowEnabled: enabled }),
+      });
+      if (res.ok) {
+        setClient((prev) => (prev ? { ...prev, device_flow_enabled: enabled } : prev));
+      }
+    } finally {
+      setDeviceSaving(false);
+    }
+  };
   const [prodLoading, setProdLoading] = React.useState(false);
 
   const [copiedId, setCopiedId] = React.useState(false);
@@ -457,6 +475,27 @@ export default function ClientDetailPage() {
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1 w-4 h-4"
+            checked={Boolean(client.device_flow_enabled)}
+            disabled={deviceSaving}
+            onChange={(e) => toggleDeviceFlow(e.target.checked)}
+            aria-describedby="device-flow-help"
+          />
+          <span>
+            <CardTitle className="text-lg">Device sign-in</CardTitle>
+            <span id="device-flow-help" className="block text-sm text-soft mt-1">
+              Let CLIs and devices sign students in with a short code (RFC 8628), the way GitHub CLI does. Your
+              device calls <code className="font-mono text-xs">POST /oauth2/device_authorization</code> and students
+              enter the code at <code className="font-mono text-xs">/device</code>.
+            </span>
+          </span>
+        </label>
       </Card>
 
       {/* Secret Rotation Confirmation Drawer */}

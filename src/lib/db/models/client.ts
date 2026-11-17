@@ -10,6 +10,8 @@ export interface IClient extends Document {
   redirect_uris: string[];
   publishing_status: PublishingStatus;
   delegated_allowed: boolean;
+  /** Allows the RFC 8628 device authorization grant (CLIs and devices). */
+  device_flow_enabled: boolean;
   token_endpoint_auth_method: string;
   suspension_reason?: string | null;
   suspended_at?: Date | null;
@@ -31,6 +33,7 @@ export const ClientSchema = new Schema<IClient>(
       default: 'testing',
     },
     delegated_allowed: { type: Boolean, default: false },
+    device_flow_enabled: { type: Boolean, default: false },
     token_endpoint_auth_method: { type: String, default: 'client_secret_post' },
     suspension_reason: { type: String, default: null },
     suspended_at: { type: Date, default: null },
