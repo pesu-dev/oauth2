@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connection';
 import { withTransaction } from '@/lib/db/transaction';
-import { Client, ProductionRequest } from '@/lib/db/models';
+import { ProductionRequest } from '@/lib/db/models';
 import { verifySessionToken } from '@/lib/session/cookie';
 import { newRequestId } from '@/lib/id/nanoid';
 import { notifySubQuietly } from '@/lib/mailer';
+import { findManageableClient } from '@/lib/authz/client-access';
 
 export async function POST(
   request: NextRequest,
@@ -29,7 +30,7 @@ export async function POST(
   }
 
   await connectToDatabase();
-  const client = await Client.findOne({ client_id: clientId, owner_sub: session.sub });
+  const client = await findManageableClient(clientId, session.sub, 'publish');
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
@@ -62,7 +63,7 @@ export async function POST(
           request_id: newRequestId(),
           client_id: clientId,
           requested_by_sub: userSub,
-          owner_sub: userSub,
+          owner_sub: client.owner_sub,
           status: 'pending',
           delegated_requested: Boolean(delegatedRequested),
           justification,
