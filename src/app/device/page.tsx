@@ -8,7 +8,8 @@ import { sha256Hex } from '@/lib/crypto/hash';
 import { formatUserCode, normalizeUserCode } from '@/lib/oidc/device-code';
 import { requiresDelegated } from '@/lib/oidc/scopes';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
-import { controlStyles, labelStyles } from '@/components/ui/input';
+import { labelStyles } from '@/components/ui/input';
+import { DeviceCodeInput } from './device-code-input';
 
 export const metadata: Metadata = { title: 'Device Sign-in · PESU OAuth' };
 export const dynamic = 'force-dynamic';
@@ -28,27 +29,15 @@ function CodeForm({ error, value }: { error?: string; value?: string }) {
             Enter the code shown on your CLI or device to sign it in with your PESU account.
           </p>
         </div>
-        <form method="GET" action="/device" className="space-y-4 p-6 rounded-md bg-surface border border-line">
+        <form method="GET" action="/device" className="space-y-6 p-6 rounded-md bg-surface border border-line">
           {error ? (
             <p role="alert" className="px-3 py-2.5 rounded-[5px] border border-danger/40 bg-danger/5 text-danger text-sm">
               {error}
             </p>
           ) : null}
-          <div className="space-y-1.5">
+          <div className="space-y-3 flex flex-col items-center">
             <label htmlFor="user_code" className={labelStyles}>Device code</label>
-            <input
-              id="user_code"
-              name="user_code"
-              required
-              autoFocus
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              placeholder="XXXX-XXXX"
-              defaultValue={value}
-              maxLength={12}
-              className={`${controlStyles} font-mono text-lg tracking-[0.2em] text-center uppercase`}
-            />
+            <DeviceCodeInput defaultValue={value} hasError={Boolean(error)} />
           </div>
           <button
             type="submit"
