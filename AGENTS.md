@@ -81,6 +81,7 @@ Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/sup
 - Commits: Conventional Commits — `type: short description` (`feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`)
 - Open PRs against **`main`**
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`
+- Every PR must bump the `version` in `package.json` (`pnpm version patch|minor|major`); enforced by CI checks
 - Do not commit unless the user asks
 - **Never use git add -A or git add .** (always stage specific files)
 
@@ -109,11 +110,12 @@ Human docs: `README.md`, `.github/CONTRIBUTING.md`, `tests/README.md`, `docs/sup
 ## Definition of done
 
 1. Change fits the `src/` / `tests/` layout above
-2. `pnpm typecheck` passes with zero errors
-3. `pnpm lint` passes with zero warnings/errors
-4. `pnpm test:unit` passes
-5. `pnpm build` completes standalone compilation cleanly
-6. No secrets or unrelated files staged
+2. `package.json` version is strictly bumped higher than `origin/main`
+3. `pnpm typecheck` passes with zero errors
+4. `pnpm lint` passes with zero warnings/errors
+5. `pnpm test:unit` passes
+6. `pnpm build` completes standalone compilation cleanly
+7. No secrets or unrelated files staged
 
 ## Deploy notes (maintainers)
 

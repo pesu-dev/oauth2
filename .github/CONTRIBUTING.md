@@ -7,9 +7,10 @@ Thank you for contributing to the unofficial PESU OAuth2 authorization server.
 1. Clone the repository (or fork and clone your fork).
 2. Create a branch: `(github-username)/feature-description`.
 3. Make changes; keep commits focused and descriptive.
-4. Open a pull request against **`main`** (not a `dev` branch).
-5. Ensure CI passes (Typecheck, ESLint, Vitest, Next.js build on PRs).
-6. Address review feedback.
+4. Bump `version` in `package.json` (`pnpm version patch`, `minor`, or `major`). CI enforces that every PR strictly advances the version beyond `origin/main`.
+5. Open a pull request against **`main`** (not a `dev` branch).
+6. Ensure CI passes (Typecheck, ESLint, Vitest, Next.js build on PRs).
+7. Address review feedback.
 
 ## Development setup
 

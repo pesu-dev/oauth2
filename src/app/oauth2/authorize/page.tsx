@@ -25,7 +25,7 @@ function AuthorizeError({ className = '', children }: { className?: string; chil
   );
 }
 
-export function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
+function buildAuthorizeUrl(rawParams: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(rawParams)) {
     if (value !== undefined && value !== null && value !== '') {

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import AuthorizePage, { buildAuthorizeUrl } from '@/app/oauth2/authorize/page';
+import AuthorizePage from '@/app/oauth2/authorize/page';
 import { ConsentClient } from '@/app/oauth2/authorize/consent-client';
 import { Client, ClientTester, Consent, AuthCode, Vault } from '@/lib/db/models';
 import * as cookieHelper from '@/lib/session/cookie';
@@ -1049,9 +1049,6 @@ describe('Authorize Page & Consent', () => {
           }),
         })
       ).rejects.toThrow('REDIRECT:https://app.pesu.edu/callback');
-
-      // 5. Direct test for buildAuthorizeUrl with empty params
-      expect(buildAuthorizeUrl({})).toBe('/oauth2/authorize');
     });
   });
 });

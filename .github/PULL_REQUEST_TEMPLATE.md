@@ -31,6 +31,7 @@
 ## Checklist
 
 - [ ] Targets **`main`**
+- [ ] Bumped `version` in `package.json` (`pnpm version patch|minor|major`)
 - [ ] Follows [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - [ ] No secrets or credentials committed
 - [ ] Docs updated if behavior or setup changed

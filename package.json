@@ -1,6 +1,6 @@
 {
   "name": "pesu-oauth2",
-  "version": "1.0.0",
+  "version": "2.3.1",
   "type": "module",
   "private": true,
   "scripts": {

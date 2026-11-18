@@ -1,16 +1,12 @@
 # Scripts
 
-## `next_semver.py`
+## `check_version_bump.mjs`
 
-Prints the next `MAJOR.MINOR.PATCH` version by bumping the latest git tag that
-matches exact `vMAJOR.MINOR.PATCH` (prerelease / junk `v*` tags are skipped).
-Pass `--merged COMMIT` to ignore tags that are not ancestors of that commit.
-Used by the production promote workflow.
+Enforces that `package.json` has a strictly bumped SemVer version relative to the base branch or previous commit.
+Used by CI checks on pull requests, merge queue runs, and pushes to `main`.
 
 ```bash
-python3 scripts/next_semver.py --bump patch
-python3 scripts/next_semver.py --bump minor --merged HEAD
-python3 scripts/next_semver.py --bump major
+node scripts/check_version_bump.mjs
 ```
 
 ## `seed_admin.mjs`
